@@ -314,6 +314,10 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             link = issue_portal(conn,job_id)
             generation = conn.execute('SELECT portal_hash FROM jobs WHERE id=?',(job_id,)).fetchone()[0]
             token,csrf = new_session(conn,portal_job_id=job_id,generation=generation)
+        notify_customer(database, job_id, 'order_received', f'{f"JOB-{job_id:04d}"} received | Tampa Signs and Stickers',
+                        'Order received', 'We have your order. We will keep you updated when a proof is ready, production begins, and your order is finished.', link)
+        notify_staff(database, job_id, 'order_received', f'New order {f"JOB-{job_id:04d}"}',
+                     'New order received', 'A new customer order has been received and is ready for review.', public_url)
         return session_response({'job_id':job_id,'number':f'JOB-{job_id:04d}','portal_url':link,'csrf':csrf},token)
 
     @app.post('/api/portal/checkout')
@@ -345,8 +349,12 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 raise HTTPException(409, 'Pricing has changed. Recalculate your estimate before submitting.')
             job_id = create_job(conn, payload, source='customer', actor='Public estimate request')
             link = issue_portal(conn, job_id)
+        notify_customer(database, job_id, 'order_received', f'{f"JOB-{job_id:04d}"} received | Tampa Signs and Stickers',
+                        'Project received', 'We received your project. Our team will review the details and keep you updated as it moves forward.', link)
+        notify_staff(database, job_id, 'order_received', f'New project {f"JOB-{job_id:04d}"}',
+                     'New project received', 'A new customer project has been submitted and is ready for review.', public_url)
         return {'job_id': job_id, 'number': f'JOB-{job_id:04d}', 'portal_url': link,
-                'message': 'Request saved. The shop will review specifications, tax and delivery before publishing a final quote.'}
+                'message': 'Order received. The shop will review any custom specifications, tax and delivery before production.'}
 
     @app.post('/api/portal/exchange')
     def portal_exchange(request: Request, payload: dict = Body(...)):
