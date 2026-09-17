@@ -571,6 +571,11 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 raise HTTPException(409, 'Quote version changed. Reload.')
             conn.execute('UPDATE jobs SET published=1 WHERE id=?', (job_id,))
             audit(conn, job_id, actor(user), 'quote.published', {'version': job['quote_version']}, True)
+            quote_email_link = issue_email_portal(conn, job_id)
+            quote_number = job['number']
+            quote_version = job['quote_version']
+        notify_customer(database, job_id, f'quote_ready_{quote_version}', f'Quote ready for {quote_number} | Tampa Signs and Stickers',
+                        'Your quote is ready', 'Your project quote is ready to review in your private order page.', quote_email_link)
         return {'ok': True}
 
     @app.post('/api/staff/jobs/{job_id}/share')
@@ -584,9 +589,16 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     @app.post('/api/staff/jobs/{job_id}/message')
     def staff_message(job_id: int, request: Request, payload: dict = Body(...), user=Depends(require_staff)):
         message = text(payload.get('message', ''), 'Message', 3000, True)
+        public_message = payload.get('public') is True
         with transaction(database, True) as conn:
-            get_job(conn, job_id)
-            audit(conn, job_id, actor(user), 'shop.message', {'message': message}, payload.get('public') is True)
+            job = get_job(conn, job_id)
+            audit(conn, job_id, actor(user), 'shop.message', {'message': message}, public_message)
+            email_link = issue_email_portal(conn, job_id) if public_message else None
+            job_number = job['number']
+            message_event = secrets.token_hex(6)
+        if public_message:
+            notify_customer(database, job_id, f'shop_message_{message_event}', f'Update on {job_number} | Tampa Signs and Stickers',
+                            'You have a project update', message, email_link)
         return {'ok': True}
 
     @app.post('/api/staff/jobs/{job_id}/payment-link')
@@ -737,6 +749,11 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 raise HTTPException(409, 'Job is archived.')
             aid = save_asset(conn, uploads, job_id, raw, name, mime, suffix, 'artwork', who)
             audit(conn, job_id, who, 'artwork.uploaded', {'filename': name}, True)
+            artwork_number = job['number']
+            customer_upload = not bool(request.state.user)
+        if customer_upload:
+            notify_staff(database, job_id, f'artwork_uploaded_{aid}', f'Artwork uploaded for {artwork_number}',
+                         'Customer uploaded artwork', f'New customer artwork is attached: {name}', public_url)
         return {'ok': True, 'asset_id': aid}
 
     @app.post('/api/staff/jobs/{job_id}/proofs')
