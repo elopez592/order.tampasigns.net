@@ -25,6 +25,7 @@ from .seed import bootstrap
 from .images import sanitize, save_asset, panel_sheet, MAX_UPLOAD
 from .checkout import (StripeGateway, availability, eligible_quote, checkout_policy,
                        start_checkout, process_event, order_for_job)
+from .mailer import public_status as email_status, notify_customer, notify_staff
 import uuid
 
 COOKIE = 'signshop_session'
@@ -124,6 +125,18 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         token = secrets.token_urlsafe(32)
         conn.execute('UPDATE jobs SET portal_hash=?,portal_expires=? WHERE id=?',
                      (digest(token), time.time() + 14 * 86400, job_id))
+        return f'{public_url}/portal#token={token}'
+
+    def issue_email_portal(conn, job_id, days=14):
+        job = get_job(conn, job_id)
+        if not job['portal_hash'] or (job['portal_expires'] or 0) < time.time():
+            master = secrets.token_urlsafe(32)
+            conn.execute('UPDATE jobs SET portal_hash=?,portal_expires=? WHERE id=?',
+                         (digest(master), time.time() + 30 * 86400, job_id))
+        token = secrets.token_urlsafe(32)
+        conn.execute('DELETE FROM portal_links WHERE expires_at<?', (time.time(),))
+        conn.execute('INSERT INTO portal_links(token_hash,job_id,expires_at,created_at) VALUES(?,?,?,?)',
+                     (digest(token), job_id, time.time() + days * 86400, now()))
         return f'{public_url}/portal#token={token}'
 
     def proof_specs(job):
@@ -249,7 +262,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                     'config': {k: cfg[k] for k in ('unit','description','min_quantity','max_quantity','max_width','max_height',
                                                   'default_width','default_height','instant')}})
             return {'products': products, 'shop': {k: shop[k] for k in ('shop_name','contact_email','contact_phone','rates_live','quote_note')},
-                    'checkout': availability(shop, app.state.gateway)}
+                    'checkout': availability(shop, app.state.gateway), 'notifications': email_status()}
 
     @app.post('/api/calculate')
     def customer_calculate(request: Request, payload: dict = Body(...)):
@@ -301,6 +314,10 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             link = issue_portal(conn,job_id)
             generation = conn.execute('SELECT portal_hash FROM jobs WHERE id=?',(job_id,)).fetchone()[0]
             token,csrf = new_session(conn,portal_job_id=job_id,generation=generation)
+        notify_customer(database, job_id, 'order_received', f'JOB-{job_id:04d} received | Tampa Signs and Stickers',
+                        'Order received', 'We have your order. We will keep you updated when a proof is ready, production begins, and your order is finished.', link)
+        notify_staff(database, job_id, 'order_received', f'New order JOB-{job_id:04d}',
+                     'New order received', 'A new customer order has been received and is ready for review.', public_url)
         return session_response({'job_id':job_id,'number':f'JOB-{job_id:04d}','portal_url':link,'csrf':csrf},token)
 
     @app.post('/api/portal/checkout')
@@ -332,15 +349,23 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 raise HTTPException(409, 'Pricing has changed. Recalculate your estimate before submitting.')
             job_id = create_job(conn, payload, source='customer', actor='Public estimate request')
             link = issue_portal(conn, job_id)
+        notify_customer(database, job_id, 'order_received', f'{f"JOB-{job_id:04d}"} received | Tampa Signs and Stickers',
+                        'Project received', 'We received your project. Our team will review the details and keep you updated as it moves forward.', link)
+        notify_staff(database, job_id, 'order_received', f'New project JOB-{job_id:04d}',
+                     'New project received', 'A new customer project has been submitted and is ready for review.', public_url)
         return {'job_id': job_id, 'number': f'JOB-{job_id:04d}', 'portal_url': link,
-                'message': 'Request saved. The shop will review specifications, tax and delivery before publishing a final quote.'}
+                'message': 'Order received. The shop will review any custom specifications, tax and delivery before production.'}
 
     @app.post('/api/portal/exchange')
     def portal_exchange(request: Request, payload: dict = Body(...)):
         throttle(request, 'portal', 30, 900)
         token_value = text(payload.get('token', ''), 'Portal token', 200, True)
         with transaction(database, True) as conn:
-            job = conn.execute('SELECT * FROM jobs WHERE portal_hash=? AND portal_expires>?', (digest(token_value), time.time())).fetchone()
+            token_hash = digest(token_value)
+            job = conn.execute('SELECT * FROM jobs WHERE portal_hash=? AND portal_expires>?', (token_hash, time.time())).fetchone()
+            if not job:
+                link = conn.execute('SELECT job_id FROM portal_links WHERE token_hash=? AND expires_at>?', (token_hash, time.time())).fetchone()
+                job = get_job(conn, link['job_id']) if link else None
             if not job:
                 raise HTTPException(401, 'This private link is invalid, expired or replaced.')
             # Preserve a staff login only in this same browser for owner previews.
@@ -404,6 +429,13 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             conn.execute('UPDATE proofs SET status=? WHERE id=?', ('approved' if action_ == 'approve' else 'changes_requested', proof_id))
             audit(conn, job['id'], signer + ' (private job link)', 'proof.' + action_,
                   {'proof_version': proof['version'], 'comment': comment, 'sha256': asset['sha256']}, True)
+            decision_job_id = job['id']
+            decision_number = job['number']
+            decision_version = proof['version']
+        notify_staff(database, decision_job_id, f'proof_decision_{decision_version}_{action_}',
+                     f'Proof {action_.replace("_", " ")} for {decision_number}',
+                     'Customer proof activity',
+                     f'The customer {action_.replace("_", " ")} proof version {decision_version}.' + (f' Comment: {comment}' if comment else ''), public_url)
         return {'ok': True}
 
     @app.post('/api/portal/message')
@@ -413,6 +445,11 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         with transaction(database, True) as conn:
             job = portal_job(conn, request)
             audit(conn, job['id'], 'Customer via private job link', 'customer.message', {'message': message}, True)
+            message_job_id = job['id']
+            message_number = job['number']
+            message_event = secrets.token_hex(6)
+        notify_staff(database, message_job_id, f'customer_message_{message_event}', f'New message on {message_number}',
+                     'Customer sent a message', message, public_url)
         return {'ok': True}
 
     @app.post('/api/portal/payment-notice')
@@ -423,6 +460,10 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             job = portal_job(conn, request)
             audit(conn, job['id'], 'Customer via private job link', 'payment.customer_reported',
                   {'reference': reference, 'verified': False}, True)
+            notice_job_id = job['id']
+            notice_number = job['number']
+        notify_staff(database, notice_job_id, f'payment_notice_{digest(reference)[:12]}', f'Payment notice for {notice_number}',
+                     'Customer reported a payment', 'The customer reported a payment. Verify it in QuickBooks before changing the balance.', public_url)
         return {'ok': True, 'message': 'The shop will verify this payment in QuickBooks. The balance has not changed yet.'}
 
     @app.get('/api/staff/jobs')
@@ -530,6 +571,11 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 raise HTTPException(409, 'Quote version changed. Reload.')
             conn.execute('UPDATE jobs SET published=1 WHERE id=?', (job_id,))
             audit(conn, job_id, actor(user), 'quote.published', {'version': job['quote_version']}, True)
+            quote_email_link = issue_email_portal(conn, job_id)
+            quote_number = job['number']
+            quote_version = job['quote_version']
+        notify_customer(database, job_id, f'quote_ready_{quote_version}', f'Quote ready for {quote_number} | Tampa Signs and Stickers',
+                        'Your quote is ready', 'Your project quote is ready to review in your private order page.', quote_email_link)
         return {'ok': True}
 
     @app.post('/api/staff/jobs/{job_id}/share')
@@ -543,9 +589,16 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     @app.post('/api/staff/jobs/{job_id}/message')
     def staff_message(job_id: int, request: Request, payload: dict = Body(...), user=Depends(require_staff)):
         message = text(payload.get('message', ''), 'Message', 3000, True)
+        public_message = payload.get('public') is True
         with transaction(database, True) as conn:
-            get_job(conn, job_id)
-            audit(conn, job_id, actor(user), 'shop.message', {'message': message}, payload.get('public') is True)
+            job = get_job(conn, job_id)
+            audit(conn, job_id, actor(user), 'shop.message', {'message': message}, public_message)
+            email_link = issue_email_portal(conn, job_id) if public_message else None
+            job_number = job['number']
+            message_event = secrets.token_hex(6)
+        if public_message:
+            notify_customer(database, job_id, f'shop_message_{message_event}', f'Update on {job_number} | Tampa Signs and Stickers',
+                            'You have a project update', message, email_link)
         return {'ok': True}
 
     @app.post('/api/staff/jobs/{job_id}/payment-link')
@@ -611,6 +664,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             if not task:
                 raise HTTPException(404, 'Task not found.')
             job = get_job(conn, task['job_id'])
+            was_production = production_started(conn, job['id'])
             if job['archived'] or task['status'] == 'done':
                 raise HTTPException(409, 'Archived or completed tasks cannot be changed.')
             if task['assignee_id'] and task['assignee_id'] != user['id'] and user['role'] != 'admin':
@@ -643,6 +697,21 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                     conn.execute('UPDATE tasks SET status=?,note=?,completed_at=?,assignee_id=COALESCE(assignee_id,?) WHERE id=?',
                                  (status, note, now() if operation == 'complete' else None, user['id'], task_id))
             audit(conn, job['id'], actor(user), 'task.' + operation, {'task': task['title'], 'note': note}, False)
+            now_production = production_started(conn, job['id'])
+            finished_now = conn.execute("SELECT id FROM tasks WHERE job_id=? AND status!='done' LIMIT 1", (job['id'],)).fetchone() is None
+            milestone_link = issue_email_portal(conn, job['id']) if ((not was_production and now_production) or finished_now) else None
+            job_number = job['number']
+            milestone_job_id = job['id']
+        if not was_production and now_production:
+            notify_customer(database, milestone_job_id, 'production_started', f'{job_number} is in production | Tampa Signs and Stickers',
+                            'Your order is in production', 'Your approved order has moved into production. We will email you again when it is finished.', milestone_link)
+            notify_staff(database, milestone_job_id, 'production_started', f'{job_number} entered production',
+                         'Job entered production', 'Production has started on this job.', public_url)
+        if finished_now:
+            notify_customer(database, milestone_job_id, 'order_finished', f'{job_number} is finished | Tampa Signs and Stickers',
+                            'Your order is finished', 'Your order has been completed. Check your order page for the latest details.', milestone_link)
+            notify_staff(database, milestone_job_id, 'order_finished', f'{job_number} completed',
+                         'Job completed', 'All production tasks for this job are complete.', public_url)
         return {'ok': True}
 
     @app.post('/api/staff/jobs/{job_id}/tasks')
@@ -680,6 +749,11 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 raise HTTPException(409, 'Job is archived.')
             aid = save_asset(conn, uploads, job_id, raw, name, mime, suffix, 'artwork', who)
             audit(conn, job_id, who, 'artwork.uploaded', {'filename': name}, True)
+            artwork_number = job['number']
+            customer_upload = not bool(request.state.user)
+        if customer_upload:
+            notify_staff(database, job_id, f'artwork_uploaded_{aid}', f'Artwork uploaded for {artwork_number}',
+                         'Customer uploaded artwork', f'New customer artwork is attached: {name}', public_url)
         return {'ok': True, 'asset_id': aid}
 
     @app.post('/api/staff/jobs/{job_id}/proofs')
@@ -697,6 +771,12 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 raise HTTPException(409, 'Proof revisions after production starts require a separate change-order job.')
             aid = save_asset(conn, uploads, job_id, raw, name, mime, suffix, 'proof', actor(user))
             pid = add_proof(conn, job, aid, label, note, actor(user))
+            email_link = issue_email_portal(conn, job_id)
+            job_number = job['number']
+        notify_customer(database, job_id, f'proof_pending_{pid}', f'Proof ready for {job_number} | Tampa Signs and Stickers',
+                        'Your proof is ready', 'A new proof is waiting for your review. Please check the artwork carefully and approve it or request changes.', email_link)
+        notify_staff(database, job_id, f'proof_pending_{pid}', f'Proof pending for {job_number}',
+                     'Proof sent for approval', 'The current proof is now waiting for customer review.', public_url)
         return {'ok': True, 'proof_id': pid}
 
     @app.post('/api/staff/jobs/{job_id}/layout')
@@ -718,9 +798,16 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             raw = panel_sheet(conn, uploads, job, mappings, payload.get('fit', 'contain'))
             aid = save_asset(conn, uploads, job_id, raw, job['number'] + '-layout.png', 'image/png', '.png', 'proof' if is_proof else 'layout', actor(user))
             if is_proof:
-                add_proof(conn, job, aid, 'Generated panel proof', 'Review every item. This is a dimensioned design preview, not a full-size production file.', actor(user))
+                pid = add_proof(conn, job, aid, 'Generated panel proof', 'Review every item. This is a dimensioned design preview, not a full-size production file.', actor(user))
+                email_link = issue_email_portal(conn, job_id)
+                job_number = job['number']
             else:
                 audit(conn, job_id, actor(user), 'layout.generated', {'asset_id': aid, 'approval_eligible': False})
+        if is_proof:
+            notify_customer(database, job_id, f'proof_pending_{pid}', f'Proof ready for {job_number} | Tampa Signs and Stickers',
+                            'Your proof is ready', 'A new proof is waiting for your review. Please check the artwork carefully and approve it or request changes.', email_link)
+            notify_staff(database, job_id, f'proof_pending_{pid}', f'Proof pending for {job_number}',
+                         'Proof sent for approval', 'The current proof is now waiting for customer review.', public_url)
         return {'ok': True, 'asset_id': aid}
 
     @app.get('/api/assets/{asset_id}')

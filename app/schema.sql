@@ -112,3 +112,26 @@ CREATE TABLE IF NOT EXISTS payment_adjustments (
 );
 CREATE INDEX IF NOT EXISTS checkout_order_sessions ON checkout_sessions(order_id);
 CREATE INDEX IF NOT EXISTS online_payments_job ON online_payments(job_id);
+
+
+-- Version 3: transactional email delivery log and non-rotating email portal links.
+CREATE TABLE IF NOT EXISTS email_notifications (
+ id INTEGER PRIMARY KEY,
+ job_id INTEGER NOT NULL REFERENCES jobs(id),
+ event_key TEXT NOT NULL,
+ recipient TEXT NOT NULL,
+ audience TEXT NOT NULL CHECK(audience IN ('customer','staff')),
+ status TEXT NOT NULL CHECK(status IN ('sent','failed')),
+ error TEXT NOT NULL DEFAULT '',
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
+ UNIQUE(job_id,event_key,recipient)
+);
+CREATE TABLE IF NOT EXISTS portal_links (
+ token_hash TEXT PRIMARY KEY,
+ job_id INTEGER NOT NULL REFERENCES jobs(id),
+ expires_at REAL NOT NULL,
+ created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS email_notifications_job ON email_notifications(job_id,id);
+CREATE INDEX IF NOT EXISTS portal_links_expiry ON portal_links(expires_at);
