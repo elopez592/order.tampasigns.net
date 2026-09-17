@@ -429,6 +429,13 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             conn.execute('UPDATE proofs SET status=? WHERE id=?', ('approved' if action_ == 'approve' else 'changes_requested', proof_id))
             audit(conn, job['id'], signer + ' (private job link)', 'proof.' + action_,
                   {'proof_version': proof['version'], 'comment': comment, 'sha256': asset['sha256']}, True)
+            decision_job_id = job['id']
+            decision_number = job['number']
+            decision_version = proof['version']
+        notify_staff(database, decision_job_id, f'proof_decision_{decision_version}_{action_}',
+                     f'Proof {action_.replace("_", " ")} for {decision_number}',
+                     'Customer proof activity',
+                     f'The customer {action_.replace("_", " ")} proof version {decision_version}.' + (f' Comment: {comment}' if comment else ''), public_url)
         return {'ok': True}
 
     @app.post('/api/portal/message')
@@ -438,6 +445,11 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         with transaction(database, True) as conn:
             job = portal_job(conn, request)
             audit(conn, job['id'], 'Customer via private job link', 'customer.message', {'message': message}, True)
+            message_job_id = job['id']
+            message_number = job['number']
+            message_event = secrets.token_hex(6)
+        notify_staff(database, message_job_id, f'customer_message_{message_event}', f'New message on {message_number}',
+                     'Customer sent a message', message, public_url)
         return {'ok': True}
 
     @app.post('/api/portal/payment-notice')
@@ -448,6 +460,10 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             job = portal_job(conn, request)
             audit(conn, job['id'], 'Customer via private job link', 'payment.customer_reported',
                   {'reference': reference, 'verified': False}, True)
+            notice_job_id = job['id']
+            notice_number = job['number']
+        notify_staff(database, notice_job_id, f'payment_notice_{digest(reference)[:12]}', f'Payment notice for {notice_number}',
+                     'Customer reported a payment', 'The customer reported a payment. Verify it in QuickBooks before changing the balance.', public_url)
         return {'ok': True, 'message': 'The shop will verify this payment in QuickBooks. The balance has not changed yet.'}
 
     @app.get('/api/staff/jobs')
