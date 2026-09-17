@@ -72,19 +72,33 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
 
             lname = (old['name'] + ' ' + old['category']).lower()
             # Public benchmark profile: Sticker Mule-style 3x3 quantity anchors.
+            if 'die-cut sticker' in lname and len(cfg.get('quantity_price_table', [])) == 5 and [r.get('quantity') for r in cfg.get('quantity_price_table', [])] == [50,100,200,500,1000]:
+                cfg['quantity_price_table'] = [
+                    {'quantity': 50, 'total': '60'}, {'quantity': 100, 'total': '73'},
+                    {'quantity': 200, 'total': '95'}, {'quantity': 300, 'total': '115'},
+                    {'quantity': 500, 'total': '152'}, {'quantity': 1000, 'total': '232'},
+                    {'quantity': 2000, 'total': '371'}, {'quantity': 3000, 'total': '496'},
+                    {'quantity': 5000, 'total': '723'}, {'quantity': 10000, 'total': '1225'}
+                ]
+                cfg['lamination_options'] = [
+                    {'id':'standard_matte','label':'Standard matte finish (included)','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
+                    {'id':'gloss_laminate','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'0','default':False}
+                ]
             if 'die-cut sticker' in lname and not cfg.get('quantity_price_table'):
                 cfg['quantity_price_table'] = [
                     {'quantity': 50, 'total': '60'}, {'quantity': 100, 'total': '73'},
-                    {'quantity': 200, 'total': '95'}, {'quantity': 500, 'total': '152'},
-                    {'quantity': 1000, 'total': '232'}
+                    {'quantity': 200, 'total': '95'}, {'quantity': 300, 'total': '115'},
+                    {'quantity': 500, 'total': '152'}, {'quantity': 1000, 'total': '232'},
+                    {'quantity': 2000, 'total': '371'}, {'quantity': 3000, 'total': '496'},
+                    {'quantity': 5000, 'total': '723'}, {'quantity': 10000, 'total': '1225'}
                 ]
                 cfg['price_table_base_width'] = '3'
                 cfg['price_table_base_height'] = '3'
                 cfg['price_table_size_weight'] = '0.45'
                 cfg['minimum_price'] = '60'
                 cfg['lamination_options'] = [
-                    {'id':'standard_gloss','label':'Standard gloss protection (included)','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
-                    {'id':'matte','label':'Matte laminate','sell_per_sqft':'0.5','cost_per_sqft':'0.2','default':False}
+                    {'id':'standard_matte','label':'Standard matte finish (included)','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
+                    {'id':'gloss_laminate','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'0','default':False}
                 ]
 
             # Common large-format laminate add-ons, based on public trade-shop finishing rates.
@@ -162,12 +176,14 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     'installation_setup_minutes': '60' if 'vehicle wrap' in name.lower() else '0',
                     'quantity_price_table': [
                         {'quantity':50,'total':'60'},{'quantity':100,'total':'73'},{'quantity':200,'total':'95'},
-                        {'quantity':500,'total':'152'},{'quantity':1000,'total':'232'}
+                        {'quantity':300,'total':'115'},{'quantity':500,'total':'152'},{'quantity':1000,'total':'232'},
+                        {'quantity':2000,'total':'371'},{'quantity':3000,'total':'496'},
+                        {'quantity':5000,'total':'723'},{'quantity':10000,'total':'1225'}
                     ] if 'die-cut sticker' in name.lower() else [],
                     'price_table_base_width': '3', 'price_table_base_height': '3', 'price_table_size_weight': '0.45',
                     'lamination_options': (
-                        [{'id':'standard_gloss','label':'Standard gloss protection (included)','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
-                         {'id':'matte','label':'Matte laminate','sell_per_sqft':'0.5','cost_per_sqft':'0.2','default':False}]
+                        [{'id':'standard_matte','label':'Standard matte finish (included)','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
+                         {'id':'gloss_laminate','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'0','default':False}]
                         if 'die-cut sticker' in name.lower() else
                         [{'id':'cast_gloss','label':'Cast gloss laminate (included)','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
                          {'id':'cast_matte','label':'Cast matte laminate (included)','sell_per_sqft':'0','cost_per_sqft':'0','default':False}]
