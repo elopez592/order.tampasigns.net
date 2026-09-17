@@ -1,0 +1,116 @@
+/* Tampa Signs storefront polish. Scoped to public ordering and its dialog. */
+.public-header{max-width:1440px;padding-left:32px;padding-right:32px}
+@media(max-width:700px){.public-header{padding-left:18px;padding-right:18px}}
+.storefront{max-width:1440px;padding:34px 32px 20px}
+.storefront .hero{padding:0;margin-bottom:34px;gap:32px;align-items:center}
+.storefront .hero h1{font-size:clamp(42px,4.5vw,60px);line-height:1.02;letter-spacing:-2.8px;margin:16px 0}
+.storefront .hero p{font-size:15px;line-height:1.65;max-width:640px;color:var(--muted);margin-top:0}
+.storefront .hero .eyebrow{font-size:10px;letter-spacing:1.9px}
+.storefront .hero-stamp{margin:0 20px 0 0;transform:rotate(5deg);box-shadow:5px 6px 0 var(--brand-orange)}
+.storefront .public-grid{display:grid;grid-template-columns:222px minmax(0,1fr) 314px;gap:24px;align-items:start}
+.storefront .product-rail{padding:0;min-width:0;position:sticky;top:24px}
+.storefront .rail-heading{padding:4px 10px 20px}
+.storefront .rail-heading h2{font-size:16px;letter-spacing:-.3px;margin-top:6px}
+.storefront .rail-heading .eyebrow{font-size:9px;letter-spacing:1.7px;color:var(--accent)}
+.storefront .product-options{display:grid;gap:6px}
+.storefront .product-option{display:flex;align-items:center;gap:12px;position:relative;width:100%;margin:0;padding:12px 10px;text-align:left;font-size:13px;font-weight:550;line-height:1.35;border:1px solid transparent;border-radius:13px;color:#516969;background:transparent;transition:background .15s,border-color .15s,color .15s}
+.storefront .product-option:hover{background:#e8f3f0;color:var(--ink)}
+.storefront .product-option.active{background:white;border-color:#a6d5cf;color:var(--ink);box-shadow:0 4px 16px #173d3907}
+.storefront .product-symbol{display:grid;place-items:center;width:39px;height:39px;border-radius:11px;flex:none;background:#e6efec;color:#517574;transition:background .15s,color .15s}
+.storefront .product-symbol .icon{width:24px;height:24px;stroke-width:1.45}
+.storefront .active .product-symbol{background:#0d2829;color:#58d7cf}
+.storefront .product-option-name{flex:1;min-width:0;overflow-wrap:anywhere}
+.storefront .selection-dot{width:6px;height:6px;border-radius:50%;background:transparent;flex:none}
+.storefront .active .selection-dot{background:var(--brand-orange)}
+.storefront .panel{border-radius:20px;border-color:#dce9e5;box-shadow:0 6px 24px #12302c04;padding:24px;min-width:0}
+.storefront .product-preview{height:198px;position:relative;isolation:isolate;display:flex;align-items:center;justify-content:center;margin-bottom:24px;border-radius:13px;overflow:hidden;background:radial-gradient(ellipse at 100% 0%,#54d5cd66,transparent 60%),linear-gradient(135deg,#13b5b6,#0b8d91)}
+.storefront .preview-kind{position:absolute;top:13px;left:15px;display:flex;align-items:center;gap:7px;font-size:10px;font-weight:650;color:#073c3e;letter-spacing:.1px}
+.storefront .preview-kind .icon{width:17px;height:17px}
+.storefront .preview-shape{width:66%;max-width:270px;height:112px;padding:15px 20px;background:white;border:0;border-radius:15px;transform:rotate(-6deg);box-shadow:6px 7px 0 #0652575c;display:grid;place-items:center;margin:8px 0 0}
+.storefront .preview-shape img{width:100%;height:100%;max-height:78px;object-fit:contain;display:block}
+.storefront .preview-label{position:absolute;left:15px;bottom:13px;font-size:8px;letter-spacing:.8px;color:#06383a;max-width:72%}
+.storefront .preview-caption{position:absolute;right:13px;bottom:13px;font-size:8px;color:#073c3e}
+.storefront .preview-labels .preview-shape{border-radius:5px;transform:rotate(-5deg);box-shadow:5px 5px 0 #e2f3f1,9px 10px 0 #0652575c}
+.storefront .preview-magnet .preview-shape{border-radius:50%;height:132px;width:180px}
+.storefront .preview-banner .preview-shape{width:82%;max-width:360px;height:95px;border-radius:3px;transform:rotate(-3deg)}
+.storefront .preview-sign .preview-shape,.storefront .preview-yard .preview-shape{border-radius:3px;transform:rotate(-4deg)}
+.storefront .preview-window .preview-shape{border-radius:1px;border:6px solid #153535;padding:12px;background:#eefafa;transform:rotate(-3deg)}
+.storefront .preview-acrylic .preview-shape{border:4px solid #d7faf3;border-radius:3px;box-shadow:8px 8px 0 #0652575c}
+.storefront .preview-film .preview-shape{border-radius:24px 4px 4px 24px}
+.storefront .preview-van .preview-shape{width:80%;max-width:315px;border-radius:8px 32px 5px 5px;height:100px;transform:rotate(-3deg)}
+.storefront .product-intro{margin-bottom:24px}
+.storefront .product-intro .eyebrow{font-size:9px;letter-spacing:1.6px;color:var(--accent);margin-bottom:6px}
+.storefront .product-intro h2{font-size:27px;letter-spacing:-.75px;line-height:1.2}
+.storefront .product-description{font-size:13px;line-height:1.65;color:var(--muted);margin-top:9px}
+.storefront .product-spec{display:inline-block;font-size:10px;color:#4c6664;background:#eff5f3;border:1px solid #e3eeea;border-radius:5px;padding:3px 7px;margin-top:10px}
+.storefront .config-step{padding-top:22px;margin-top:22px;border-top:1px solid #e4edeb}
+.storefront .step-heading{display:flex;align-items:center;gap:10px;margin-bottom:17px}
+.storefront .step-heading h3{font-size:15px;letter-spacing:-.15px}
+.storefront .step-number{width:25px;height:25px;flex:none;margin:0;background:#e6f4f0;color:#126c65;font-size:11px}
+.storefront .unit-label{margin-left:auto;font-size:11px;color:var(--muted)}
+.storefront .field>span{font-size:12px;font-weight:600;color:#455f5d}
+.storefront input{border-radius:9px;border:1px solid #ccddd8;background:#fcfefd;min-height:46px;font-size:14px;line-height:1.4;color:var(--ink)}
+.storefront input:hover{border-color:#8dbdb5}
+.storefront input:focus{border-color:var(--accent);box-shadow:0 0 0 3px #0c959118}
+.storefront .quantity-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.storefront .quantity-btn{border-radius:9px;min-height:43px;font-size:13px;border:1px solid #d9e6e2;background:white;font-weight:650}
+.storefront .quantity-btn:hover{border-color:#83beb4;background:#f2faf7}
+.storefront .quantity-btn.active{background:#0d2223;color:white;border-color:#0d2223;box-shadow:inset 0 -3px 0 var(--brand-orange)}
+.storefront .custom-quantity{margin-top:17px}
+.storefront .artwork-note{display:flex;align-items:flex-start;gap:12px;margin-top:23px;padding:16px;background:#f1f8f5;border-radius:11px;border:1px solid #e4efeb}
+.storefront .artwork-note>.icon{color:var(--accent);width:21px;height:21px;margin-top:3px}
+.storefront .artwork-note p{font-size:11px;line-height:1.65;color:#54716b}
+.storefront .artwork-note strong{color:#244841;display:block;font-size:12px;margin-bottom:2px}
+.storefront .estimate-card{padding:20px;position:sticky;top:24px}
+.storefront .estimate-head{padding:23px 20px 21px;border-radius:13px;margin:0;border-top:3px solid #16b2b4;background:#0b1415}
+.storefront .estimate-head .eyebrow{font-size:10px;letter-spacing:1.65px}
+.storefront .estimate-head .metric{font-size:clamp(31px,3.2vw,43px);font-variant-numeric:tabular-nums;letter-spacing:-1.8px;line-height:1.2;margin:13px 0 7px;overflow-wrap:anywhere}
+.storefront .estimate-head small{font-size:12px;color:#b2cac6}
+.storefront .estimate-product{display:flex;align-items:center;gap:9px;padding:22px 0 14px;color:#244c46}
+.storefront .estimate-product .icon{width:20px;height:20px;color:var(--accent)}
+.storefront .estimate-product strong{font-size:12px;font-weight:650;overflow-wrap:anywhere}
+.storefront #estimate-details{padding:0 0 16px}
+.storefront .line-total{padding:8px 0;display:flex;justify-content:space-between;gap:14px;font-size:12px;color:#59716c}
+.storefront .line-total strong{color:var(--ink);font-variant-numeric:tabular-nums;text-align:right}
+.storefront .quote-tag{display:flex;align-items:center;gap:7px;font-size:10px;color:#7d441d;background:#fff5ec;padding:8px 10px;border-radius:6px;margin-top:8px}
+.storefront #continue-btn{min-height:49px;border-radius:10px;font-size:14px;justify-content:space-between;padding:13px 17px;box-shadow:0 4px 10px #087f8114;white-space:normal}
+.storefront #continue-btn:not(:disabled):hover{background:#076d6c;filter:none;transform:translateY(-1px)}
+.storefront .order-guidance{font-size:11px;line-height:1.6;color:#5c716c;margin-top:12px}
+.storefront .summary-benefits{border-top:1px solid #e5eeeb;margin-top:20px;padding-top:18px;display:grid;gap:15px}
+.storefront .benefit{display:flex;align-items:flex-start;gap:10px;margin:0}
+.storefront .benefit>.icon{color:var(--accent);background:#edf7f2;width:26px;height:26px;padding:5px;border-radius:7px;flex:none}
+.storefront .benefit strong{display:block;font-size:11px;color:#344f48;font-weight:650}
+.storefront .benefit small{display:block;font-size:10px;color:#678077;margin-top:2px;line-height:1.6}
+.storefront .order-notes{margin-top:21px;border-top:1px solid #e5eeeb;padding-top:15px;color:#5b726d;font-size:11px}
+.storefront .order-notes summary{cursor:pointer;font-weight:600;color:#42635a}
+.storefront .order-notes p{margin-top:9px;line-height:1.7;overflow-wrap:anywhere}
+.storefront .checkout-test-note{margin-top:12px;padding:9px;font-size:11px;border:1px solid #f1d8bb;border-radius:7px;background:#fff6ec;color:#754214}
+.storefront .public-footer{margin-top:36px;padding-top:22px;gap:20px;border-top:1px solid #dae8e3;font-size:11px;line-height:1.7;flex-wrap:wrap;overflow-wrap:anywhere}
+.storefront button:focus-visible,.storefront input:focus-visible,.storefront summary:focus-visible{outline:3px solid #ea8538;outline-offset:3px}
+.order-dialog{width:630px;max-width:calc(100vw - 24px);border-radius:18px}
+.order-dialog .modal-head{border-bottom:1px solid #e1ebe7;padding:22px 26px}
+.order-dialog .modal-head h2{font-size:23px;letter-spacing:-.6px}
+.order-dialog .modal-body{padding:24px 26px}
+.order-dialog .order-modal-summary{display:flex;align-items:center;gap:13px;border:1px solid #deebe5;border-radius:12px;background:#f4faf7;padding:16px;min-width:0}
+.order-dialog .order-modal-icon{width:42px;height:42px;border-radius:10px;background:#123737;color:#6de1d2;display:grid;place-items:center;flex:none}
+.order-dialog .order-modal-icon .icon{width:27px;height:27px}
+.order-dialog .order-modal-summary strong{font-size:13px;overflow-wrap:anywhere}
+.order-dialog .order-modal-summary p{font-size:11px;color:#66796f;margin-top:5px}
+.order-dialog .order-modal-summary p span{padding:0 5px;color:#b1c7be}
+.order-dialog .order-modal-summary .order-modal-price{font-size:19px;letter-spacing:-.4px;white-space:nowrap}
+.order-dialog .order-modal-guidance,.order-confirmation-note{font-size:12px;line-height:1.7;color:#577065}
+.order-dialog .field>span{font-size:12px}
+.order-dialog input,.order-dialog select{min-height:44px;border-radius:8px}
+.order-dialog .upload-field{border:1px dashed #96bdb1;border-radius:10px;background:#f8fcfa;padding:16px}
+.order-dialog .upload-field>span{display:flex;align-items:center;gap:8px;color:#356e60}
+.order-dialog .upload-field input{font-size:11px;background:transparent;border:0;padding:8px 0;max-width:100%;min-width:0}
+.order-dialog .upload-field small{font-size:10px;color:#698277}
+.order-dialog .modal-footer .btn{min-height:44px;font-size:13px;padding:11px 18px}
+@media(min-width:1600px){.storefront{padding-top:42px}.storefront .hero{margin-bottom:38px}}
+@media(max-width:1200px){.storefront{padding:28px 24px 20px}.storefront .public-grid{grid-template-columns:190px minmax(0,1fr) 274px;gap:18px}.storefront .panel{padding:20px}.storefront .estimate-card{padding:16px}.storefront .estimate-head{padding:20px 16px}.storefront .product-option{font-size:12px;gap:9px}.storefront .product-symbol{width:34px;height:34px}.storefront .hero h1{font-size:51px}}
+@media(max-width:1000px){.storefront .public-grid{grid-template-columns:minmax(0,1fr) 290px;gap:20px}.storefront .product-rail{grid-column:1/-1;position:static;display:block;overflow:visible;padding:0}.storefront .rail-heading{padding:0 0 12px}.storefront .rail-heading h2{font-size:17px}.storefront .product-options{display:flex;overflow-x:auto;padding:2px 3px 10px;gap:9px;scrollbar-width:thin;scrollbar-color:#bfd5ca transparent}.storefront .product-option{width:auto;flex:0 0 auto;padding:10px 12px;white-space:nowrap;background:#edf5f1;border-color:#dfebe5;font-size:12px}.storefront .product-option-name{overflow-wrap:normal}.storefront .product-symbol{width:30px;height:30px;border-radius:8px}.storefront .product-symbol .icon{width:21px;height:21px}.storefront .selection-dot{display:none}.storefront .estimate-card{top:18px}}
+@media(max-width:700px){.storefront{padding:24px 16px 16px}.storefront .hero{margin-bottom:25px}.storefront .hero h1{font-size:44px;letter-spacing:-2.1px;margin:13px 0}.storefront .hero .eyebrow{font-size:8px;letter-spacing:1.3px}.storefront .hero p{font-size:13px;line-height:1.65}.storefront .public-grid{grid-template-columns:minmax(0,1fr);gap:18px}.storefront .panel{padding:19px;border-radius:17px}.storefront .estimate-card{position:static}.storefront .product-preview{height:182px;margin-bottom:23px}.storefront .product-intro h2{font-size:26px}.storefront .product-description{font-size:12px}.storefront .estimate-head .metric{font-size:44px}.storefront .estimate-head{padding:24px}.storefront .summary-benefits{grid-template-columns:1fr;gap:16px}.storefront .benefit strong{font-size:12px}.storefront .benefit small{font-size:11px}.storefront .public-footer{margin-top:28px;font-size:11px}.order-dialog .modal-head,.order-dialog .modal-body{padding:19px}.order-dialog .order-modal-summary{gap:9px;padding:12px}.order-dialog .order-modal-summary .order-modal-price{font-size:16px}.order-dialog .order-modal-icon{width:34px;height:34px}.order-dialog .order-modal-icon .icon{width:22px;height:22px}.order-dialog input,.order-dialog select,.order-dialog textarea{font-size:16px}.storefront input{font-size:16px}}
+@media(max-width:380px){.storefront{padding-left:12px;padding-right:12px}.storefront .panel{padding:15px}.storefront .hero h1{font-size:40px}.storefront .preview-shape{width:70%;height:100px}.storefront .preview-label{font-size:7px;letter-spacing:.4px}.storefront .preview-caption{font-size:7px}.order-dialog .fields{grid-template-columns:1fr}.order-dialog .order-modal-summary{flex-wrap:wrap}}
+@media(prefers-reduced-motion:reduce){.storefront *,.order-dialog *{transition:none!important;scroll-behavior:auto!important}.storefront .btn:hover{transform:none}}
+@media print{.storefront .product-rail,.storefront .hero,.storefront .summary-benefits,.storefront .order-guidance{display:none}.storefront .public-grid{display:block}.storefront .estimate-card{position:static}.storefront .panel{border:0;box-shadow:none}}
+.order-dialog input::file-selector-button{border:1px solid #c1d8ce;border-radius:7px;background:#edf6f2;padding:8px 12px;color:#214c3f;font:inherit;font-weight:600;cursor:pointer;margin-right:10px}

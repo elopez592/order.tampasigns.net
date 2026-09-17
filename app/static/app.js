@@ -47,7 +47,7 @@ async function api(path,method='GET',body){
   return data;
 }
 function toast(message,error=false){const box=$('#toast');box.textContent=message;box.className='visible'+(error?' error':'');clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>box.className='',4500);}
-function showModal(title,body,wide=false){modal.classList.toggle('wide',wide);$('#modal-content').innerHTML=`<div class="modal-head"><h2>${esc(title)}</h2><button class="close-btn" data-action="close" aria-label="Close dialog">&times;</button></div><div class="modal-body">${body}</div>`;if(!modal.open)modal.showModal();}
+function showModal(title,body,wide=false){modal.classList.remove('order-dialog');modal.classList.toggle('wide',wide);$('#modal-content').innerHTML=`<div class="modal-head"><h2 id="modal-title">${esc(title)}</h2><button class="close-btn" data-action="close" aria-label="Close dialog">&times;</button></div><div class="modal-body">${body}</div>`;if(!modal.open)modal.showModal();}
 function closeModal(){modal.close();}
 function publicHeader(){return `<div class="public-masthead"><header class="public-header">${brand()}<nav class="nav-links" aria-label="Customer navigation"><a href="/">Products & pricing</a><a href="/portal">Your order</a></nav></header></div>`;}
 function loading(){app.innerHTML='<div class="initial-loading"><img src="/static/brand/tampa-black.png" class="loading-logo" alt="Tampa Signs and Stickers"><p class="muted">Loading...</p></div>';}
@@ -78,45 +78,119 @@ function staffShell(content,active='dashboard',heading='Shop workspace'){
 }
 function pricingNotice(){return `<div class="notice">Example rates are loaded for testing. Replace material costs, labor allowances and selling prices before using this with real customers. Existing job prices are saved as snapshots.</div>`;}
 
+/* Public presentation only. Catalog records, saved quotes and pricing remain unchanged. */
+Object.assign(paths, {
+ sticker:'M14 3H6a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h8l7-7V6a3 3 0 0 0-3-3h-4 M14 21v-4a3 3 0 0 1 3-3h4 M7 8h9 M7 12h5',
+ labels:'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z M7 7h3v3H7z M14 7h3v3h-3z M7 14h3v3H7z M14 14h3v3h-3z',
+ magnet:'M4 4h5v9a3 3 0 0 0 6 0V4h5v9a8 8 0 0 1-16 0V4z M4 8h5 M15 8h5',
+ banner:'M3 5h18v14H3z M6 8h.01 M18 8h.01 M6 16h.01 M18 16h.01 M7 11h10 M9 14h6 M3 5 1 3 M21 5l2-2 M3 19l-2 2 M21 19l2 2',
+ sign:'M3 4h18v13H3z M7 8h10 M7 12h6 M7 17v4 M17 17v4',
+ yard:'M3 3h18v12H3z M8 15v7 M16 15v7 M8 19h8 M7 7h10 M9 10h6',
+ window:'M3 3h18v18H3z M12 3v18 M3 12h18 M6 6h3 M15 16l3-3',
+ acrylic:'M3 4h15v14H3z M7 18v3h14V7h-3 M6 8h9 M6 12h6',
+ film:'M7 3h11a3 3 0 0 1 3 3v12a3 3 0 0 0-3-3H7 M7 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h11a3 3 0 0 0 0-6H7 M4 6a3 3 0 0 0 3 3h14 M10 12h7',
+ van:'M3 5h11v12H3z M14 9h4l3 4v4h-7 M17 10v3h4 M7 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6 M17 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6 M6 9h5',
+});
+// Exact aliases tidy the original starter names, without overriding later owner edits.
+const storefrontAliases = {
+ 'roll / sheet labels':'Labels', 'custom magnets':'Magnets', 'vinyl banner':'Banner',
+ 'acm sign - single sided':'ACM sign', 'yard sign - single sided':'Yard signs',
+ 'storefront perforated graphics':'Window graphics', 'acrylic sign face replacement':'Acrylic sign faces',
+ 'cast wrap film - print and laminate':'Wrap printing', 'vehicle wrap - installed estimate':'Vehicle wraps',
+};
+function storefrontName(product){
+ const name=String(product?.name||'Custom print');
+ return storefrontAliases[name.toLowerCase()]||name;
+}
+function storefrontIcon(product){
+ const name=String(product?.name||'').toLowerCase(), category=String(product?.category||'').toLowerCase();
+ if(name.includes('acrylic'))return 'acrylic';
+ if(name.includes('yard'))return 'yard';
+ if(name.includes('vehicle')||category==='wraps')return 'van';
+ if(name.includes('wrap')||category.includes('wrap'))return 'film';
+ if(name.includes('window')||name.includes('perforated')||category==='windows')return 'window';
+ if(name.includes('sticker')||category==='stickers')return 'sticker';
+ if(name.includes('label')||category==='labels')return 'labels';
+ if(name.includes('magnet')||category==='magnets')return 'magnet';
+ if(name.includes('banner')||category==='banners')return 'banner';
+ return 'sign';
+}
+function storefrontDescription(product){
+ const cfg=product.config||{};
+ // Only replace untouched sample copy. Keep all owner-authored specifications.
+ const replacements={
+ 'Printed vinyl stickers with laminate. One design per line.':'Printed vinyl stickers with laminate. Your artwork, in your chosen size.',
+ 'Example label configuration; confirm roll direction and packaging.':'Custom printed labels for your products and packaging. Format and finishing confirmed before production.',
+ 'Printed magnetic stock. Thickness and suitability require confirmation.':'Your design on printed magnetic stock. Material and suitability confirmed before production.',
+ 'Budget allowance for printed, laminated and installed perf. Verify approved film/laminate and site access.':'Printed, laminated window graphics with installation. We will review your measurements and site access.',
+ 'Review thickness, full-sheet purchase, print type, retainers and installation labor.':'A replacement acrylic sign face, made for your sign. Materials, fit and installation quoted by our team.',
+ 'Print-only example rate, not installed. Confirm film and laminate selection.':'Printed and laminated wrap panels. Material selection confirmed with your quote. Installation not included.',
+ 'Budget estimate only. Vehicle, coverage, removal, condition and installation must be reviewed.':'A wrap made for your vehicle and brand. Coverage, vehicle condition and installation quoted by our team.',
+ };
+ return replacements[cfg.description]||cfg.description||'Custom print, made with your artwork.';
+}
+function storefrontNeedsQuote(quote){
+ // Per-line review flags come from the server. The aggregate also includes demo-rate review.
+ return !!quote?.lines?.some(line=>line.review_required);
+}
+function storefrontPreview(product){
+ const kind=storefrontIcon(product);
+ return `<div class="product-preview preview-${kind}" aria-label="Illustrative artwork preview"><span class="preview-kind">${icon(kind)}<span>Made with your design</span></span><div class="preview-shape"><img src="/static/brand/tampa-black.png" alt="Tampa Signs and Stickers example artwork"></div><span class="preview-label">Your artwork. Your size. Your style.</span><span class="preview-caption">Illustration only</span></div>`;
+}
 /* Customer-facing estimator */
 async function calculatorView(){
-  if(!state.catalog)state.catalog=await api('/api/catalog');
-  const products=state.catalog.products;
-  const product=products.find(p=>p.id===state.selectedProduct)||products[0];
-  if(!product){app.innerHTML=publicHeader()+'<main class="public-page"><div class="empty">No public products are available yet. Please contact the shop.</div></main>';return;}
-  state.selectedProduct=product.id;
-  const cfg=product.config;
-  const quantities=cfg.unit==='piece'?[50,100,250,500,1000,2500]:[1,2,5,10,25,50];
-  const qty=Math.max(Number(cfg.min_quantity),cfg.unit==='piece'?50:1);
-  app.innerHTML=publicHeader()+`<main class="public-page"><section class="hero"><div><div class="eyebrow">${esc(state.catalog.shop.shop_name)} / SIGNS / STICKERS / WRAPS</div><h1>Big ideas.<br><em>Made to stick.</em></h1><p>Choose your size. Get your price. Make it yours. Order standard prints online, or let us quote your next wrap or installation.</p></div><div class="hero-stamp">CUSTOM PRINT.<br>TAMPA SPIRIT.<span>YOUR BRAND.</span></div></section>${!state.catalog.shop.rates_live?'<div class="notice mb">Pricing preview: these are editable demonstration rates, not a live offer. Your final quote will be confirmed by the shop.</div>':state.catalog.checkout?.test_mode?'<div class="notice mb">Test storefront: sample pricing and test payments only. No live customer charges.</div>':''}<section class="public-grid"><aside class="product-rail"><div class="eyebrow mb" style="padding-left:12px">CHOOSE YOUR PRODUCT</div>${products.map((p,i)=>`<button class="product-option ${p.id===product.id?'active':''}" data-action="choose-product" data-id="${p.id}"><span class="product-symbol">${['S','L','M','B','A','Y','W','F','P','V'][i]||'P'}</span><span>${esc(p.name)}</span></button>`).join('')}</aside><section class="panel"><div class="product-preview"><div class="preview-shape"><img src="/static/brand/tampa-black.png" alt="Tampa Signs and Stickers sample print"></div><span class="preview-label">Your artwork. Your size. Your style.</span></div><h2>${esc(product.name)}</h2><p class="muted mt-sm" style="font-size:12px">${esc(cfg.description)}</p><div class="divider"></div><form id="calculator" data-form="calculator"><div class="row mb"><span class="step-number">1</span><h3>Set your size</h3>${badge('Inches')}</div><div class="fields">${input('width','Width',cfg.default_width,'number','min="0.1" max="10000" step="0.01" required')}${input('height','Height',cfg.default_height,'number','min="0.1" max="10000" step="0.01" required')}</div><div class="row mt mb"><span class="step-number">2</span><h3>Choose quantity</h3></div><div class="quantity-grid">${quantities.filter(q=>q>=Number(cfg.min_quantity)&&q<=Number(cfg.max_quantity)).map(q=>`<button type="button" class="quantity-btn ${q===qty?'active':''}" data-action="quantity" data-value="${q}">${num(q)}</button>`).join('')}</div><div class="mt-sm">${input('quantity','Custom quantity',qty,'number',`min="${cfg.min_quantity}" max="${cfg.max_quantity}" step="1" required`)}</div><div id="calc-feedback" class="form-error"></div></form><p class="field-hint mt">One design per order. Wraps, installation and sizes outside the listed limits need a custom quote.</p></section><aside class="panel estimate-card"><div class="estimate-head"><div class="eyebrow" id="estimate-heading">YOUR PRICE</div><div class="metric large" id="estimate-total">...</div><small id="estimate-unit">Calculating your project</small></div><div class="mt" id="estimate-details"></div><button class="btn primary wide mt" data-action="request-order" id="continue-btn" disabled>Continue to artwork ${icon('arrow')}</button><p class="tiny muted mt-sm">${esc(state.catalog.shop.quote_note)}</p><div class="divider"></div><div class="benefit">${icon('check')}<span>Review your proof before production.</span></div><div class="benefit">${icon('credit')}<span>Secure checkout for eligible print orders.</span></div><div class="benefit">${icon('tasks')}<span>Simple order updates, start to finish.</span></div></aside></section><footer class="public-footer"><span>TAMPA SIGNS AND STICKERS / Make your mark.</span><span>${esc(state.catalog.shop.contact_email||'Tampa Signs and Stickers')} ${esc(state.catalog.shop.contact_phone||'')}</span></footer></main>`;
-  await recalculate();
+ if(!state.catalog)state.catalog=await api('/api/catalog');
+ const products=state.catalog.products;
+ const product=products.find(p=>p.id===state.selectedProduct)||products[0];
+ if(!product){app.innerHTML=publicHeader()+'<main class="public-page"><div class="empty">No public products are available yet. Please contact the shop.</div></main>';return;}
+ state.selectedProduct=product.id;state.quote=null;state.canBuy=false;
+ const cfg=product.config;
+ const quantities=cfg.unit==='piece'?[50,100,250,500,1000,2500]:[1,2,5,10,25,50];
+ const qty=Math.min(Number(cfg.max_quantity),Math.max(Number(cfg.min_quantity),cfg.unit==='piece'?50:1));
+ app.innerHTML=publicHeader()+`<main class="public-page storefront">
+ <section class="hero"><div><div class="eyebrow">CUSTOM PRINT / TAMPA SIGNS AND STICKERS</div><h1>Big ideas.<br><em>Made to stick.</em></h1><p>Your artwork. Your size. Your style.<br>Make your next sticker, banner or sign your own.</p></div><div class="hero-stamp" aria-hidden="true">CUSTOM PRINT.<br>TAMPA SPIRIT.<span>YOUR BRAND.</span></div></section>
+ <section class="public-grid" aria-label="Build your order">
+ <aside class="product-rail" aria-label="Choose your product"><div class="rail-heading"><div class="eyebrow">THE PRINT SHOP</div><h2>What are we making?</h2></div><div class="product-options">${products.map(p=>`<button type="button" class="product-option ${p.id===product.id?'active':''}" data-action="choose-product" data-id="${p.id}" aria-pressed="${p.id===product.id}"><span class="product-symbol">${icon(storefrontIcon(p))}</span><span class="product-option-name">${esc(storefrontName(p))}</span><span class="selection-dot" aria-hidden="true"></span></button>`).join('')}</div></aside>
+ <section class="panel product-configurator" aria-labelledby="selected-product-title">${storefrontPreview(product)}<div class="product-intro"><div class="eyebrow">MAKE IT YOURS</div><h2 id="selected-product-title">${esc(storefrontName(product))}</h2><p class="product-description">${esc(storefrontDescription(product))}</p>${/ - single sided$/i.test(product.name)?'<span class="product-spec">Single-sided print</span>':''}</div>
+ <form id="calculator" data-form="calculator"><div class="config-step"><div class="step-heading"><span class="step-number">1</span><h3>Set your size</h3><span class="unit-label">Inches</span></div><div class="fields">${input('width','Width',cfg.default_width,'number','min="0.1" max="10000" step="0.01" required')}${input('height','Height',cfg.default_height,'number','min="0.1" max="10000" step="0.01" required')}</div></div>
+ <div class="config-step"><div class="step-heading"><span class="step-number">2</span><h3>Choose your quantity</h3></div><div class="quantity-grid">${quantities.filter(q=>q>=Number(cfg.min_quantity)&&q<=Number(cfg.max_quantity)).map(q=>`<button type="button" class="quantity-btn ${q===qty?'active':''}" data-action="quantity" data-value="${q}" aria-pressed="${q===qty}">${num(q)}</button>`).join('')}</div><div class="custom-quantity">${input('quantity','Or enter a quantity',qty,'number',`min="${cfg.min_quantity}" max="${cfg.max_quantity}" step="1" required`)}</div></div><div id="calc-feedback" class="form-error" role="status"></div></form>
+ <div class="artwork-note">${icon('image')}<p><strong>Bring your artwork.</strong> Upload it with your order or add it later. We will send a proof for approval before printing.</p></div>
+ </section>
+ <aside class="panel estimate-card" aria-label="Your order summary"><div class="estimate-head"><div class="eyebrow" id="estimate-heading">ESTIMATED TOTAL</div><div class="metric large" id="estimate-total" aria-live="polite" aria-atomic="true">...</div><small id="estimate-unit">Calculating your order</small></div><div class="estimate-product" id="estimate-product">${icon(storefrontIcon(product))}<strong>${esc(storefrontName(product))}</strong></div><div id="estimate-details"></div><button type="button" class="btn primary wide" data-action="request-order" id="continue-btn" disabled aria-describedby="order-guidance">Place order ${icon('arrow')}</button><p class="order-guidance" id="order-guidance">Choose your size and quantity to get started.</p>${state.catalog.checkout?.test_mode?'<div class="checkout-test-note" role="note">Test checkout only. No live payments.</div>':''}<div class="summary-benefits"><div class="benefit">${icon('check')}<span><strong>Your proof. Your approval.</strong><small>Review your artwork before we print.</small></span></div><div class="benefit">${icon('image')}<span><strong>Upload now or later.</strong><small>Your artwork stays with your order.</small></span></div><div class="benefit">${icon('clock')}<span><strong>Stay in the loop.</strong><small>Follow your order from start to finish.</small></span></div></div>${state.catalog.shop.quote_note?`<details class="order-notes"><summary>Order details</summary><p>${esc(state.catalog.shop.quote_note)}</p><p>One design per order. Wraps, installation and custom sizes are quoted by our team.</p></details>`:''}</aside>
+ </section><footer class="public-footer"><span>TAMPA SIGNS AND STICKERS / Make your mark.</span><span>${esc(state.catalog.shop.contact_email||'')} &nbsp; ${esc(state.catalog.shop.contact_phone||'')}</span></footer></main>`;
+ await recalculate();
 }
 function currentItem(){const f=$('#calculator');return {product_id:state.selectedProduct,width:f.elements.width.value,height:f.elements.height.value,quantity:f.elements.quantity.value};}
 async function recalculate(){
-  if(!$('#calculator'))return;
-  const sequence=++state.calcSequence || (state.calcSequence=1);
-  const item=currentItem();
-  try{
-    const q=await api('/api/calculate','POST',{items:[item]});
-    if(sequence!==state.calcSequence || !$('#estimate-total'))return;
-    state.quote=q;state.currentQuoteItem=item;$('#calc-feedback').textContent='';
-    $('#estimate-total').textContent=money(q.subtotal_cents);
-    $('#estimate-unit').textContent=`About ${money(q.lines[0].price_per_item_cents)} per item`;
-    $('#estimate-details').innerHTML=`<div class="line-total"><span class="muted">Finished size</span><strong>${esc(item.width)}" x ${esc(item.height)}"</strong></div><div class="line-total"><span class="muted">Quantity</span><strong>${num(item.quantity)}</strong></div><div class="line-total"><span class="muted">Net printed area</span><strong>${num(q.lines[0].net_sqft)} sq ft</strong></div><div class="line-total"><span class="muted">Pricing</span>${badge(q.review_required?'Custom quote':state.catalog.checkout?.available?'Ready to order':'Price preview',q.review_required?'orange':'green')}</div>`;
-    const canBuy=!q.review_required&&state.catalog.checkout?.available;
-    state.canBuy=canBuy;
-    $('#estimate-heading').textContent=q.review_required?'YOUR ESTIMATE':'YOUR PRICE';
-    $('#continue-btn').innerHTML=(canBuy?'Continue to checkout':'Request this project')+icon('arrow');
-    $('#continue-btn').disabled=false;
-    $$('.quantity-btn').forEach(b=>b.classList.toggle('active',b.dataset.value===String(item.quantity)));
-  }catch(error){if(sequence!==state.calcSequence)return;state.quote=null;$('#calc-feedback').textContent=error.message;$('#continue-btn').disabled=true;$('#estimate-total').textContent='--';}
+ if(!$('#calculator'))return;
+ const sequence=++state.calcSequence;
+ const item=currentItem();
+ state.canBuy=false;$('#continue-btn').disabled=true;
+ try{
+ const q=await api('/api/calculate','POST',{items:[item]});
+ if(sequence!==state.calcSequence || !$('#estimate-total') || JSON.stringify(item)!==JSON.stringify(currentItem()))return;
+ state.quote=q;state.currentQuoteItem=item;$('#calc-feedback').textContent='';
+ const review=storefrontNeedsQuote(q), canBuy=!q.review_required&&!!state.catalog.checkout?.available;
+ state.canBuy=canBuy;
+ $('#estimate-total').textContent=money(q.subtotal_cents);
+ $('#estimate-unit').textContent=`About ${money(q.lines[0].price_per_item_cents)} per item`;
+ $('#estimate-details').innerHTML=`<div class="line-total"><span>Finished size</span><strong>${esc(item.width)}&Prime; &times; ${esc(item.height)}&Prime;</strong></div><div class="line-total"><span>Quantity</span><strong>${num(item.quantity)}</strong></div>${review?'<div class="quote-tag">'+icon('mail','icon-sm')+' Tailored quote</div>':''}`;
+ $('#estimate-heading').textContent=q.review_required||!canBuy?'ESTIMATED TOTAL':'YOUR TOTAL';
+ $('#continue-btn').innerHTML=(review?'Request a quote':'Place order')+icon('arrow');
+ $('#order-guidance').textContent=review?'We will confirm the scope and final price before payment.':canBuy?'Upload your artwork next. Tax and delivery are confirmed at secure checkout.':'Submit your order for confirmation. The price shown is an estimate; no payment is taken yet.';
+ $('#continue-btn').disabled=false;
+ $$('.quantity-btn').forEach(b=>{const active=b.dataset.value===String(item.quantity);b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
+ }catch(error){if(sequence!==state.calcSequence)return;state.quote=null;state.canBuy=false;$('#calc-feedback').textContent=error.message;$('#continue-btn').disabled=true;$('#estimate-total').textContent='--';$('#estimate-unit').textContent='Check your size and quantity';}
 }
 function orderModal(){
-  if(!state.quote)return;
-  const line=state.quote.lines[0],co=state.catalog.checkout||{},buy=state.canBuy;
-  state.orderRequestId=crypto.randomUUID();
-  const methods=[...(co.pickup?[['pickup','Local pickup - '+co.pickup_address]]:[]),...(co.shipping?[['shipping','US shipping - '+money(co.shipping_cents)+' + tax']]:[])];
-  showModal(buy?'Make it yours.':'Tell us about your project',`<form data-form="public-order" class="stack"><div class="notice info">${esc(line.name)} / ${esc(line.width)}" x ${esc(line.height)}" / ${line.quantity} items<br><strong>${money(state.quote.subtotal_cents)}</strong> ${buy?'before tax and selected shipping. Review the final total at secure checkout.':'merchandise estimate. Our team will confirm your custom quote.'}</div>${buy&&co.test_mode?'<div class="notice">Test checkout is connected. Do not use real card details.</div>':''}<div class="fields">${input('customer_name','Your name','','text','required maxlength="120"')}${input('customer_email','Email','','email','required maxlength="254"')}${input('phone','Phone (optional)','','tel')}${input('title','Project name',line.name,'text','required maxlength="180"')}</div>${buy?select('fulfillment','How would you like your order?',methods,methods[0]?.[0]):''}<label class="field"><span>Notes for your project</span><textarea name="notes" placeholder="Anything we should know about your design?"></textarea></label><label class="field"><span>Artwork (optional now, or upload in your order portal)</span><input name="artwork" type="file" accept=".png,.jpg,.jpeg,.pdf"></label><p class="field-hint">PNG, JPEG or PDF, up to 10 MB. A proof is sent to your portal for approval before printing.</p><label class="sr-only">Leave blank<input name="website" tabindex="-1" autocomplete="off"></label>${buy?checkbox('confirm',co.terms):''}<p class="field-hint">Your private order link opens next. Save it to return to your proof and updates. Automatic order emails are not yet configured.</p>${formFooter(buy?'Save order & continue':'Request quote & upload artwork')}</form>`);
+ if(!state.quote || !state.currentQuoteItem || JSON.stringify(currentItem())!==JSON.stringify(state.currentQuoteItem))return;
+ const line=state.quote.lines[0],co=state.catalog.checkout||{},buy=state.canBuy,review=storefrontNeedsQuote(state.quote);
+ const product=state.catalog.products.find(p=>p.id===state.selectedProduct)||line;
+ const name=storefrontName(product);
+ state.orderRequestId=crypto.randomUUID();state.orderReview=review;
+ const methods=[...(co.pickup?[['pickup','Local pickup - '+co.pickup_address]]:[]),...(co.shipping?[['shipping','US shipping - '+money(co.shipping_cents)+' + tax']]:[])];
+ showModal(review?'Request a quote':'Your order',`<form data-form="public-order" class="stack"><div class="order-modal-summary"><span class="order-modal-icon">${icon(storefrontIcon(product))}</span><div class="grow"><strong>${esc(name)}</strong><p>${esc(line.width)}&Prime; &times; ${esc(line.height)}&Prime; <span>/</span> Qty ${num(line.quantity)}</p></div><strong class="order-modal-price">${money(state.quote.subtotal_cents)}</strong></div><p class="order-modal-guidance">${buy?'Tax and selected delivery are added at secure checkout. Your order is not paid until checkout is complete.':review?'Share your details and artwork. We will confirm your specifications and final price before payment.':'This is an order request at an estimated price. Our team will confirm the final total before payment. No payment is taken when you submit.'}</p>${buy&&co.test_mode?'<div class="notice">Test checkout is connected. Do not use real card details.</div>':''}<div class="fields">${input('customer_name','Your name','','text','required maxlength="120" autocomplete="name"')}${input('customer_email','Email','','email','required maxlength="254" autocomplete="email"')}${input('phone','Phone (optional)','','tel','autocomplete="tel"')}${input('title',review?'Project name':'Order name',name,'text','required maxlength="180"')}</div>${buy?select('fulfillment','Pickup or delivery',methods,methods[0]?.[0]):''}<label class="field"><span>Anything we should know? (optional)</span><textarea name="notes" placeholder="Tell us about your artwork or any special details."></textarea></label><label class="field upload-field"><span>${icon('image')} Add your artwork</span><input name="artwork" type="file" accept=".png,.jpg,.jpeg,.pdf"><small>PNG, JPEG or PDF, up to 10 MB. You can also upload later.</small></label><p class="field-hint">You will review and approve a proof before printing.</p><label class="sr-only">Leave blank<input name="website" tabindex="-1" autocomplete="off"></label>${buy?checkbox('confirm',co.terms):''}<p class="field-hint">Save the private order link shown after submission to return to your artwork and updates. No automatic email is sent yet.</p>${formFooter(buy?'Continue to payment':review?'Request a quote':'Place order')}</form>`);
+ modal.classList.add('order-dialog');
 }
 
 /* Staff job board and production workspace */
@@ -317,7 +391,7 @@ const forms = {
    if(file){try{const fd=new FormData();fd.append('file',file);await api(`/api/jobs/${r.job_id}/artwork`,'POST',fd);}catch(e){uploadError=e.message;}}
    closeModal();
    history.pushState(null,'','/portal');await loadPortal();
-   showModal('Your order is saved',`<div class="stack"><h3>${esc(r.number)}</h3><p class="muted">Save this private order link to return to your artwork, proof and updates.</p><input value="${esc(r.portal_url)}" readonly aria-label="Private order link">${uploadError?'<div class="notice">Your order is saved, but the artwork was not uploaded: '+esc(uploadError)+'. Upload it from your order portal.</div>':''}<p class="field-hint">No automatic email was sent. Save this link privately.</p>${buy?'<button class="btn primary wide" data-action="online-pay">Continue to secure payment '+icon('arrow')+'</button>':'<button class="btn primary wide" data-action="close">Open my order</button>'}</div>`);
+   showModal(state.orderReview?'Quote request received':'Order received',`<div class="stack"><h3>${esc(r.number)}</h3><p class="order-confirmation-note">${buy?'Your order is saved. Continue to payment to complete checkout. No payment has been taken yet.':state.orderReview?'Your quote request is with our team. We will confirm the scope and price before payment. No payment has been taken.':'Your order request is with our team, pending final price confirmation. No payment has been taken.'}</p><p class="muted">Save this private order link to return to your artwork, proof and updates.</p><input value="${esc(r.portal_url)}" readonly aria-label="Private order link">${uploadError?'<div class="notice">Your order is saved, but the artwork was not uploaded: '+esc(uploadError)+'. Upload it from your order portal.</div>':''}<p class="field-hint">No automatic email was sent. Save this link privately.</p>${buy?'<button class="btn primary wide" data-action="online-pay">Continue to secure payment '+icon('arrow')+'</button>':'<button class="btn primary wide" data-action="close">Open my order</button>'}</div>`);
  },
  'new-job':async(f,d)=>{const items=$$('[data-quote-line]',f).map(row=>({product_id:Number($('[data-line-product]',row).value),description:$('[data-line-description]',row).value,width:$('[data-line-width]',row).value,height:$('[data-line-height]',row).value,quantity:$('[data-line-quantity]',row).value}));const r=await api('/api/staff/jobs','POST',{...d,workflow_id:Number(d.workflow_id),items});toast('Job, quote and production checklist created.');location.hash='job/'+r.job_id;},
  'edit-quote':async(f,d)=>{await api(`/api/staff/jobs/${state.job.id}/quote`,'POST',{...d,version:state.job.quote_version,charges_verified:!!d.charges_verified});closeModal();toast('New quote version saved. Publish when reviewed.');await loadJob(state.job.id);},
@@ -360,7 +434,7 @@ document.addEventListener('submit',async event=>{
   finally{if(button)button.disabled=false;}
 });
 document.addEventListener('input',event=>{
-  if(event.target.closest('#calculator')){clearTimeout(state.calcTimer);if($('#continue-btn'))$('#continue-btn').disabled=true;state.calcTimer=setTimeout(()=>recalculate(),250);}
+  if(event.target.closest('#calculator')){++state.calcSequence;state.canBuy=false;clearTimeout(state.calcTimer);if($('#continue-btn'))$('#continue-btn').disabled=true;state.calcTimer=setTimeout(()=>recalculate(),250);}
   if(event.target.id==='job-search')renderBoard();
 });
 document.addEventListener('change',event=>{
