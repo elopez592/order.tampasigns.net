@@ -1,0 +1,13 @@
+{
+  "mode": "Local DOM render of actual HTML/CSS/JS with HTTPX backend bridge; no browser network or live provider",
+  "checks": [
+    "Local API created fixed-size order with artwork, complete proof, and a signed synthetic payment receipt. No real payment.",
+    "Actual customer calculator renders with branding; quantity interaction updates price; no public staff link; checkout CTA for eligible product.",
+    "Print-only wrap selection switches to quote request instead of checkout.",
+    "Actual customer portal renders exactly three stages, payment received and a complete proof approval action, no internal task list.",
+    "Staff job retains detailed tasks and ownership controls.",
+    "Owner checkout settings render connected test status and editable controls.",
+    "390px storefront has no horizontal page overflow."
+  ],
+  "javascript_errors": []
+}
