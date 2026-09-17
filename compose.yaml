@@ -1,0 +1,15 @@
+services:
+  signshop:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      APP_ENV: development
+      PUBLIC_URL: http://localhost:8000
+      DEMO_SEED: "1"
+      ADMIN_EMAIL: owner@example.test
+    volumes:
+      - signshop_data:/data
+    restart: unless-stopped
+volumes:
+  signshop_data:

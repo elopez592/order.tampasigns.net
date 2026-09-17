@@ -1,0 +1,48 @@
+# Server deployment only. Do not combine with the local compose.yaml.
+# Back up existing data and review docs/DEPLOYMENT.md before using real orders.
+services:
+  signshop:
+    build: .
+    env_file: .env.production
+    environment:
+      APP_ENV: production
+      PUBLIC_URL: https://${SITE_HOST:?Set SITE_HOST in .env.production}
+      ALLOWED_HOSTS: ${SITE_HOST},localhost,127.0.0.1
+      DATA_DIR: /data
+      DEMO_SEED: "0"
+      TRUST_PROXY: "1"
+      FORWARDED_ALLOW_IPS: 172.29.40.2
+      PORT: "8000"
+    volumes:
+      - signshop_data:/data
+    restart: unless-stopped
+    networks:
+      shop_net:
+        ipv4_address: 172.29.40.3
+  caddy:
+    image: caddy:2
+    environment:
+      SITE_HOST: ${SITE_HOST:?Set SITE_HOST in .env.production}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+    depends_on:
+      signshop:
+        condition: service_healthy
+    networks:
+      shop_net:
+        ipv4_address: 172.29.40.2
+volumes:
+  signshop_data:
+  caddy_data:
+  caddy_config:
+networks:
+  shop_net:
+    ipam:
+      config:
+        - subnet: 172.29.40.0/24
