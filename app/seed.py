@@ -185,11 +185,16 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                               else [{'from': 1, 'multiplier': '1'}]})
                 conn.execute('INSERT INTO products(name,category,workflow_id,config,updated_at) VALUES(?,?,?,?,?)',
                              (name, category, workflow, json.dumps(cfg), now()))
+        for custom in conn.execute("SELECT id,config FROM products WHERE category='Custom'").fetchall():
+            cfg = json.loads(custom['config'])
+            if str(cfg.get('max_quantity', '1')) == '1':
+                cfg['max_quantity'] = '100000'
+                conn.execute('UPDATE products SET config=? WHERE id=?', (json.dumps(cfg), custom['id']))
         if not conn.execute("SELECT id FROM products WHERE category='Custom' LIMIT 1").fetchone():
             custom_cfg = validate_config({
                 'unit': 'piece', 'sell_per_sqft': '0', 'cost_per_sqft': '0',
                 'setup_price': '0', 'setup_cost': '0', 'minimum_price': '0',
-                'min_quantity': 1, 'max_quantity': 1, 'default_width': 12, 'default_height': 12,
+                'min_quantity': 1, 'max_quantity': 100000, 'default_width': 12, 'default_height': 12,
                 'max_width': 10000, 'max_height': 10000, 'instant': False,
                 'description': 'Custom fabrication, specialty signage, bulk orders, fleet projects and other work quoted by the shop.',
                 'is_wrap': False, 'requires_installation': False,
