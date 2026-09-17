@@ -108,7 +108,7 @@ async function recalculate(){
     $('#estimate-total').textContent=money(q.subtotal_cents);
     $('#estimate-unit').textContent=items.length>1?`${items.length} sizes / panels`:`About ${money(q.lines[0].price_per_item_cents)} per item`;
     const totalSqft=q.lines.reduce((a,l)=>a+Number(l.net_sqft),0);const lamLabel=q.lines[0]?.lamination_label||'';$('#estimate-details').innerHTML=`<div class="line-total"><span class="muted">Sizes / panels</span><strong>${items.length}</strong></div><div class="line-total"><span class="muted">Net printed area</span><strong>${num(totalSqft)} sq ft</strong></div>${q.lines[0].installation_requested?'<div class="line-total"><span class="muted">Service</span><strong>Print + installation</strong></div>':''}${lamLabel?'<div class="line-total"><span class="muted">Finish</span><strong>'+esc(lamLabel)+'</strong></div>':''}<div class="line-total"><span class="muted">Pricing</span>${badge(q.review_required?'Instant estimate / review required':state.catalog.checkout?.available?'Ready to order':'Price preview',q.review_required?'orange':'green')}</div>`;
-    const canBuy=!q.review_required&&state.catalog.checkout?.available&&items.length===1;
+    const canBuy=!q.review_required&&state.catalog.checkout?.available;
     state.canBuy=canBuy;
     $('#estimate-heading').textContent=q.review_required?'YOUR ESTIMATE':'YOUR PRICE';
     $('#continue-btn').innerHTML=(q.review_required?'Request quote':'Place order')+icon('arrow');
