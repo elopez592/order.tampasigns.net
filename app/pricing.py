@@ -147,8 +147,11 @@ def calculate(conn, items: list, staff=False) -> dict:
         sell = max(cent_round(calculated), cents(cfg['minimum_price']), floor)
         if sell > 1_000_000_000:
             raise HTTPException(422, 'This project exceeds the automatic estimating limit. Split the job or request a manual quote.')
-        review = (not cfg['instant'] or cfg.get('requires_installation', False) or cfg.get('is_wrap', False)
-                  or 'wrap' in (row['name']+' '+row['category']).lower()) or width > D(cfg['max_width']) or height > D(cfg['max_height'])
+        review = (not cfg['instant'] or cfg.get('requires_installation', False) or installation_requested
+                  or width > D(cfg['max_width']) or height > D(cfg['max_height']))
+        workflow_id = cfg.get('installation_workflow_id') if installation_requested else row['workflow_id']
+        if installation_requested and not workflow_id:
+            raise HTTPException(422, 'Installation workflow is not configured for this product.')
         lines.append({
             'product_id': row['id'], 'product_version': row['version'], 'name': row['name'],
             'category': row['category'], 'description': str(item.get('description', ''))[:200],
