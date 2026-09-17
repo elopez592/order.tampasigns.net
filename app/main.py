@@ -262,7 +262,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                     'config': {k: cfg[k] for k in ('unit','description','min_quantity','max_quantity','max_width','max_height',
                                                   'default_width','default_height','instant')}})
             return {'products': products, 'shop': {k: shop[k] for k in ('shop_name','contact_email','contact_phone','rates_live','quote_note')},
-                    'checkout': availability(shop, app.state.gateway)}
+                    'checkout': availability(shop, app.state.gateway), 'notifications': email_status()}
 
     @app.post('/api/calculate')
     def customer_calculate(request: Request, payload: dict = Body(...)):
