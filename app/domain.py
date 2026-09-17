@@ -110,7 +110,7 @@ def validate_steps(steps):
 
 
 def create_job(conn, payload, source='staff', actor='staff'):
-    quote = calculate(conn, payload.get('items', []), staff=source == 'staff')
+    quote = calculate(conn, payload.get('items', []), staff=source in ('staff', 'custom'))
     customer_name = text(payload.get('customer_name', ''), 'Customer name', 120, True)
     customer_email = email(payload.get('customer_email', ''))
     title = text(payload.get('title', 'Custom print order'), 'Job title', 180, True)
