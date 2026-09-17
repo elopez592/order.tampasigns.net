@@ -42,6 +42,15 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
         if merged['shop_name'] == 'SignShop OS':
             merged['shop_name'] = DEFAULT_SETTINGS['shop_name']
         conn.execute('UPDATE settings SET data=? WHERE id=1', (json.dumps(merged),))
+        # Clean up legacy demo-facing product names without touching custom products.
+        for old_name, new_name in {
+            'Roll / sheet labels': 'Labels',
+            'Custom magnets': 'Magnets',
+            'Vinyl banner': 'Banners',
+            'ACM sign - single sided': 'ACM signs',
+            'Yard sign - single sided': 'Yard signs',
+        }.items():
+            conn.execute('UPDATE products SET name=? WHERE name=?', (new_name, old_name))
         # Old print-only wrap entries are always review-only under the new policy.
         for old in conn.execute('SELECT id,name,category,config FROM products').fetchall():
             cfg = json.loads(old['config'])
