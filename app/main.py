@@ -260,7 +260,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 cfg = json.loads(row['config'])
                 products.append({k: row[k] for k in ('id','name','category','version')} | {
                     'config': {k: cfg[k] for k in ('unit','description','min_quantity','max_quantity','max_width','max_height',
-                                                  'default_width','default_height','instant','supports_installation')}})
+                                                  'default_width','default_height','instant','supports_installation','lamination_options')}})
             return {'products': products, 'shop': {k: shop[k] for k in ('shop_name','contact_email','contact_phone','rates_live','quote_note')},
                     'checkout': availability(shop, app.state.gateway), 'notifications': email_status()}
 
@@ -368,22 +368,52 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         notes = text(payload.get('notes', ''), 'Project details', 5000, True)
         quantity = text(payload.get('quantity', ''), 'Quantity / scope', 120)
         vehicle_count = text(payload.get('vehicle_count', ''), 'Vehicle count', 120)
+        dimensions = payload.get('dimensions', [])
+        if not isinstance(dimensions, list) or len(dimensions) > 20:
+            raise HTTPException(422, 'Use no more than 20 optional dimension rows.')
+        checked_dimensions = []
+        for i, dim in enumerate(dimensions):
+            if not isinstance(dim, dict):
+                raise HTTPException(422, 'Invalid dimension row.')
+            width = dim.get('width')
+            height = dim.get('height')
+            if width in ('', None) and height in ('', None):
+                continue
+            if width in ('', None) or height in ('', None):
+                raise HTTPException(422, 'Each dimension row needs both width and height.')
+            w = number(width, f'Width {i+1}', '0.1', '10000')
+            h = number(height, f'Height {i+1}', '0.1', '10000')
+            q = number(dim.get('quantity', 1) or 1, f'Quantity {i+1}', '1', '100000')
+            if q != q.to_integral():
+                raise HTTPException(422, 'Dimension quantities must be whole numbers.')
+            label = text(dim.get('label', ''), f'Dimension label {i+1}', 120)
+            checked_dimensions.append({'width': str(w), 'height': str(h), 'quantity': int(q), 'label': label})
         details = notes
         if quantity:
             details += '\nQuantity / scope: ' + quantity
         if vehicle_count:
             details += '\nFleet / vehicle count: ' + vehicle_count
+        if checked_dimensions:
+            details += '\nDimensions:\n' + '\n'.join(
+                f"- {d['label'] + ': ' if d['label'] else ''}{d['width']} x {d['height']} in x {d['quantity']}"
+                for d in checked_dimensions
+            )
         with transaction(database, True) as conn:
             product = conn.execute("SELECT id FROM products WHERE category='Custom' AND active=1 ORDER BY id LIMIT 1").fetchone()
             if not product:
                 raise HTTPException(503, 'Custom quote intake is temporarily unavailable.')
+            items = [{'product_id': product['id'], 'description': d['label'] or project_type,
+                      'width': d['width'], 'height': d['height'], 'quantity': d['quantity']}
+                     for d in checked_dimensions] or [
+                        {'product_id': product['id'], 'description': project_type, 'width': 12, 'height': 12, 'quantity': 1}
+                     ]
             job_id = create_job(conn, {
                 'title': project_type,
                 'customer_name': customer_name,
                 'customer_email': customer_email,
                 'phone': phone,
                 'notes': details,
-                'items': [{'product_id': product['id'], 'description': project_type, 'width': 12, 'height': 12, 'quantity': 1}]
+                'items': items
             }, source='custom', actor='Custom quote request')
             link = issue_portal(conn, job_id)
         notify_customer(database, job_id, 'order_received', f'JOB-{job_id:04d} received | Tampa Signs and Stickers',
