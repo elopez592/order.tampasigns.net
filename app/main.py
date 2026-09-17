@@ -353,7 +353,11 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         throttle(request, 'portal', 30, 900)
         token_value = text(payload.get('token', ''), 'Portal token', 200, True)
         with transaction(database, True) as conn:
-            job = conn.execute('SELECT * FROM jobs WHERE portal_hash=? AND portal_expires>?', (digest(token_value), time.time())).fetchone()
+            token_hash = digest(token_value)
+            job = conn.execute('SELECT * FROM jobs WHERE portal_hash=? AND portal_expires>?', (token_hash, time.time())).fetchone()
+            if not job:
+                link = conn.execute('SELECT job_id FROM portal_links WHERE token_hash=? AND expires_at>?', (token_hash, time.time())).fetchone()
+                job = get_job(conn, link['job_id']) if link else None
             if not job:
                 raise HTTPException(401, 'This private link is invalid, expired or replaced.')
             # Preserve a staff login only in this same browser for owner previews.
