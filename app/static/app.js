@@ -3,7 +3,8 @@ const state = {calcSequence:0, user:null, csrf:'', catalog:null, jobs:[], job:nu
 const app = document.querySelector('#app');
 const modal = document.querySelector('#modal');
 const $ = (q, root=document) => root.querySelector(q);
-const $$ = (q, root=document) => [...root.querySelectorAll(q)];
+const $ = (q, root=document) => [...root.querySelectorAll(q)];
+const all = (q, root=document) => [...root.querySelectorAll(q)];
 const esc = (v='') => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money = (c=0) => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(c)/100);
 const num = v => new Intl.NumberFormat('en-US',{maximumFractionDigits:2}).format(Number(v));
@@ -96,7 +97,7 @@ async function calculatorView(){
   await recalculate();
 }
 function wrapDimensionRow(cfg,index,width='',height='',quantity=1){return `<div class="dimension-row" data-wrap-dimension><div class="fields three">${input('wrap_width_'+index,'Width (in)',width,'number','min="0.1" max="10000" step="0.01" required')}${input('wrap_height_'+index,'Height (in)',height,'number','min="0.1" max="10000" step="0.01" required')}${input('wrap_quantity_'+index,'Qty',quantity,'number','min="1" max="100000" step="1" required')}</div>${index?'<button type="button" class="btn light small" data-action="remove-wrap-dimension">Remove</button>':''}</div>`;}
-function currentItems(){const f=$('#calculator'),product=state.catalog.products.find(p=>p.id===state.selectedProduct),install=f.elements.installation_requested?f.elements.installation_requested.value==='true':false,lamination=f.elements.lamination?.value||'';if(product?.config.supports_installation){return $('[data-wrap-dimension]',f).map((row,i)=>{const inputs=$('input',row);return {product_id:state.selectedProduct,width:inputs[0].value,height:inputs[1].value,quantity:inputs[2].value,description:'Panel '+(i+1),installation_requested:install,lamination};});}return [{product_id:state.selectedProduct,width:f.elements.width.value,height:f.elements.height.value,quantity:f.elements.quantity.value,installation_requested:install,lamination}];}
+function currentItems(){const f=$('#calculator'),product=state.catalog.products.find(p=>p.id===state.selectedProduct),install=f.elements.installation_requested?f.elements.installation_requested.value==='true':false,lamination=f.elements.lamination?.value||'';if(product?.config.supports_installation){return all('[data-wrap-dimension]',f).map((row,i)=>{const inputs=all('input',row);return {product_id:state.selectedProduct,width:inputs[0].value,height:inputs[1].value,quantity:inputs[2].value,description:'Panel '+(i+1),installation_requested:install,lamination};});}return [{product_id:state.selectedProduct,width:f.elements.width.value,height:f.elements.height.value,quantity:f.elements.quantity.value,installation_requested:install,lamination}];}
 async function recalculate(){
   if(!$('#calculator'))return;
   const sequence=++state.calcSequence || (state.calcSequence=1);
@@ -113,7 +114,7 @@ async function recalculate(){
     $('#estimate-heading').textContent=q.review_required?'YOUR ESTIMATE':'YOUR PRICE';
     $('#continue-btn').innerHTML=(q.review_required?'Request quote':'Place order')+icon('arrow');
     $('#continue-btn').disabled=false;
-    $('.quantity-btn').forEach(b=>b.classList.toggle('active',b.dataset.value===String(items[0]?.quantity)));
+    all('.quantity-btn').forEach(b=>b.classList.toggle('active',b.dataset.value===String(items[0]?.quantity)));
   }catch(error){if(sequence!==state.calcSequence)return;state.quote=null;$('#calc-feedback').textContent=error.message;$('#continue-btn').disabled=true;$('#estimate-total').textContent='--';}
 }
 function orderModal(){
@@ -268,9 +269,9 @@ const actions = {
  'choose-product':async b=>{state.selectedProduct=Number(b.dataset.id);await calculatorView();},
  quantity:async b=>{$('#calculator').elements.quantity.value=b.dataset.value;await recalculate();},
  'request-order':()=>orderModal(),
- 'add-wrap-dimension':b=>{const cfg=state.catalog.products.find(p=>p.id===state.selectedProduct).config,count=$('[data-wrap-dimension]').length;if(count>=20)throw new Error('Maximum 20 size rows.');$('#wrap-dimensions').insertAdjacentHTML('beforeend',wrapDimensionRow(cfg,count,'','',1));recalculate();},
- 'remove-wrap-dimension':b=>{if($('[data-wrap-dimension]').length<=1)return;b.closest('[data-wrap-dimension]').remove();recalculate();},
- 'add-custom-dimension':()=>{const box=$('#custom-dimensions'),count=$('[data-custom-dimension]',box).length;if(count>=20)throw new Error('Maximum 20 optional dimension rows.');box.insertAdjacentHTML('beforeend',customDimensionRow(count));},
+ 'add-wrap-dimension':b=>{const cfg=state.catalog.products.find(p=>p.id===state.selectedProduct).config,count=all('[data-wrap-dimension]').length;if(count>=20)throw new Error('Maximum 20 size rows.');$('#wrap-dimensions').insertAdjacentHTML('beforeend',wrapDimensionRow(cfg,count,'','',1));recalculate();},
+ 'remove-wrap-dimension':b=>{if(all('[data-wrap-dimension]').length<=1)return;b.closest('[data-wrap-dimension]').remove();recalculate();},
+ 'add-custom-dimension':()=>{const box=$('#custom-dimensions'),count=all('[data-custom-dimension]',box).length;if(count>=20)throw new Error('Maximum 20 optional dimension rows.');box.insertAdjacentHTML('beforeend',customDimensionRow(count));},
  'remove-custom-dimension':b=>b.closest('[data-custom-dimension]').remove(),
  'custom-quote':()=>showModal('Request a custom quote',`<form data-form="custom-quote" class="stack"><div class="notice info">Use this for specialty fabrication, CNC or laser-cut work, dimensional signs, fleet graphics, bulk orders, custom materials, or anything not listed in the standard products.</div><div class="fields">${input('customer_name','Your name','','text','required maxlength="120"')}${input('customer_email','Email','','email','required maxlength="254"')}${input('phone','Phone (optional)','','tel')}${select('project_type','Project type',[['Custom fabricated sign','Custom fabricated sign'],['CNC / routed sign','CNC / routed sign'],['Laser-cut acrylic','Laser-cut acrylic'],['Dimensional lettering','Dimensional lettering'],['Fleet / multiple vehicles','Fleet / multiple vehicles'],['Bulk order','Bulk order'],['Other custom project','Other custom project']],'Custom fabricated sign')}</div><div class="fields">${input('quantity','Quantity / approximate scope','','text','maxlength="120"')}${input('vehicle_count','Fleet vehicle count (if applicable)','','text','maxlength="120"')}</div><div><div class="row between mb"><div><h3>Dimensions <span class="muted tiny">(optional)</span></h3><p class="field-hint">Add as many individual panels, pieces, or vehicle areas as you know.</p></div><button type="button" class="btn light small" data-action="add-custom-dimension">${icon('plus','icon-sm')} Add dimensions</button></div><div id="custom-dimensions" class="stack-sm"></div></div><label class="field"><span>Tell us about the project</span><textarea name="notes" required maxlength="5000" placeholder="Material, finish, deadline, installation needs, vehicle types, or anything else that helps us quote it."></textarea></label><label class="field"><span>Reference files or artwork (optional)</span><input name="artwork" type="file" accept=".png,.jpg,.jpeg,.pdf" multiple></label><p class="field-hint">You can attach multiple files, up to 10 MB each.</p><label class="sr-only">Leave blank<input name="website" tabindex="-1" autocomplete="off"></label>${formFooter('Request custom quote')}</form>`,true),
  'board-mode':b=>{state.boardMode=b.dataset.value;$$('[data-action="board-mode"]').forEach(x=>x.classList.toggle('active',x===b));renderBoard();},
@@ -333,7 +334,7 @@ const forms = {
  'custom-quote':async(f,d)=>{
    const files=[...f.elements.artwork.files];delete d.artwork;
    if(files.some(file=>file.size>10*1024*1024))throw new Error('Each artwork file must be 10 MB or smaller.');
-   const dimensions=$('[data-custom-dimension]',f).map(row=>{const fields=$('input',row);return {label:fields[0].value,width:fields[1].value,height:fields[2].value,quantity:fields[3].value};}).filter(x=>x.width||x.height);
+   const dimensions=all('[data-custom-dimension]',f).map(row=>{const fields=all('input',row);return {label:fields[0].value,width:fields[1].value,height:fields[2].value,quantity:fields[3].value};}).filter(x=>x.width||x.height);
    const r=await api('/api/custom-requests','POST',{...d,dimensions});
    const token=new URL(r.portal_url).hash.slice(7);const x=await api('/api/portal/exchange','POST',{token});state.csrf=x.csrf;
    let uploadError='';
