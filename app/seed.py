@@ -96,15 +96,16 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
               ('Yard sign - single sided', 'Signs', 3, 'piece', '8', '2.5', '15', '5', '30', 1, 24, 18, 48, 96, True, '4mm corrugated plastic; hardware and installation not included.'),
               ('Storefront perforated graphics', 'Windows', 3, 'sqft', '10.5', '4.25', '0', '0', '75', 1, 44, 92, 54, 1200, False, 'Budget allowance for printed, laminated and installed perf. Verify approved film/laminate and site access.'),
               ('Acrylic sign face replacement', 'Signs', 3, 'sqft', '22', '12', '0', '0', '150', 1, 120, 30.5, 120, 96, False, 'Review thickness, full-sheet purchase, print type, retainers and installation labor.'),
-              ('Cast wrap film - print and laminate', 'Wrap print', 5, 'sqft', '10', '5.5', '20', '8', '85', 1, 54, 120, 54, 1200, True, 'Print-only example rate, not installed. Confirm film and laminate selection.'),
-              ('Vehicle wrap - installed estimate', 'Wraps', 4, 'sqft', '16', '7', '200', '75', '650', 1, 180, 120, 1000, 1000, False, 'Budget estimate only. Vehicle, coverage, removal, condition and installation must be reviewed.'),
+              ('Vehicle Wraps', 'Vehicle Wraps', 5, 'sqft', '10', '5.5', '20', '8', '85', 1, 54, 120, 54, 1200, True, 'Premium cast wrap film, printed and laminated. Choose print only for ready-to-print files, or request installation for a reviewed vehicle wrap quote.'),
             ]
             for name, category, workflow, unit, sell, cost, setup, setup_cost, minimum, minqty, width, height, maxw, maxh, instant, description in entries:
                 cfg = validate_config({'unit': unit, 'sell_per_sqft': sell, 'cost_per_sqft': cost,
                     'setup_price': setup, 'setup_cost': setup_cost, 'minimum_price': minimum,
                     'min_quantity': minqty, 'default_width': width, 'default_height': height,
-                    'max_width': maxw, 'max_height': maxh, 'instant': instant and 'wrap' not in category.lower(), 'description': description,
+                    'max_width': maxw, 'max_height': maxh, 'instant': instant, 'description': description,
                     'is_wrap': 'wrap' in category.lower(), 'requires_installation': not instant,
+                    'supports_installation': 'vehicle wrap' in name.lower(),
+                    'installation_workflow_id': 4 if 'vehicle wrap' in name.lower() else None,
                     'tiers': [{'from': 1, 'multiplier': '1'}, {'from': 100, 'multiplier': '.90'},
                               {'from': 500, 'multiplier': '.80'}, {'from': 1000, 'multiplier': '.70'}] if unit == 'piece'
                               else [{'from': 1, 'multiplier': '1'}]})
