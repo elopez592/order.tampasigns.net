@@ -260,7 +260,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 cfg = json.loads(row['config'])
                 products.append({k: row[k] for k in ('id','name','category','version')} | {
                     'config': {k: cfg[k] for k in ('unit','description','min_quantity','max_quantity','max_width','max_height',
-                                                  'default_width','default_height','instant')}})
+                                                  'default_width','default_height','instant','supports_installation')}})
             return {'products': products, 'shop': {k: shop[k] for k in ('shop_name','contact_email','contact_phone','rates_live','quote_note')},
                     'checkout': availability(shop, app.state.gateway), 'notifications': email_status()}
 
@@ -355,6 +355,42 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                      'New project received', 'A new customer project has been submitted and is ready for review.', public_url)
         return {'job_id': job_id, 'number': f'JOB-{job_id:04d}', 'portal_url': link,
                 'message': 'Order received. The shop will review any custom specifications, tax and delivery before production.'}
+
+    @app.post('/api/custom-requests')
+    def custom_request(request: Request, payload: dict = Body(...)):
+        throttle(request, 'custom_request', 12, 3600)
+        if payload.get('website'):
+            raise HTTPException(422, 'Request could not be submitted.')
+        project_type = text(payload.get('project_type', ''), 'Project type', 120, True)
+        customer_name = text(payload.get('customer_name', ''), 'Customer name', 120, True)
+        customer_email = email(payload.get('customer_email', ''))
+        phone = text(payload.get('phone', ''), 'Phone', 60)
+        notes = text(payload.get('notes', ''), 'Project details', 5000, True)
+        quantity = text(payload.get('quantity', ''), 'Quantity / scope', 120)
+        vehicle_count = text(payload.get('vehicle_count', ''), 'Vehicle count', 120)
+        details = notes
+        if quantity:
+            details += '\nQuantity / scope: ' + quantity
+        if vehicle_count:
+            details += '\nFleet / vehicle count: ' + vehicle_count
+        with transaction(database, True) as conn:
+            product = conn.execute("SELECT id FROM products WHERE category='Custom' AND active=1 ORDER BY id LIMIT 1").fetchone()
+            if not product:
+                raise HTTPException(503, 'Custom quote intake is temporarily unavailable.')
+            job_id = create_job(conn, {
+                'title': project_type,
+                'customer_name': customer_name,
+                'customer_email': customer_email,
+                'phone': phone,
+                'notes': details,
+                'items': [{'product_id': product['id'], 'description': project_type, 'width': 12, 'height': 12, 'quantity': 1}]
+            }, source='custom', actor='Custom quote request')
+            link = issue_portal(conn, job_id)
+        notify_customer(database, job_id, 'order_received', f'JOB-{job_id:04d} received | Tampa Signs and Stickers',
+                        'Custom quote request received', 'We received your custom project request. Our team will review it and follow up with a tailored quote.', link)
+        notify_staff(database, job_id, 'order_received', f'New custom quote JOB-{job_id:04d}',
+                     'New custom quote request', f'New custom request: {project_type}.', public_url)
+        return {'job_id': job_id, 'number': f'JOB-{job_id:04d}', 'portal_url': link}
 
     @app.post('/api/portal/exchange')
     def portal_exchange(request: Request, payload: dict = Body(...)):
