@@ -240,7 +240,7 @@ def calculate(conn, items: list, staff=False) -> dict:
             calculated = (D(cfg['setup_price']) * 100 + area * band_qty * D(cfg['sell_per_sqft']) * 100
                           + labor_hours * labor_sell + lamination_sell + installation_hours * labor_sell)
 
-        floor = int((D(cost) / (1 - margin)).quantize(D('1'), rounding=ROUND_CEILING))
+        floor = 0 if cfg.get('quantity_price_table') else int((D(cost) / (1 - margin)).quantize(D('1'), rounding=ROUND_CEILING))
         sell = max(cent_round(calculated), cents(cfg['minimum_price']), floor)
         if sell > 1_000_000_000:
             raise HTTPException(422, 'This project exceeds the automatic estimating limit. Split the job or request a manual quote.')
