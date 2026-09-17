@@ -25,6 +25,7 @@ from .seed import bootstrap
 from .images import sanitize, save_asset, panel_sheet, MAX_UPLOAD
 from .checkout import (StripeGateway, availability, eligible_quote, checkout_policy,
                        start_checkout, process_event, order_for_job)
+from .mailer import public_status as email_status, notify_customer, notify_staff
 import uuid
 
 COOKIE = 'signshop_session'
@@ -124,6 +125,18 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         token = secrets.token_urlsafe(32)
         conn.execute('UPDATE jobs SET portal_hash=?,portal_expires=? WHERE id=?',
                      (digest(token), time.time() + 14 * 86400, job_id))
+        return f'{public_url}/portal#token={token}'
+
+    def issue_email_portal(conn, job_id, days=14):
+        job = get_job(conn, job_id)
+        if not job['portal_hash'] or (job['portal_expires'] or 0) < time.time():
+            master = secrets.token_urlsafe(32)
+            conn.execute('UPDATE jobs SET portal_hash=?,portal_expires=? WHERE id=?',
+                         (digest(master), time.time() + 30 * 86400, job_id))
+        token = secrets.token_urlsafe(32)
+        conn.execute('DELETE FROM portal_links WHERE expires_at<?', (time.time(),))
+        conn.execute('INSERT INTO portal_links(token_hash,job_id,expires_at,created_at) VALUES(?,?,?,?)',
+                     (digest(token), job_id, time.time() + days * 86400, now()))
         return f'{public_url}/portal#token={token}'
 
     def proof_specs(job):
