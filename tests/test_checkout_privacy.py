@@ -144,11 +144,30 @@ def test_standard_products_can_be_purchased(live_setup,pid,width,height,quantity
     assert j['checkout']['can_pay']
 
 
-@pytest.mark.parametrize('pid,width,height',[(7,44,92),(8,120,30.5),(9,54,120),(10,180,120),(4,200,400)])
-def test_wraps_installation_and_oversize_reject_checkout(live_setup,pid,width,height):
+@pytest.mark.parametrize('pid,width,height',[(7,44,92),(8,120,30.5),(4,200,400)])
+def test_installation_and_oversize_reject_checkout(live_setup,pid,width,height):
     app,admin,employee=live_setup
     c,r,b=new_order(app,pid,width,height,50 if pid==1 else 1)
     assert r.status_code==422,r.text
+
+
+
+def test_vehicle_wrap_print_only_can_checkout_but_installation_requires_quote(live_setup):
+    app,admin,employee=live_setup
+    client=anonymous(app)
+    wrap=next(p for p in client.get('/api/catalog').json()['products'] if p['name']=='Vehicle Wraps')
+
+    print_client,print_response,_=new_order(app,wrap['id'],54,120,1,client=client)
+    assert print_response.status_code==200,print_response.text
+
+    client=anonymous(app)
+    items=[{'product_id':wrap['id'],'width':54,'height':120,'quantity':1,'installation_requested':True}]
+    quote=client.post('/api/calculate',json={'items':items}).json()
+    body={'items':items,'fingerprint':quote['fingerprint'],'request_id':str(uuid.uuid4()),
+          'customer_name':'Wrap install test','customer_email':'wrap@example.test','title':'Vehicle wrap install',
+          'fulfillment':'pickup','confirm':True}
+    response=client.post('/api/orders',json=body)
+    assert response.status_code==422,response.text
 
 
 def test_checkout_confirmation_and_csrf_required(live_setup):
