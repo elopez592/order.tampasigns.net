@@ -111,6 +111,19 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                               else [{'from': 1, 'multiplier': '1'}]})
                 conn.execute('INSERT INTO products(name,category,workflow_id,config,updated_at) VALUES(?,?,?,?,?)',
                              (name, category, workflow, json.dumps(cfg), now()))
+        if not conn.execute("SELECT id FROM products WHERE category='Custom' LIMIT 1").fetchone():
+            custom_cfg = validate_config({
+                'unit': 'piece', 'sell_per_sqft': '0', 'cost_per_sqft': '0',
+                'setup_price': '0', 'setup_cost': '0', 'minimum_price': '0',
+                'min_quantity': 1, 'max_quantity': 1, 'default_width': 12, 'default_height': 12,
+                'max_width': 10000, 'max_height': 10000, 'instant': False,
+                'description': 'Custom fabrication, specialty signage, bulk orders, fleet projects and other work quoted by the shop.',
+                'is_wrap': False, 'requires_installation': False,
+                'supports_installation': False, 'installation_workflow_id': None,
+                'tiers': [{'from': 1, 'multiplier': '1'}]
+            })
+            conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?,?)',
+                         ('Custom project quote', 'Custom', 1, 0, 3, json.dumps(custom_cfg), now()))
         if not conn.execute("SELECT id FROM users WHERE role='admin' LIMIT 1").fetchone():
             address = email(admin_email or os.getenv('ADMIN_EMAIL', 'owner@example.test'))
             password = admin_password or os.getenv('ADMIN_PASSWORD') or secrets.token_urlsafe(18)
