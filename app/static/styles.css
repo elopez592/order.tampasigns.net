@@ -33,7 +33,7 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .preview-label{color:#073b3b;letter-spacing:1px;font-size:9px;font-weight:650}
 .estimate-head{background:var(--nav);border-top:4px solid var(--brand-teal)}
 .estimate-head .eyebrow{color:#8bdbd7}
-.product-option.active{border-color:var(--accent);background:#e7f7f4}.active .product-symbol{background:var(--ink);color:var(--brand-teal)}
+.product-option.active{border-color:var(--accent);background:#e7f7f4}.active .product-symbol{background:var(--ink);color:var(--brand-teal)}.product-symbol .product-icon{width:19px;height:19px}.product-option{min-height:54px}.product-option span:last-child{font-weight:650;letter-spacing:-.05px}.product-option:hover{background:#f3f8f7;border-color:#dce8e5}.product-option.active:hover{background:#e7f7f4}
 .quantity-btn.active{background:var(--nav);border-color:var(--nav);box-shadow:inset 0 -3px 0 var(--brand-orange)}
 .btn.primary{background:var(--accent);color:white}.btn.primary:hover{background:var(--accent-dark)}
 .badge.blue{background:#e0f4ef;color:#09685e}.benefit .icon{color:var(--accent)}
