@@ -60,7 +60,12 @@ def test_rate_changes_preserve_existing_job_snapshot_and_reject_stale_cart(env):
     old_quote = calculate(client).json()
     p = admin.get('/api/admin/products').json()['products'][0]
     p['active'], p['public'] = True, True
-    p['config']['sell_per_sqft'] = '99'
+    if p['config'].get('quantity_price_table'):
+        p['config']['quantity_price_table'] = [
+            dict(row, total=str(float(row['total']) + 10)) for row in p['config']['quantity_price_table']
+        ]
+    else:
+        p['config']['sell_per_sqft'] = '99'
     assert admin.put('/api/admin/products/1', json=p).status_code == 200
     after = admin.get('/api/staff/jobs/2').json()
     assert before['quote'] == after['quote']

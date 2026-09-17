@@ -51,3 +51,9 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 @media(max-width:650px){.public-header{height:88px;padding:0 18px;gap:16px}.public-header .brand-logo{width:170px}.public-header .nav-links{gap:8px;flex-direction:column;align-items:flex-end;font-size:11px}.hero h1{font-size:43px;letter-spacing:-2px}.hero-stamp{display:none}.customer-progress{gap:8px}.customer-progress li{font-size:10px;align-items:flex-start;gap:6px}.customer-progress li>span{width:21px;height:21px}.customer-progress strong{padding-top:2px}.portal-hero h1{font-size:26px}.public-grid{min-width:0}.public-footer{gap:14px}.brand-logo{max-width:100%}}
 
 @media(max-width:700px){.public-header .nav-links>a:not(.btn){display:block}.public-header .nav-links{gap:8px;flex-direction:column;align-items:flex-end;font-size:11px}.public-header .brand-logo{width:170px}}
+
+.dimension-row{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fbfdfc}
+.dimension-row .fields{margin-bottom:8px}
+.fields.four{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:800px){.fields.four{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.fields.four{grid-template-columns:1fr}}
