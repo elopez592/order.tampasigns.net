@@ -122,8 +122,11 @@ def checkout_policy(shop, fulfillment):
 
 
 def eligible_quote(conn, items):
-    if not isinstance(items, list) or len(items) != 1:
-        raise HTTPException(422, 'Checkout currently supports one product/design per order. Request a quote for combined projects.')
+    if not isinstance(items, list) or not 1 <= len(items) <= 20:
+        raise HTTPException(422, 'Checkout supports 1 to 20 size lines for one product.')
+    product_ids = {str(item.get('product_id')) for item in items if isinstance(item, dict)}
+    if len(product_ids) != 1:
+        raise HTTPException(422, 'Checkout supports multiple sizes of one product at a time. Request a quote for mixed products.')
     quote = calculate(conn, items)
     if not 50 <= quote['subtotal_cents'] <= 99_999_999:
         raise HTTPException(422, 'This amount requires a custom quote rather than online checkout.')
@@ -218,7 +221,7 @@ def start_checkout(database, job_id, gateway, public_url):
                 'line_items[0][price_data][currency]':'usd',
                 'line_items[0][price_data][unit_amount]':str(current['merchandise_cents']),
                 'line_items[0][price_data][product_data][name]':line['name'],
-                'line_items[0][price_data][product_data][description]':f"{line['quantity']} items, {line['width']} x {line['height']} inches. {job_data['number']}",
+                'line_items[0][price_data][product_data][description]':(f"{len(quote['lines'])} size line(s), {sum(int(x['quantity']) for x in quote['lines'])} total item(s). {job_data['number']}"),
                 'line_items[0][price_data][tax_behavior]':'exclusive',
                 'line_items[0][quantity]':'1', 'billing_address_collection':'required',
                 'expires_at':str(int(current['expires_at'])),
