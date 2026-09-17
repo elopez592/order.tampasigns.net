@@ -722,6 +722,12 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 raise HTTPException(409, 'Proof revisions after production starts require a separate change-order job.')
             aid = save_asset(conn, uploads, job_id, raw, name, mime, suffix, 'proof', actor(user))
             pid = add_proof(conn, job, aid, label, note, actor(user))
+            email_link = issue_email_portal(conn, job_id)
+            job_number = job['number']
+        notify_customer(database, job_id, f'proof_pending_{pid}', f'Proof ready for {job_number} | Tampa Signs and Stickers',
+                        'Your proof is ready', 'A new proof is waiting for your review. Please check the artwork carefully and approve it or request changes.', email_link)
+        notify_staff(database, job_id, f'proof_pending_{pid}', f'Proof pending for {job_number}',
+                     'Proof sent for approval', 'The current proof is now waiting for customer review.', public_url)
         return {'ok': True, 'proof_id': pid}
 
     @app.post('/api/staff/jobs/{job_id}/layout')
@@ -743,9 +749,16 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             raw = panel_sheet(conn, uploads, job, mappings, payload.get('fit', 'contain'))
             aid = save_asset(conn, uploads, job_id, raw, job['number'] + '-layout.png', 'image/png', '.png', 'proof' if is_proof else 'layout', actor(user))
             if is_proof:
-                add_proof(conn, job, aid, 'Generated panel proof', 'Review every item. This is a dimensioned design preview, not a full-size production file.', actor(user))
+                pid = add_proof(conn, job, aid, 'Generated panel proof', 'Review every item. This is a dimensioned design preview, not a full-size production file.', actor(user))
+                email_link = issue_email_portal(conn, job_id)
+                job_number = job['number']
             else:
                 audit(conn, job_id, actor(user), 'layout.generated', {'asset_id': aid, 'approval_eligible': False})
+        if is_proof:
+            notify_customer(database, job_id, f'proof_pending_{pid}', f'Proof ready for {job_number} | Tampa Signs and Stickers',
+                            'Your proof is ready', 'A new proof is waiting for your review. Please check the artwork carefully and approve it or request changes.', email_link)
+            notify_staff(database, job_id, f'proof_pending_{pid}', f'Proof pending for {job_number}',
+                         'Proof sent for approval', 'The current proof is now waiting for customer review.', public_url)
         return {'ok': True, 'asset_id': aid}
 
     @app.get('/api/assets/{asset_id}')
