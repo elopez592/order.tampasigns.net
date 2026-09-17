@@ -636,6 +636,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             if not task:
                 raise HTTPException(404, 'Task not found.')
             job = get_job(conn, task['job_id'])
+            was_production = production_started(conn, job['id'])
             if job['archived'] or task['status'] == 'done':
                 raise HTTPException(409, 'Archived or completed tasks cannot be changed.')
             if task['assignee_id'] and task['assignee_id'] != user['id'] and user['role'] != 'admin':
@@ -668,6 +669,21 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                     conn.execute('UPDATE tasks SET status=?,note=?,completed_at=?,assignee_id=COALESCE(assignee_id,?) WHERE id=?',
                                  (status, note, now() if operation == 'complete' else None, user['id'], task_id))
             audit(conn, job['id'], actor(user), 'task.' + operation, {'task': task['title'], 'note': note}, False)
+            now_production = production_started(conn, job['id'])
+            finished_now = conn.execute("SELECT id FROM tasks WHERE job_id=? AND status!='done' LIMIT 1", (job['id'],)).fetchone() is None
+            milestone_link = issue_email_portal(conn, job['id']) if ((not was_production and now_production) or finished_now) else None
+            job_number = job['number']
+            milestone_job_id = job['id']
+        if not was_production and now_production:
+            notify_customer(database, milestone_job_id, 'production_started', f'{job_number} is in production | Tampa Signs and Stickers',
+                            'Your order is in production', 'Your approved order has moved into production. We will email you again when it is finished.', milestone_link)
+            notify_staff(database, milestone_job_id, 'production_started', f'{job_number} entered production',
+                         'Job entered production', 'Production has started on this job.', public_url)
+        if finished_now:
+            notify_customer(database, milestone_job_id, 'order_finished', f'{job_number} is finished | Tampa Signs and Stickers',
+                            'Your order is finished', 'Your order has been completed. Check your order page for the latest details.', milestone_link)
+            notify_staff(database, milestone_job_id, 'order_finished', f'{job_number} completed',
+                         'Job completed', 'All production tasks for this job are complete.', public_url)
         return {'ok': True}
 
     @app.post('/api/staff/jobs/{job_id}/tasks')
