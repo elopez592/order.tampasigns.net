@@ -25,8 +25,12 @@ const paths = {
  edit:'m4 16 12-12 4 4-12 12-5 1z M14 6l4 4', logout:'M9 3H3v18h6 M9 12h12 m-5-5 5 5-5 5',
  print:'M6 8V2h12v6 M6 17H3V8h18v9h-3 M6 13h12v9H6z', image:'M3 3h18v18H3z M3 17l5-6 5 5 4-4 4 5 M7 7h1',
  credit:'M3 5h18v14H3z M3 10h18 M6 15h5', chevron:'m9 5 7 7-7 7', mail:'M3 5h18v14H3z M3 5l9 8 9-8',
+ sticker:'M7 3h7l7 7-11 11-7-7V7z M8 8h.01', label:'M4 5h16v14H4z M7 9h10 M7 13h7', magnet:'M5 4v9a7 7 0 0 0 14 0V4h-4v9a3 3 0 0 1-6 0V4z', banner:'M4 4h16v12H4z M7 20v-4 M17 20v-4 M7 8h10', sign:'M5 4h14v11H5z M12 15v6 M8 21h8', yard:'M5 4h14v10H5z M9 14v7 M15 14v7', window:'M4 3h16v18H4z M12 3v18 M4 12h16', acrylic:'M6 3h12l3 3v15H6L3 18V6z M8 8h8 M8 12h8', vehicle:'M3 14l2-5h14l2 5v5h-2a2 2 0 0 1-4 0H9a2 2 0 0 1-4 0H3z M7 14h10 M7 10l2-4h6l2 4',
 };
 const icon = (name,cls='') => `<svg class="icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[name]||paths.box}"/></svg>`;
+const publicProductName = p => { const n=String(p?.name||''); if(/label/i.test(n))return 'Labels'; if(/magnet/i.test(n))return 'Magnets'; if(/banner/i.test(n))return 'Banners'; if(/yard sign/i.test(n))return 'Yard signs'; if(/ACM/i.test(n))return 'ACM signs'; if(/perforated|window/i.test(n))return 'Window graphics'; if(/acrylic/i.test(n))return 'Acrylic sign faces'; if(/wrap/i.test(n))return 'Vehicle wraps'; return n.replace(/\s*-\s*single sided/ig,'').replace(/^Roll\s*\/\s*sheet\s+/i,''); };
+const productIconName = p => { const n=(String(p?.name||'')+' '+String(p?.category||'')).toLowerCase(); if(n.includes('label'))return 'label'; if(n.includes('magnet'))return 'magnet'; if(n.includes('banner'))return 'banner'; if(n.includes('yard'))return 'yard'; if(n.includes('perforated')||n.includes('window'))return 'window'; if(n.includes('acrylic'))return 'acrylic'; if(n.includes('vehicle')||n.includes('wrap'))return 'vehicle'; if(n.includes('acm')||n.includes('sign'))return 'sign'; return 'sticker'; };
+const productIcon = p => `<span class="product-symbol">${icon(productIconName(p),'product-icon')}</span>`;
 const badge = (text_,type='') => `<span class="badge ${type}">${esc(text_)}</span>`;
 const brand = () => `<a class="brand" href="/" aria-label="Tampa Signs and Stickers home"><img class="brand-logo" src="/static/brand/tampa-white.png" alt="Tampa Signs and Stickers"></a>`;
 const customerStages = {received:'Order received',production:'In production',finished:'Finished'};
