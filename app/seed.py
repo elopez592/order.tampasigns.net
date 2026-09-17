@@ -51,14 +51,30 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             'Yard sign - single sided': 'Yard signs',
         }.items():
             conn.execute('UPDATE products SET name=? WHERE name=?', (new_name, old_name))
-        # Old print-only wrap entries are always review-only under the new policy.
-        for old in conn.execute('SELECT id,name,category,config FROM products').fetchall():
+        # Normalize legacy products and consolidate vehicle wraps into one public product.
+        wrap_install_workflow = conn.execute("SELECT id FROM workflows WHERE name='Vehicle wraps'").fetchone()
+        wrap_print_workflow = conn.execute("SELECT id FROM workflows WHERE name='Print-only wrap panels'").fetchone()
+        for old in conn.execute('SELECT id,name,category,config,workflow_id,active,public FROM products').fetchall():
             cfg = json.loads(old['config'])
             cfg.setdefault('requires_installation', old['id'] in (7, 8, 10))
             cfg.setdefault('is_wrap', 'wrap' in (old['name']+' '+old['category']).lower())
-            if cfg['is_wrap']:
-                cfg['instant'] = False
+            cfg.setdefault('supports_installation', False)
+            cfg.setdefault('installation_workflow_id', None)
             conn.execute('UPDATE products SET config=? WHERE id=?', (json.dumps(cfg), old['id']))
+        print_wrap = conn.execute("SELECT * FROM products WHERE name IN ('Cast wrap film - print and laminate','Vehicle Wraps') ORDER BY id LIMIT 1").fetchone()
+        installed_wrap = conn.execute("SELECT * FROM products WHERE name='Vehicle wrap - installed estimate' ORDER BY id LIMIT 1").fetchone()
+        if print_wrap:
+            cfg = json.loads(print_wrap['config'])
+            cfg['instant'] = True
+            cfg['is_wrap'] = True
+            cfg['requires_installation'] = False
+            cfg['supports_installation'] = True
+            cfg['installation_workflow_id'] = wrap_install_workflow['id'] if wrap_install_workflow else 4
+            cfg['description'] = 'Premium cast wrap film, printed and laminated. Choose print only for ready-to-print files, or request installation for a reviewed vehicle wrap quote.'
+            conn.execute("UPDATE products SET name='Vehicle Wraps',category='Vehicle Wraps',workflow_id=?,config=?,active=1,public=1 WHERE id=?",
+                         ((wrap_print_workflow['id'] if wrap_print_workflow else print_wrap['workflow_id']), json.dumps(cfg), print_wrap['id']))
+        if installed_wrap and (not print_wrap or installed_wrap['id'] != print_wrap['id']):
+            conn.execute('UPDATE products SET active=0,public=0 WHERE id=?', (installed_wrap['id'],))
         if not conn.execute('SELECT id FROM workflows LIMIT 1').fetchone():
             workflow_map = [
                 ('Stickers and labels', [('Preflight and print', 'Production'), ('Laminate / cure', 'Finishing'), ('Contour cut / weed', 'Finishing'), ('Quality check and pack', 'Quality')]),
