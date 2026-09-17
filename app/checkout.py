@@ -128,7 +128,7 @@ def eligible_quote(conn, items):
     if not 50 <= quote['subtotal_cents'] <= 99_999_999:
         raise HTTPException(422, 'This amount requires a custom quote rather than online checkout.')
     if quote['review_required']:
-        raise HTTPException(422, 'Wraps, installation and custom sizes require a reviewed quote, not instant checkout.')
+        raise HTTPException(422, 'Installation and custom specifications require a reviewed quote, not instant checkout.')
     return quote
 
 

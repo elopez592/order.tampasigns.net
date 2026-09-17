@@ -58,12 +58,20 @@ def validate_config(cfg: dict) -> dict:
     if not isinstance(cfg.get('instant', True), bool):
         raise HTTPException(422, 'instant must be true or false.')
     result['instant'] = cfg.get('instant', True)
-    for flag in ('requires_installation', 'is_wrap'):
+    for flag in ('requires_installation', 'is_wrap', 'supports_installation'):
         if not isinstance(cfg.get(flag, False), bool):
             raise HTTPException(422, f'{flag} must be true or false.')
         result[flag] = cfg.get(flag, False)
-    if result['requires_installation'] or result['is_wrap']:
+    if result['requires_installation']:
         result['instant'] = False
+    installation_workflow = cfg.get('installation_workflow_id')
+    if installation_workflow in (None, ''):
+        result['installation_workflow_id'] = None
+    else:
+        workflow_id = number(installation_workflow, 'Installation workflow ID', '1', '100000000')
+        if workflow_id != workflow_id.to_integral():
+            raise HTTPException(422, 'Installation workflow ID must be a whole number.')
+        result['installation_workflow_id'] = int(workflow_id)
     result['description'] = str(cfg.get('description', ''))[:700]
     result['unit'] = cfg.get('unit', 'piece')
     if result['unit'] not in ('piece', 'sqft'):
@@ -116,6 +124,11 @@ def calculate(conn, items: list, staff=False) -> dict:
         if not row or (not staff and not row['public']):
             raise HTTPException(422, 'Product is unavailable.')
         cfg = json.loads(row['config'])
+        installation_requested = item.get('installation_requested', False)
+        if not isinstance(installation_requested, bool):
+            raise HTTPException(422, 'Installation selection must be true or false.')
+        if installation_requested and not cfg.get('supports_installation', False):
+            raise HTTPException(422, 'Installation is not available for this product.')
         qty = number(item.get('quantity', 1), 'Quantity', cfg['min_quantity'], cfg['max_quantity'])
         if qty != qty.to_integral():
             raise HTTPException(422, 'Quantity must be a whole number.')
@@ -134,8 +147,11 @@ def calculate(conn, items: list, staff=False) -> dict:
         sell = max(cent_round(calculated), cents(cfg['minimum_price']), floor)
         if sell > 1_000_000_000:
             raise HTTPException(422, 'This project exceeds the automatic estimating limit. Split the job or request a manual quote.')
-        review = (not cfg['instant'] or cfg.get('requires_installation', False) or cfg.get('is_wrap', False)
-                  or 'wrap' in (row['name']+' '+row['category']).lower()) or width > D(cfg['max_width']) or height > D(cfg['max_height'])
+        review = (not cfg['instant'] or cfg.get('requires_installation', False) or installation_requested
+                  or width > D(cfg['max_width']) or height > D(cfg['max_height']))
+        workflow_id = cfg.get('installation_workflow_id') if installation_requested else row['workflow_id']
+        if installation_requested and not workflow_id:
+            raise HTTPException(422, 'Installation workflow is not configured for this product.')
         lines.append({
             'product_id': row['id'], 'product_version': row['version'], 'name': row['name'],
             'category': row['category'], 'description': str(item.get('description', ''))[:200],
@@ -144,7 +160,8 @@ def calculate(conn, items: list, staff=False) -> dict:
             'material_sqft': str(material_area.quantize(D('0.0001'))),
             'labor_hours': str(labor_hours), 'sell_cents': sell, 'cost_cents': cost,
             'price_per_item_cents': cent_round(D(sell) / qty), 'review_required': review,
-            'workflow_id': row['workflow_id'], 'floor_applied': sell == floor,
+            'installation_requested': installation_requested,
+            'workflow_id': workflow_id, 'floor_applied': sell == floor,
             'rate_snapshot': cfg,
         })
     return {'lines': lines, 'subtotal_cents': sum(x['sell_cents'] for x in lines),

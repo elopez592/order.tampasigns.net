@@ -51,14 +51,30 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             'Yard sign - single sided': 'Yard signs',
         }.items():
             conn.execute('UPDATE products SET name=? WHERE name=?', (new_name, old_name))
-        # Old print-only wrap entries are always review-only under the new policy.
-        for old in conn.execute('SELECT id,name,category,config FROM products').fetchall():
+        # Normalize legacy products and consolidate vehicle wraps into one public product.
+        wrap_install_workflow = conn.execute("SELECT id FROM workflows WHERE name='Vehicle wraps'").fetchone()
+        wrap_print_workflow = conn.execute("SELECT id FROM workflows WHERE name='Print-only wrap panels'").fetchone()
+        for old in conn.execute('SELECT id,name,category,config,workflow_id,active,public FROM products').fetchall():
             cfg = json.loads(old['config'])
             cfg.setdefault('requires_installation', old['id'] in (7, 8, 10))
             cfg.setdefault('is_wrap', 'wrap' in (old['name']+' '+old['category']).lower())
-            if cfg['is_wrap']:
-                cfg['instant'] = False
+            cfg.setdefault('supports_installation', False)
+            cfg.setdefault('installation_workflow_id', None)
             conn.execute('UPDATE products SET config=? WHERE id=?', (json.dumps(cfg), old['id']))
+        print_wrap = conn.execute("SELECT * FROM products WHERE name IN ('Cast wrap film - print and laminate','Vehicle Wraps') ORDER BY id LIMIT 1").fetchone()
+        installed_wrap = conn.execute("SELECT * FROM products WHERE name='Vehicle wrap - installed estimate' ORDER BY id LIMIT 1").fetchone()
+        if print_wrap:
+            cfg = json.loads(print_wrap['config'])
+            cfg['instant'] = True
+            cfg['is_wrap'] = True
+            cfg['requires_installation'] = False
+            cfg['supports_installation'] = True
+            cfg['installation_workflow_id'] = wrap_install_workflow['id'] if wrap_install_workflow else 4
+            cfg['description'] = 'Premium cast wrap film, printed and laminated. Choose print only for ready-to-print files, or request installation for a reviewed vehicle wrap quote.'
+            conn.execute("UPDATE products SET name='Vehicle Wraps',category='Vehicle Wraps',workflow_id=?,config=?,active=1,public=1 WHERE id=?",
+                         ((wrap_print_workflow['id'] if wrap_print_workflow else print_wrap['workflow_id']), json.dumps(cfg), print_wrap['id']))
+        if installed_wrap and (not print_wrap or installed_wrap['id'] != print_wrap['id']):
+            conn.execute('UPDATE products SET active=0,public=0 WHERE id=?', (installed_wrap['id'],))
         if not conn.execute('SELECT id FROM workflows LIMIT 1').fetchone():
             workflow_map = [
                 ('Stickers and labels', [('Preflight and print', 'Production'), ('Laminate / cure', 'Finishing'), ('Contour cut / weed', 'Finishing'), ('Quality check and pack', 'Quality')]),
@@ -80,20 +96,34 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
               ('Yard sign - single sided', 'Signs', 3, 'piece', '8', '2.5', '15', '5', '30', 1, 24, 18, 48, 96, True, '4mm corrugated plastic; hardware and installation not included.'),
               ('Storefront perforated graphics', 'Windows', 3, 'sqft', '10.5', '4.25', '0', '0', '75', 1, 44, 92, 54, 1200, False, 'Budget allowance for printed, laminated and installed perf. Verify approved film/laminate and site access.'),
               ('Acrylic sign face replacement', 'Signs', 3, 'sqft', '22', '12', '0', '0', '150', 1, 120, 30.5, 120, 96, False, 'Review thickness, full-sheet purchase, print type, retainers and installation labor.'),
-              ('Cast wrap film - print and laminate', 'Wrap print', 5, 'sqft', '10', '5.5', '20', '8', '85', 1, 54, 120, 54, 1200, True, 'Print-only example rate, not installed. Confirm film and laminate selection.'),
-              ('Vehicle wrap - installed estimate', 'Wraps', 4, 'sqft', '16', '7', '200', '75', '650', 1, 180, 120, 1000, 1000, False, 'Budget estimate only. Vehicle, coverage, removal, condition and installation must be reviewed.'),
+              ('Vehicle Wraps', 'Vehicle Wraps', 5, 'sqft', '10', '5.5', '20', '8', '85', 1, 54, 120, 54, 1200, True, 'Premium cast wrap film, printed and laminated. Choose print only for ready-to-print files, or request installation for a reviewed vehicle wrap quote.'),
             ]
             for name, category, workflow, unit, sell, cost, setup, setup_cost, minimum, minqty, width, height, maxw, maxh, instant, description in entries:
                 cfg = validate_config({'unit': unit, 'sell_per_sqft': sell, 'cost_per_sqft': cost,
                     'setup_price': setup, 'setup_cost': setup_cost, 'minimum_price': minimum,
                     'min_quantity': minqty, 'default_width': width, 'default_height': height,
-                    'max_width': maxw, 'max_height': maxh, 'instant': instant and 'wrap' not in category.lower(), 'description': description,
+                    'max_width': maxw, 'max_height': maxh, 'instant': instant, 'description': description,
                     'is_wrap': 'wrap' in category.lower(), 'requires_installation': not instant,
+                    'supports_installation': 'vehicle wrap' in name.lower(),
+                    'installation_workflow_id': 4 if 'vehicle wrap' in name.lower() else None,
                     'tiers': [{'from': 1, 'multiplier': '1'}, {'from': 100, 'multiplier': '.90'},
                               {'from': 500, 'multiplier': '.80'}, {'from': 1000, 'multiplier': '.70'}] if unit == 'piece'
                               else [{'from': 1, 'multiplier': '1'}]})
                 conn.execute('INSERT INTO products(name,category,workflow_id,config,updated_at) VALUES(?,?,?,?,?)',
                              (name, category, workflow, json.dumps(cfg), now()))
+        if not conn.execute("SELECT id FROM products WHERE category='Custom' LIMIT 1").fetchone():
+            custom_cfg = validate_config({
+                'unit': 'piece', 'sell_per_sqft': '0', 'cost_per_sqft': '0',
+                'setup_price': '0', 'setup_cost': '0', 'minimum_price': '0',
+                'min_quantity': 1, 'max_quantity': 1, 'default_width': 12, 'default_height': 12,
+                'max_width': 10000, 'max_height': 10000, 'instant': False,
+                'description': 'Custom fabrication, specialty signage, bulk orders, fleet projects and other work quoted by the shop.',
+                'is_wrap': False, 'requires_installation': False,
+                'supports_installation': False, 'installation_workflow_id': None,
+                'tiers': [{'from': 1, 'multiplier': '1'}]
+            })
+            conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?,?)',
+                         ('Custom project quote', 'Custom', 1, 0, 3, json.dumps(custom_cfg), now()))
         if not conn.execute("SELECT id FROM users WHERE role='admin' LIMIT 1").fetchone():
             address = email(admin_email or os.getenv('ADMIN_EMAIL', 'owner@example.test'))
             password = admin_password or os.getenv('ADMIN_PASSWORD') or secrets.token_urlsafe(18)
