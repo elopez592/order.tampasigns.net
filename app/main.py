@@ -272,9 +272,13 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             for row in conn.execute("""SELECT * FROM products WHERE public=1 AND active=1 ORDER BY
                 CASE WHEN name='Die-cut stickers' THEN 1 WHEN name='Transfer stickers' THEN 2 ELSE 100+id END, id"""):
                 cfg = json.loads(row['config'])
+                keys = ('unit','description','min_quantity','max_quantity','max_width','max_height',
+                        'default_width','default_height','min_width','min_height','instant','supports_installation',
+                        'supports_multiple_dimensions','self_approve_artwork','lamination_options','material_options')
+                defaults = {'supports_installation': False, 'supports_multiple_dimensions': False,
+                            'self_approve_artwork': False, 'lamination_options': [], 'material_options': []}
                 products.append({k: row[k] for k in ('id','name','category','version')} | {
-                    'config': {k: cfg[k] for k in ('unit','description','min_quantity','max_quantity','max_width','max_height',
-                                                  'default_width','default_height','min_width','min_height','instant','supports_installation','supports_multiple_dimensions','self_approve_artwork','lamination_options','material_options')}})
+                    'config': {k: cfg.get(k, defaults.get(k)) for k in keys}})
             return {'products': products, 'shop': {k: shop[k] for k in ('shop_name','contact_email','contact_phone','rates_live','quote_note')},
                     'checkout': availability(shop, app.state.gateway), 'notifications': email_status()}
 
