@@ -77,6 +77,8 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             if any(x in lname for x in ('sticker', 'transfer')):
                 cfg['min_width'] = '1'
                 cfg['min_height'] = '1'
+            if 'transfer sticker' in lname:
+                cfg['min_quantity'] = '50'
             if any(x in lname for x in ('die-cut sticker', 'transfer sticker', 'magnet', 'banner')):
                 cfg['self_approve_artwork'] = True
             if 'die-cut sticker' in lname:
