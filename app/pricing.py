@@ -179,7 +179,7 @@ def validate_config(cfg: dict) -> dict:
     categories = cfg.get('storefront_categories', [])
     if not isinstance(categories, list) or len(categories) > 8:
         raise HTTPException(422, 'Use no more than 8 storefront categories.')
-    allowed_categories = {'Storefront','Vehicle Signage','Stickers','Signs','Apparel'}
+    allowed_categories = {'Storefront','Vehicles','Fleet Services','Stickers','Signs','Apparel'}
     checked_categories = []
     for category in categories:
         label = str(category).strip()
@@ -220,6 +220,20 @@ def validate_config(cfg: dict) -> dict:
         placement_ids.add(oid)
         checked_placements.append({'id': oid, 'label': label, 'width': str(width), 'height': str(height)})
     result['placement_options'] = checked_placements
+
+    quantity_presets = cfg.get('quantity_presets', [])
+    if not isinstance(quantity_presets, list) or len(quantity_presets) > 12:
+        raise HTTPException(422, 'Use no more than 12 quantity presets.')
+    checked_quantities = []
+    min_q, max_q = int(D(result['min_quantity'])), int(D(result['max_quantity']))
+    for value in quantity_presets:
+        qty = number(value, 'Quantity preset', str(min_q), str(max_q))
+        if qty != qty.to_integral():
+            raise HTTPException(422, 'Quantity presets must be whole numbers.')
+        qty = int(qty)
+        if qty not in checked_quantities:
+            checked_quantities.append(qty)
+    result['quantity_presets'] = checked_quantities
     return result
 
 
