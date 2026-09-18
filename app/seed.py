@@ -661,6 +661,8 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             }
         }
         for apparel_name, profile in apparel_profiles.items():
+            if apparel_name == 'DTF transfers' and conn.execute("SELECT id FROM products WHERE name='Custom T-shirts'").fetchone():
+                continue
             if not conn.execute('SELECT id FROM products WHERE lower(name)=lower(?) LIMIT 1', (apparel_name,)).fetchone():
                 apparel_cfg = validate_config({
                     'unit':'piece','sell_per_sqft':profile['sell_per_sqft'],'cost_per_sqft':'0',

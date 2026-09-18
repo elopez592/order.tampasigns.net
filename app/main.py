@@ -71,6 +71,8 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     except OSError:
         pass
     credentials = bootstrap(database, demo=demo if demo is not None else os.getenv('DEMO_SEED', '0') == '1')
+    from .storefront import upgrade_catalog
+    upgrade_catalog(database)
     app = FastAPI(title='Tampa Signs and Stickers', version='0.2.0', docs_url=None, redoc_url=None, openapi_url=None)
     app.state.database = database
     app.state.uploads = uploads
@@ -279,7 +281,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             for row in conn.execute("""SELECT * FROM products WHERE public=1 AND active=1 ORDER BY
                 CASE WHEN name='Die-cut stickers' THEN 1 WHEN name='Transfer stickers' THEN 2 ELSE 100+id END, id"""):
                 cfg = json.loads(row['config'])
-                keys = ('unit','description','min_quantity','max_quantity','max_width','max_height',
+                keys = ('finished_apparel','shirt_colors','shirt_sizes','quote_only','unit','description','min_quantity','max_quantity','max_width','max_height',
                         'default_width','default_height','min_width','min_height','instant','supports_installation',
                         'supports_multiple_dimensions','self_approve_artwork','lamination_options','material_options',
                         'storefront_categories','size_options','placement_options','quantity_presets','coverage_options','vehicle_type_options','quantity_only_note','max_short_axis','max_long_axis','usdot_customizer','quantity_only')
@@ -354,6 +356,8 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 if wholesale:
                     order_payload['_wholesale_client_id'] = wholesale['id']
                 job_id = create_job(conn,order_payload,source='checkout',actor='Online customer')
+                from .customers import link_order
+                link_order(conn, request, job_id)
                 tax = 0
                 if delivery=='pickup':
                     from decimal import Decimal
@@ -407,6 +411,8 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             if wholesale:
                 request_payload['_wholesale_client_id'] = wholesale['id']
             job_id = create_job(conn, request_payload, source='customer', actor='Public estimate request')
+            from .customers import link_order
+            link_order(conn, request, job_id)
             link = issue_portal(conn, job_id)
         notify_customer(database, job_id, 'order_received', f'{f"JOB-{job_id:04d}"} received | Tampa Signs and Stickers',
                         'Project received', 'We received your project. Our team will review the details and keep you updated as it moves forward.', link)
@@ -1268,11 +1274,18 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     def api_schema(request: Request, user=Depends(require_admin)):
         return app.openapi()
 
+    from .customers import install as install_customers
+    install_customers(app, database, production, throttle, issue_portal)
+
     app.mount('/static', StaticFiles(directory=STATIC), name='static')
 
     @app.get('/', response_class=HTMLResponse)
     @app.get('/staff', response_class=HTMLResponse)
     @app.get('/portal', response_class=HTMLResponse)
+    @app.get('/products', response_class=HTMLResponse)
+    @app.get('/project', response_class=HTMLResponse)
+    @app.get('/studio', response_class=HTMLResponse)
+    @app.get('/account', response_class=HTMLResponse)
     def frontend():
         return (STATIC / 'index.html').read_text()
 

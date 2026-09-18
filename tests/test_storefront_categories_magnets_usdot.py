@@ -10,7 +10,7 @@ def test_storefront_category_metadata_and_duplicates(env):
     products = catalog_by_name(anonymous(app))
 
     assert products['Window Graphics']['config']['storefront_categories'] == ['Storefront']
-    assert set(products['Banners']['config']['storefront_categories']) == {'Storefront', 'Signs'}
+    assert set(products['Banners']['config']['storefront_categories']) == {'Storefront', 'Signs', 'Events'}
     assert set(products['ACM signs']['config']['storefront_categories']) == {'Storefront', 'Signs'}
     assert set(products['Magnets']['config']['storefront_categories']) == {'Vehicles', 'Fleet Services', 'Signs'}
     assert products['Transfer stickers']['config']['storefront_categories'] == ['Stickers']
@@ -66,12 +66,12 @@ def test_decals_usdot_and_apparel_listings(env):
     assert usdot['config']['max_long_axis'] == '48'
     assert usdot['config']['quantity_presets'][:2] == [1, 2]
 
-    dtf = products['DTF transfers']['config']
-    assert dtf['storefront_categories'] == ['Apparel']
-    assert dtf['instant'] is True
-    assert [x['id'] for x in dtf['placement_options']][:4] == [
-        'adult_left_chest', 'adult_right_chest', 'adult_full_front', 'adult_full_back'
-    ]
+    shirts = products['Custom T-shirts']['config']
+    assert shirts['storefront_categories'] == ['Apparel', 'Events']
+    assert shirts['finished_apparel'] is True
+    assert shirts['shirt_sizes'] == ['S', 'M', 'L', 'XL', '2XL', '3XL']
+    assert {'White', 'Black', 'Navy', 'Royal', 'Red', 'Sport Grey'} == set(shirts['shirt_colors'])
+    assert 'Gildan Heavy Cotton 5000' in shirts['description']
 
     hats = products['Embroidered hats']['config']
     polos = products['Embroidered polos']['config']
@@ -85,13 +85,15 @@ def test_decals_usdot_and_apparel_listings(env):
     assert 'Over-complex artwork' in hats['description']
     assert 'Over-complex artwork' in polos['description']
 
-    dtf_product = products['DTF transfers']
-    dtf_quote = client.post('/api/calculate', json={'items':[{
-        'product_id': dtf_product['id'], 'width': 11, 'height': 11, 'quantity': 1
+    shirt_product = products['Custom T-shirts']
+    shirt_quote = client.post('/api/calculate', json={'items':[{
+        'product_id': shirt_product['id'], 'width': 12, 'height': 12, 'quantity': 1,
+        'shirt_color': 'Black', 'size_quantities': {'M': 1}, 'print_locations': ['front']
     }]})
-    assert dtf_quote.status_code == 200, dtf_quote.text
-    assert dtf_quote.json()['subtotal_cents'] == 726
-    assert dtf_quote.json()['meets_minimum_order'] is False
+    assert shirt_quote.status_code == 200, shirt_quote.text
+    assert shirt_quote.json()['subtotal_cents'] == 3000
+    assert shirt_quote.json()['meets_minimum_order'] is True
+    assert shirt_quote.json()['lines'][0]['description'].startswith('Gildan 5000 / Black / M: 1 / Full front')
 
     hat_product = products['Embroidered hats']
     hat_quote = client.post('/api/calculate', json={'items':[{

@@ -66,7 +66,7 @@ def validate_config(cfg: dict) -> dict:
     if not isinstance(cfg.get('instant', True), bool):
         raise HTTPException(422, 'instant must be true or false.')
     result['instant'] = cfg.get('instant', True)
-    for flag in ('requires_installation', 'is_wrap', 'supports_installation', 'supports_multiple_dimensions', 'self_approve_artwork', 'usdot_customizer', 'quantity_only'):
+    for flag in ('requires_installation', 'is_wrap', 'supports_installation', 'supports_multiple_dimensions', 'self_approve_artwork', 'usdot_customizer', 'quantity_only', 'finished_apparel', 'quote_only'):
         if not isinstance(cfg.get(flag, False), bool):
             raise HTTPException(422, f'{flag} must be true or false.')
         result[flag] = cfg.get(flag, False)
@@ -179,7 +179,7 @@ def validate_config(cfg: dict) -> dict:
     categories = cfg.get('storefront_categories', [])
     if not isinstance(categories, list) or len(categories) > 8:
         raise HTTPException(422, 'Use no more than 8 storefront categories.')
-    allowed_categories = {'Storefront','Vehicles','Fleet Services','Trailers / Food Trucks','Stickers','Signs','Apparel'}
+    allowed_categories = {'Storefront','Vehicles','Fleet Services','Trailers / Food Trucks','Stickers','Signs','Apparel','Events'}
     checked_categories = []
     for category in categories:
         label = str(category).strip()
@@ -339,6 +339,11 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
         if qty != qty.to_integral():
             raise HTTPException(422, 'Quantity must be a whole number.')
         qty = int(qty)
+        garment_price = None
+        if cfg.get('finished_apparel'):
+            from .storefront import garment_selection
+            garment_price, garment_description = garment_selection(item, qty)
+            item = dict(item, width=12, height=12, description=garment_description)
         width = number(item.get('width'), 'Width in inches', cfg.get('min_width', '0.1'), '10000')
         height = number(item.get('height'), 'Height in inches', cfg.get('min_height', '0.1'), '10000')
         short_axis, long_axis = sorted((width, height))
@@ -435,10 +440,15 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
 
         floor = 0 if cfg.get('quantity_price_table') else int((D(cost) / (1 - margin)).quantize(D('1'), rounding=ROUND_CEILING))
         sell = max(cent_round(calculated), cents(cfg['minimum_price']), floor)
+        if garment_price is not None:
+            sell = cent_round(D(garment_price) * 100 * weighted_quantity(qty, cfg['tiers']))
         retail_sell = sell
         wholesale_discount = product_discounts.get(row['id'], wholesale_default)
         if wholesale and wholesale_discount > 0:
-            discounted = cent_round(D(sell) * (D(1) - wholesale_discount / 100))
+            protected_fee = min(sell, cents(cfg['setup_price']))
+            if row['category'] == 'Custom' or any(word in row['name'].lower() for word in ('design', 'digitiz')):
+                protected_fee = sell
+            discounted = protected_fee + cent_round(D(sell - protected_fee) * (D(1) - wholesale_discount / 100))
             sell = max(discounted, cost)
         if sell > 1_000_000_000:
             raise HTTPException(422, 'This project exceeds the automatic estimating limit. Split the job or request a manual quote.')
@@ -449,6 +459,11 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             raise HTTPException(422, 'Installation workflow is not configured for this product.')
         lines.append({
             'product_id': row['id'], 'product_version': row['version'], 'name': row['name'],
+            'finished_apparel': bool(cfg.get('finished_apparel')),
+            'shirt_color': item.get('shirt_color', '') if garment_price is not None else '',
+            'size_quantities': item.get('size_quantities', {}) if garment_price is not None else {},
+            'print_locations': item.get('print_locations', []) if garment_price is not None else [],
+            'quote_only': bool(cfg.get('quote_only')),
             'category': row['category'], 'description': str(item.get('description', ''))[:200],
             'width': str(width), 'height': str(height), 'quantity': qty, 'unit': cfg['unit'],
             'net_sqft': str(net_area.quantize(D('0.0001'))),
@@ -474,7 +489,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
         })
     line_subtotal = sum(x['sell_cents'] for x in lines)
     minimum_order = cents(shop.get('minimum_order_price', '50'), 'Minimum order price')
-    apply_order_minimum = not all(x['category'] == 'Custom' for x in lines)
+    apply_order_minimum = not all(x['category'] == 'Custom' or x['finished_apparel'] for x in lines)
     return {'lines': lines, 'subtotal_cents': line_subtotal,
             'wholesale': {'name': wholesale['name']} if wholesale else None,
             'minimum_order_adjustment_cents': 0,

@@ -89,8 +89,27 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .coverage-card input{position:absolute;opacity:0;pointer-events:none}
 .coverage-card strong{font-size:12px;color:var(--ink);line-height:1.25}
 .coverage-card small{font-size:10px;line-height:1.35;color:var(--muted)}
-.coverage-visual{height:80px;display:flex;align-items:center;justify-content:center;color:var(--accent-dark);background:linear-gradient(145deg,#f8fcfb,#edf7f5);border:1px solid #e3f0ee;border-radius:9px;overflow:hidden}
-.coverage-visual svg{width:112px;height:68px;filter:drop-shadow(0 3px 2px #0b303018)}
+.coverage-visual{min-height:90px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid #e3f0ee;border-radius:9px;overflow:hidden}
+.coverage-photo{display:block;width:100%;background-repeat:no-repeat;background-color:#fff}
+.coverage-photo-vehicle{aspect-ratio:3/2;background-image:url('/static/wraps/vehicle-coverage-blue.webp');background-size:300% 300%}
+.coverage-photo-pickup{aspect-ratio:3/2;background-image:url('/static/wraps/pickup-coverage-blue.webp');background-size:300% 300%}
+.coverage-photo-trailer{aspect-ratio:1;background-image:url('/static/wraps/trailer-coverage-blue.webp');background-size:300% 200%}
 .coverage-card.selected .coverage-visual{background:white;color:var(--accent)}
+.nav-button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.nav-button:hover{color:var(--brand-teal)}
+.nav-count{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;margin-left:3px;border-radius:99px;background:var(--brand-teal);color:var(--nav);font-size:10px;font-weight:800}
+.project-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:22px;align-items:start}
+.all-products-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.all-products-grid .panel{display:flex;flex-direction:column;align-items:flex-start}
+.all-products-grid .panel .btn{margin-top:auto}
+.account-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.studio-layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(300px,.8fr);gap:22px;align-items:start}
+#studio-canvas{display:block;width:100%;height:auto;border-radius:12px;border:1px solid var(--line);touch-action:none}
+.shirt-sample{width:100%;height:100%;object-fit:contain;background:#fff}
+.shirt-sizes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.print-locations{display:grid;gap:10px;padding:14px;border:1px solid var(--line);border-radius:10px}
+.print-locations legend{padding:0 7px;font-size:12px;font-weight:750}
 @media(max-width:760px){.coverage-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:900px){.all-products-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.project-layout,.studio-layout{grid-template-columns:1fr}}
+@media(max-width:650px){.all-products-grid,.account-grid{grid-template-columns:1fr}.public-header{height:auto;min-height:88px;padding-block:13px}.public-header .nav-links{max-height:68px;overflow:auto}.shirt-sizes{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){.coverage-grid{grid-template-columns:1fr}.coverage-card{min-height:128px;display:grid;grid-template-columns:100px 1fr;grid-template-rows:auto 1fr;align-items:center}.coverage-visual{grid-row:1/3}.coverage-card strong,.coverage-card small{align-self:end}.coverage-card small{align-self:start}}
