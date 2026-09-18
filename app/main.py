@@ -260,7 +260,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 cfg = json.loads(row['config'])
                 products.append({k: row[k] for k in ('id','name','category','version')} | {
                     'config': {k: cfg[k] for k in ('unit','description','min_quantity','max_quantity','max_width','max_height',
-                                                  'default_width','default_height','instant','supports_installation','lamination_options')}})
+                                                  'default_width','default_height','min_width','min_height','instant','supports_installation','self_approve_artwork','lamination_options')}})
             return {'products': products, 'shop': {k: shop[k] for k in ('shop_name','contact_email','contact_phone','rates_live','quote_note')},
                     'checkout': availability(shop, app.state.gateway), 'notifications': email_status()}
 
@@ -594,6 +594,21 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             audit(conn, job_id, actor(user), 'job.schedule_updated', {'due_date': due, 'priority': priority, 'assignee_id': owner})
         return {'ok': True}
 
+    @app.post('/api/staff/jobs/{job_id}/cancel')
+    def cancel_job(job_id: int, request: Request, payload: dict = Body(...), user=Depends(require_admin)):
+        reason = text(payload.get('reason', ''), 'Cancellation reason', 1000, True)
+        with transaction(database, True) as conn:
+            job = get_job(conn, job_id)
+            if job['archived']:
+                return {'ok': True, 'already_cancelled': True}
+            conn.execute('UPDATE time_entries SET stopped_at=? WHERE task_id IN (SELECT id FROM tasks WHERE job_id=?) AND stopped_at IS NULL',
+                         (now(), job_id))
+            conn.execute("UPDATE tasks SET status=CASE WHEN status='done' THEN status ELSE 'blocked' END, note=CASE WHEN status='done' THEN note ELSE ? END WHERE job_id=?",
+                         ('Job cancelled: ' + reason, job_id))
+            conn.execute('UPDATE jobs SET archived=1 WHERE id=?', (job_id,))
+            audit(conn, job_id, actor(user), 'job.cancelled', {'reason': reason}, False)
+        return {'ok': True}
+
     @app.post('/api/staff/jobs/{job_id}/quote')
     def edit_quote(job_id: int, request: Request, payload: dict = Body(...), user=Depends(require_admin)):
         with transaction(database, True) as conn:
@@ -822,6 +837,47 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                          'Customer uploaded artwork', f'New customer artwork is attached: {name}', public_url)
         return {'ok': True, 'asset_id': aid}
 
+    @app.post('/api/portal/artwork/{asset_id}/approve')
+    def approve_uploaded_artwork(asset_id: int, request: Request, payload: dict = Body(...)):
+        signer = text(payload.get('name', ''), 'Full name', 120, True)
+        if payload.get('confirm') is not True:
+            raise HTTPException(422, 'Confirm that the uploaded artwork is approved to print as supplied.')
+        with transaction(database, True) as conn:
+            job = portal_job(conn, request)
+            if job['archived']:
+                raise HTTPException(409, 'This job is cancelled.')
+            if job['accepted_version'] != job['quote_version']:
+                raise HTTPException(409, 'Accept the current quote before approving artwork.')
+            quote = json.loads(job['quote_snapshot'])
+            if not quote['lines'] or not all(bool(line.get('self_approve_artwork')) for line in quote['lines']):
+                raise HTTPException(409, 'This product requires a shop proof before artwork approval.')
+            if latest_proof(conn, job['id']):
+                raise HTTPException(409, 'A proof already exists for this job. Review the latest proof instead.')
+            asset = conn.execute("SELECT * FROM assets WHERE id=? AND job_id=? AND kind='artwork'", (asset_id, job['id'])).fetchone()
+            if not asset:
+                raise HTTPException(404, 'Artwork file not found.')
+            try:
+                actual_hash = hashlib.sha256((uploads / asset['stored_name']).read_bytes()).hexdigest()
+            except (OSError, TypeError):
+                raise HTTPException(409, 'The artwork file is unavailable. Upload it again.')
+            if actual_hash != asset['sha256']:
+                raise HTTPException(409, 'The artwork file changed. Upload it again before approval.')
+            pid = add_proof(conn, job, asset_id, 'Customer-approved print-ready artwork',
+                            'Approved by the customer to print as supplied without design changes.',
+                            signer + ' (private job link)')
+            conn.execute('INSERT INTO proof_decisions(proof_id,action,signer_name,comment,statement,quote_version,file_hash,created_at) VALUES(?,?,?,?,?,?,?,?)',
+                         (pid, 'approve', signer, 'Customer approved uploaded artwork as supplied.',
+                          APPROVAL_STATEMENT, job['quote_version'], asset['sha256'], now()))
+            conn.execute("UPDATE proofs SET status='approved' WHERE id=?", (pid,))
+            audit(conn, job['id'], signer + ' (private job link)', 'artwork.self_approved',
+                  {'proof_version': 1, 'filename': asset['filename'], 'sha256': asset['sha256']}, True)
+            job_id = job['id']
+            job_number = job['number']
+        notify_staff(database, job_id, f'artwork_self_approved_{pid}', f'Artwork approved for {job_number}',
+                     'Customer approved print-ready artwork',
+                     f'The customer approved {asset["filename"]} to print as supplied.', public_url)
+        return {'ok': True, 'proof_id': pid}
+
     @app.post('/api/staff/jobs/{job_id}/proofs')
     def upload_proof(job_id: int, request: Request, file: UploadFile = File(...),
                      label: str = Form('Complete job proof'), note: str = Form(''),
@@ -844,6 +900,24 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         notify_staff(database, job_id, f'proof_pending_{pid}', f'Proof pending for {job_number}',
                      'Proof sent for approval', 'The current proof is now waiting for customer review.', public_url)
         return {'ok': True, 'proof_id': pid}
+
+    @app.post('/api/staff/jobs/{job_id}/proofs/{proof_id}/send')
+    def send_proof_for_approval(job_id: int, proof_id: int, request: Request, user=Depends(require_staff)):
+        with transaction(database, True) as conn:
+            job = get_job(conn, job_id)
+            proof = latest_proof(conn, job_id)
+            if job['archived'] or not proof or proof['id'] != proof_id or proof['status'] != 'pending':
+                raise HTTPException(409, 'Only the latest pending proof can be sent for approval.')
+            email_link = issue_email_portal(conn, job_id)
+            job_number = job['number']
+            version = proof['version']
+            audit(conn, job_id, actor(user), 'proof.sent_for_approval', {'version': version}, True)
+        sent = notify_customer(database, job_id, f'proof_pending_{proof_id}',
+                               f'Proof ready for {job_number} | Tampa Signs and Stickers',
+                               'Your proof is ready',
+                               'A proof is waiting for your review. Please check the artwork carefully and approve it or request changes.',
+                               email_link, force=True)
+        return {'ok': True, 'email_sent': bool(sent)}
 
     @app.post('/api/staff/jobs/{job_id}/layout')
     def generate_layout(job_id: int, request: Request, payload: dict = Body(...), user=Depends(require_staff)):
@@ -956,6 +1030,14 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                          (text(payload.get('name', ''), 'Workflow name', 120, True), json.dumps(steps), workflow_id))
             audit(conn, None, actor(user), 'workflow.updated', {'workflow_id': workflow_id, 'version': old['version'] + 1})
         return {'ok': True}
+
+    @app.get('/api/admin/email-status')
+    def admin_email_status(request: Request, user=Depends(require_admin)):
+        with transaction(database) as conn:
+            rows = conn.execute('SELECT job_id,event_key,recipient,audience,status,error,created_at,updated_at FROM email_notifications ORDER BY id DESC LIMIT 50').fetchall()
+            counts = {row['status']: row['count'] for row in conn.execute('SELECT status,COUNT(*) AS count FROM email_notifications GROUP BY status')}
+        return {'configured': email_status()['enabled'], 'provider': email_status()['provider'],
+                'counts': counts, 'recent': [dict(row) for row in rows]}
 
     @app.get('/api/admin/settings')
     def get_settings(request: Request, user=Depends(require_admin)):
