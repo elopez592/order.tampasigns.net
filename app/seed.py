@@ -71,6 +71,9 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             cfg.setdefault('max_long_axis', '10000')
             cfg.setdefault('usdot_customizer', False)
             cfg.setdefault('quantity_only', False)
+            cfg.setdefault('coverage_options', [])
+            cfg.setdefault('vehicle_type_options', [])
+            cfg.setdefault('quantity_only_note', '')
             cfg.setdefault('installation_workflow_id', None)
             cfg.setdefault('lamination_options', [])
             cfg.setdefault('quantity_price_table', [])
@@ -104,6 +107,10 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 category_map = ['Vehicles','Fleet Services']
             elif product_name == 'fleet window tinting':
                 category_map = ['Fleet Services']
+            elif product_name == 'partial vehicle wraps':
+                category_map = ['Vehicles','Fleet Services']
+            elif product_name == 'trailer / food truck wraps':
+                category_map = ['Trailers / Food Trucks','Fleet Services']
             if category_map:
                 cfg['storefront_categories'] = list(dict.fromkeys(category_map))
             if any(x in lname for x in ('sticker', 'transfer')):
@@ -508,6 +515,90 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?,?)',
                          ('USDOT Decals','Stickers',1,1,sticker_workflow_for_decals['id'] if sticker_workflow_for_decals else 1,json.dumps(usdot_cfg),now()))
         vehicle_workflow_for_fleet = conn.execute("SELECT id FROM workflows WHERE name='Vehicle wraps'").fetchone()
+        partial_coverage = [
+            {'id':'spot','label':'Spot graphics / logos','description':'Logos, names, numbers and smaller branded areas.','multiplier':'0.18'},
+            {'id':'doors','label':'Door graphics','description':'Driver and passenger door coverage.','multiplier':'0.25'},
+            {'id':'hood','label':'Hood wrap','description':'Hood-focused color or printed graphic coverage.','multiplier':'0.20'},
+            {'id':'roof','label':'Roof wrap','description':'Roof-focused coverage or color change.','multiplier':'0.20'},
+            {'id':'half','label':'Half wrap','description':'Approximately half of the visible body area.','multiplier':'0.55'},
+            {'id':'three_quarter','label':'3/4 wrap','description':'High-impact coverage on most visible body panels.','multiplier':'0.78'},
+            {'id':'full','label':'Full wrap','description':'Full exterior wrap coverage, subject to vehicle review.','multiplier':'1'}
+        ]
+        vehicle_types = [
+            {'id':'car','label':'Car / sedan','multiplier':'1'},
+            {'id':'suv','label':'SUV / crossover','multiplier':'1.15'},
+            {'id':'pickup','label':'Pickup truck','multiplier':'1.2'},
+            {'id':'cargo_van','label':'Cargo / service van','multiplier':'1.35'}
+        ]
+        if not conn.execute("SELECT id FROM products WHERE lower(name)='partial vehicle wraps' LIMIT 1").fetchone():
+            partial_wrap_cfg = validate_config({
+                'unit':'piece','sell_per_sqft':'2200','cost_per_sqft':'700','setup_price':'0','setup_cost':'0',
+                'minimum_price':'450','waste_percent':'10','labor_minutes_per_unit':'0',
+                'installation_minutes_per_sqft':'600','installation_setup_minutes':'0',
+                'min_quantity':1,'max_quantity':200,'default_width':12,'default_height':12,
+                'min_width':12,'min_height':12,'max_width':12,'max_height':12,'instant':False,'quantity_only':True,
+                'quantity_only_note':'Starting wrap estimate by coverage and vehicle type. Final pricing is reviewed for exact body shape, prep, removals, access and installation conditions.',
+                'description':'Choose a visual coverage option for a fast partial-wrap estimate. Upload multiple artwork/reference files with your request. Installation and final panel plan are reviewed before production.',
+                'is_wrap':True,'requires_installation':False,'supports_installation':True,
+                'supports_multiple_dimensions':False,'self_approve_artwork':False,'usdot_customizer':False,
+                'storefront_categories':['Vehicles','Fleet Services'],'size_options':[],'placement_options':[],
+                'quantity_presets':[1,2,5,10,25,50],'coverage_options':partial_coverage,
+                'vehicle_type_options':vehicle_types,'material_options':[],
+                'lamination_options':[
+                    {'id':'cast_gloss','label':'Cast gloss laminate (included)','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
+                    {'id':'cast_matte','label':'Cast matte laminate (included)','sell_per_sqft':'0','cost_per_sqft':'0','default':False}
+                ],
+                'tiers':[
+                    {'from':1,'multiplier':'1'},
+                    {'from':5,'multiplier':'0.96'},
+                    {'from':10,'multiplier':'0.92'},
+                    {'from':25,'multiplier':'0.88'},
+                    {'from':50,'multiplier':'0.84'}
+                ]
+            })
+            conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?,?)',
+                         ('Partial Vehicle Wraps','Vehicle Wraps',1,1,vehicle_workflow_for_fleet['id'] if vehicle_workflow_for_fleet else 4,json.dumps(partial_wrap_cfg),now()))
+        trailer_coverage = [
+            {'id':'lettering','label':'Lettering / decals only','description':'Logos, menus, contact info and smaller branded areas.','multiplier':'0.18'},
+            {'id':'partial','label':'Partial wrap','description':'Focused branded sections with substantial original surface showing.','multiplier':'0.50'},
+            {'id':'sides','label':'Sides only','description':'Primary left and right side coverage.','multiplier':'0.65'},
+            {'id':'sides_rear','label':'Sides + rear','description':'Both sides plus rear door / rear panel coverage.','multiplier':'0.80'},
+            {'id':'three_quarter','label':'3/4 wrap','description':'Most visible surfaces covered, with selective uncovered areas.','multiplier':'0.88'},
+            {'id':'full','label':'Full wrap','description':'Full exterior wrap coverage, subject to body and access review.','multiplier':'1'}
+        ]
+        trailer_types = [
+            {'id':'small_trailer','label':'Small enclosed trailer','multiplier':'0.8'},
+            {'id':'large_trailer','label':'Large enclosed trailer','multiplier':'1'},
+            {'id':'food_truck','label':'Food truck','multiplier':'1.35'},
+            {'id':'box_truck','label':'Box truck','multiplier':'1.45'}
+        ]
+        if not conn.execute("SELECT id FROM products WHERE lower(name)='trailer / food truck wraps' LIMIT 1").fetchone():
+            trailer_wrap_cfg = validate_config({
+                'unit':'piece','sell_per_sqft':'3000','cost_per_sqft':'950','setup_price':'0','setup_cost':'0',
+                'minimum_price':'650','waste_percent':'10','labor_minutes_per_unit':'0',
+                'installation_minutes_per_sqft':'720','installation_setup_minutes':'0',
+                'min_quantity':1,'max_quantity':100,'default_width':12,'default_height':12,
+                'min_width':12,'min_height':12,'max_width':12,'max_height':12,'instant':False,'quantity_only':True,
+                'quantity_only_note':'Starting wrap estimate by coverage and trailer / truck type. Final pricing is reviewed for exact dimensions, doors, windows, rivets, equipment, prep and installation access.',
+                'description':'Trailer and food-truck wrap estimates from lettering through full coverage. Choose the coverage visually, add optional approximate dimensions, and upload multiple artwork/reference files with your request.',
+                'is_wrap':True,'requires_installation':False,'supports_installation':True,
+                'supports_multiple_dimensions':False,'self_approve_artwork':False,'usdot_customizer':False,
+                'storefront_categories':['Trailers / Food Trucks','Fleet Services'],'size_options':[],'placement_options':[],
+                'quantity_presets':[1,2,5,10,25],'coverage_options':trailer_coverage,
+                'vehicle_type_options':trailer_types,'material_options':[],
+                'lamination_options':[
+                    {'id':'cast_gloss','label':'Cast gloss laminate (included)','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
+                    {'id':'cast_matte','label':'Cast matte laminate (included)','sell_per_sqft':'0','cost_per_sqft':'0','default':False}
+                ],
+                'tiers':[
+                    {'from':1,'multiplier':'1'},
+                    {'from':5,'multiplier':'0.96'},
+                    {'from':10,'multiplier':'0.92'},
+                    {'from':25,'multiplier':'0.88'}
+                ]
+            })
+            conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?,?)',
+                         ('Trailer / Food Truck Wraps','Vehicle Wraps',1,1,vehicle_workflow_for_fleet['id'] if vehicle_workflow_for_fleet else 4,json.dumps(trailer_wrap_cfg),now()))
         if not conn.execute("SELECT id FROM products WHERE lower(name)='fleet window tinting' LIMIT 1").fetchone():
             fleet_tint_cfg = validate_config({
                 'unit':'piece','sell_per_sqft':'350','cost_per_sqft':'0','setup_price':'0','setup_cost':'0',
