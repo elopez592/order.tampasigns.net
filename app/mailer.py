@@ -18,6 +18,13 @@ def public_status() -> dict:
     return {"enabled": enabled(), "provider": "resend" if enabled() else None}
 
 
+def send_test_email(to_address: str) -> tuple[bool, str]:
+    title = "Email notifications are connected"
+    message = "This test was sent by the Tampa Signs and Stickers production application."
+    return _send(to_address, "Tampa Signs and Stickers email test",
+                 _brand_html(title, message), f"{title}\n\n{message}")
+
+
 def _send(to_address: str, subject: str, html_body: str, text_body: str) -> tuple[bool, str]:
     api_key = os.getenv("RESEND_API_KEY", "").strip()
     from_address = os.getenv("EMAIL_FROM", "").strip()
