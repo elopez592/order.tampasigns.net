@@ -76,3 +76,7 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .usdot-preview[data-style="rounded"]{font-family:"Trebuchet MS",Arial,sans-serif}
 @media(max-width:950px){.storefront-category-tabs{margin-left:0;overflow:auto;flex-wrap:nowrap;padding-bottom:5px}.storefront-category-tabs button{white-space:nowrap}}
 @media(max-width:700px){.storefront-category-tabs{margin-bottom:14px}.usdot-preview-number{font-size:25px}.usdot-preview-company{font-size:20px}}
+
+.public-footer-links{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.public-footer-links a,.footer-link{font:inherit;color:inherit;text-decoration:none;background:none;border:0;padding:0;cursor:pointer}
+.public-footer-links a:hover,.footer-link:hover{color:var(--brand-teal);text-decoration:underline}

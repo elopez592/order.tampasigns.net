@@ -12,9 +12,9 @@ def test_storefront_category_metadata_and_duplicates(env):
     assert products['Window Graphics']['config']['storefront_categories'] == ['Storefront']
     assert set(products['Banners']['config']['storefront_categories']) == {'Storefront', 'Signs'}
     assert set(products['ACM signs']['config']['storefront_categories']) == {'Storefront', 'Signs'}
-    assert set(products['Magnets']['config']['storefront_categories']) == {'Vehicle Signage', 'Signs'}
+    assert set(products['Magnets']['config']['storefront_categories']) == {'Vehicles', 'Fleet Services', 'Signs'}
     assert products['Transfer stickers']['config']['storefront_categories'] == ['Stickers']
-    assert products['Vehicle Wraps']['config']['storefront_categories'] == ['Vehicle Signage']
+    assert set(products['Vehicle Wraps']['config']['storefront_categories']) == {'Vehicles', 'Fleet Services'}
     assert products['Die-cut stickers']['config']['storefront_categories'] == ['Stickers']
 
 
@@ -28,6 +28,7 @@ def test_magnet_standard_sizes_and_orientation_independent_limit(env):
     ]
     assert cfg['max_short_axis'] == '24'
     assert cfg['max_long_axis'] == '48'
+    assert cfg['quantity_presets'][:2] == [1, 2]
 
     valid = client.post('/api/calculate', json={'items':[{
         'product_id': magnet['id'], 'width': 48, 'height': 24, 'quantity': 1,
@@ -54,15 +55,16 @@ def test_decals_usdot_and_apparel_listings(env):
     products = catalog_by_name(client)
 
     decals = products['Decals']
-    assert set(decals['config']['storefront_categories']) == {'Stickers', 'Vehicle Signage'}
+    assert set(decals['config']['storefront_categories']) == {'Stickers', 'Vehicles', 'Fleet Services'}
     assert decals['config']['self_approve_artwork'] is True
 
     usdot = products['USDOT Decals']
-    assert usdot['config']['storefront_categories'] == ['Vehicle Signage']
+    assert usdot['config']['storefront_categories'] == ['Vehicles', 'Fleet Services']
     assert usdot['config']['usdot_customizer'] is True
     assert [x['label'] for x in usdot['config']['size_options']] == ['18 x 12 in', '24 x 12 in', '24 x 18 in']
     assert usdot['config']['max_short_axis'] == '24'
     assert usdot['config']['max_long_axis'] == '48'
+    assert usdot['config']['quantity_presets'][:2] == [1, 2]
 
     dtf = products['DTF transfers']['config']
     assert dtf['storefront_categories'] == ['Apparel']
@@ -98,6 +100,31 @@ def test_decals_usdot_and_apparel_listings(env):
     assert hat_quote.status_code == 200, hat_quote.text
     assert hat_quote.json()['subtotal_cents'] == 3500
     assert hat_quote.json()['review_required'] is True
+
+
+def test_fleet_window_tint_is_fleet_only_and_retail_first(env):
+    app, admin, employee = env
+    client = anonymous(app)
+    products = catalog_by_name(client)
+    tint = products['Fleet Window Tinting']
+    cfg = tint['config']
+    assert cfg['storefront_categories'] == ['Fleet Services']
+    assert cfg['quantity_only'] is True
+    assert cfg['quantity_presets'][:4] == [1, 2, 5, 10]
+    assert cfg['instant'] is False
+
+    single = client.post('/api/calculate', json={'items':[{
+        'product_id': tint['id'], 'width': 12, 'height': 12, 'quantity': 1
+    }]})
+    assert single.status_code == 200, single.text
+    assert single.json()['subtotal_cents'] == 35000
+    assert single.json()['review_required'] is True
+
+    bulk = client.post('/api/calculate', json={'items':[{
+        'product_id': tint['id'], 'width': 12, 'height': 12, 'quantity': 10
+    }]})
+    assert bulk.status_code == 200, bulk.text
+    assert bulk.json()['subtotal_cents'] < 35000 * 10
 
 
 def test_usdot_quote_preserves_generated_preview_copy(env):

@@ -66,9 +66,11 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             cfg.setdefault('storefront_categories', [])
             cfg.setdefault('size_options', [])
             cfg.setdefault('placement_options', [])
+            cfg.setdefault('quantity_presets', [])
             cfg.setdefault('max_short_axis', '10000')
             cfg.setdefault('max_long_axis', '10000')
             cfg.setdefault('usdot_customizer', False)
+            cfg.setdefault('quantity_only', False)
             cfg.setdefault('installation_workflow_id', None)
             cfg.setdefault('lamination_options', [])
             cfg.setdefault('quantity_price_table', [])
@@ -82,19 +84,28 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             cfg.setdefault('self_approve_artwork', False)
 
             lname = (old['name'] + ' ' + old['category']).lower()
+            product_name = old['name'].lower()
             category_map = []
             if any(x in lname for x in ('window','storefront','acrylic sign face','banner','acm')):
                 category_map.append('Storefront')
-            if any(x in lname for x in ('vehicle','wrap','magnet')):
-                category_map.append('Vehicle Signage')
-            if any(x in lname for x in ('sticker','label')):
+            if any(x in lname for x in ('vehicle','wrap','magnet')) or product_name in ('decals','usdot decals'):
+                category_map.append('Vehicles')
+            if any(x in lname for x in ('vehicle','wrap','magnet','fleet')) or product_name in ('decals','usdot decals'):
+                category_map.append('Fleet Services')
+            if any(x in lname for x in ('sticker','label')) or product_name == 'decals':
                 category_map.append('Stickers')
             if any(x in lname for x in ('acm','yard sign','banner','acrylic sign','magnet')):
                 category_map.append('Signs')
             if old['category'].lower() == 'apparel' or any(x in lname for x in ('dtf','embroider','polo','hat')):
                 category_map.append('Apparel')
+            if product_name == 'transfer stickers':
+                category_map = ['Stickers']
+            elif product_name == 'usdot decals':
+                category_map = ['Vehicles','Fleet Services']
+            elif product_name == 'fleet window tinting':
+                category_map = ['Fleet Services']
             if category_map:
-                cfg['storefront_categories'] = category_map
+                cfg['storefront_categories'] = list(dict.fromkeys(category_map))
             if any(x in lname for x in ('sticker', 'transfer')):
                 cfg['min_width'] = '1'
                 cfg['min_height'] = '1'
@@ -124,8 +135,16 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 cfg['max_long_axis'] = '48'
                 cfg['max_width'] = '48'
                 cfg['max_height'] = '48'
+                cfg['quantity_presets'] = [1,2,5,10,25,50]
+                cfg['tiers'] = [
+                    {'from':1,'multiplier':'1'},
+                    {'from':5,'multiplier':'0.95'},
+                    {'from':10,'multiplier':'0.90'},
+                    {'from':25,'multiplier':'0.85'},
+                    {'from':50,'multiplier':'0.80'}
+                ]
             if 'usdot decal' in lname:
-                cfg['storefront_categories'] = ['Vehicle Signage']
+                cfg['storefront_categories'] = ['Vehicles','Fleet Services']
                 cfg['size_options'] = [
                     {'label':'18 x 12 in','width':'18','height':'12'},
                     {'label':'24 x 12 in','width':'24','height':'12'},
@@ -137,6 +156,53 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 cfg['max_long_axis'] = '48'
                 cfg['max_width'] = '48'
                 cfg['max_height'] = '48'
+                cfg['quantity_presets'] = [1,2,5,10,25,50]
+                cfg['tiers'] = [
+                    {'from':1,'multiplier':'1'},
+                    {'from':5,'multiplier':'0.95'},
+                    {'from':10,'multiplier':'0.90'},
+                    {'from':25,'multiplier':'0.85'},
+                    {'from':50,'multiplier':'0.80'}
+                ]
+            if old['name'].lower() == 'fleet window tinting':
+                cfg['storefront_categories'] = ['Fleet Services']
+                cfg['unit'] = 'piece'
+                cfg['sell_per_sqft'] = '350'
+                cfg['cost_per_sqft'] = '0'
+                cfg['setup_price'] = '0'
+                cfg['setup_cost'] = '0'
+                cfg['minimum_price'] = '350'
+                cfg['min_quantity'] = '1'
+                cfg['max_quantity'] = '500'
+                cfg['default_width'] = '12'
+                cfg['default_height'] = '12'
+                cfg['min_width'] = '12'
+                cfg['min_height'] = '12'
+                cfg['max_width'] = '12'
+                cfg['max_height'] = '12'
+                cfg['instant'] = False
+                cfg['requires_installation'] = True
+                cfg['quantity_only'] = True
+                cfg['self_approve_artwork'] = False
+                cfg['quantity_presets'] = [1,2,5,10,25,50]
+                cfg['tiers'] = [
+                    {'from':1,'multiplier':'1'},
+                    {'from':5,'multiplier':'0.95'},
+                    {'from':10,'multiplier':'0.90'},
+                    {'from':25,'multiplier':'0.85'},
+                    {'from':50,'multiplier':'0.80'}
+                ]
+                cfg['description'] = 'Fleet window tinting starting at a retail single-vehicle baseline. Final pricing is reviewed by vehicle, glass coverage, film choice and access. Larger fleets receive progressively better volume pricing.'
+            if old['name'].lower() == 'decals':
+                cfg['storefront_categories'] = ['Vehicles','Fleet Services','Stickers']
+                cfg['quantity_presets'] = [1,2,5,10,25,50,100]
+                cfg['tiers'] = [
+                    {'from':1,'multiplier':'1'},
+                    {'from':10,'multiplier':'0.95'},
+                    {'from':25,'multiplier':'0.90'},
+                    {'from':50,'multiplier':'0.85'},
+                    {'from':100,'multiplier':'0.80'}
+                ]
             if old['name'].lower() == 'dtf transfers':
                 cfg['storefront_categories'] = ['Apparel']
                 cfg['sell_per_sqft'] = '8.64'
@@ -310,9 +376,9 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     'supports_multiple_dimensions': ('vehicle wrap' in name.lower() or category.lower() == 'windows'),
                     'storefront_categories': (
                         ['Storefront'] if category.lower() == 'windows' else
-                        ['Vehicle Signage'] if 'vehicle wrap' in name.lower() else
-                        ['Vehicle Signage','Signs'] if 'magnet' in name.lower() else
-                        ['Vehicle Signage','Stickers'] if 'transfer sticker' in name.lower() else
+                        ['Vehicles','Fleet Services'] if 'vehicle wrap' in name.lower() else
+                        ['Vehicles','Fleet Services','Signs'] if 'magnet' in name.lower() else
+                        ['Stickers'] if 'transfer sticker' in name.lower() else
                         ['Stickers'] if any(x in name.lower() for x in ('sticker','label')) else
                         ['Storefront','Signs'] if any(x in name.lower() for x in ('acrylic sign face','banner','acm')) else
                         ['Signs'] if 'yard sign' in name.lower() else []
@@ -323,6 +389,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                          {'label':'24 x 18 in','width':'24','height':'18'}]
                         if 'magnet' in name.lower() else []
                     ),
+                    'quantity_presets': [1,2,5,10,25,50] if 'magnet' in name.lower() else [],
                     'max_short_axis': '24' if 'magnet' in name.lower() else '10000',
                     'max_long_axis': '48' if 'magnet' in name.lower() else '10000',
                     'installation_workflow_id': 4 if 'vehicle wrap' in name.lower() else None,
@@ -378,7 +445,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 'description':'Precision-cut transfer stickers for lettering and graphics without a printed background. Minimum finished size is 3 x 3 inches.',
                 'is_wrap':False,'requires_installation':False,'supports_installation':False,
                 'supports_multiple_dimensions':False,'self_approve_artwork':True,'usdot_customizer':False,
-                'storefront_categories':['Stickers'],'size_options':[],'placement_options':[],'material_options':[],
+                'storefront_categories':['Stickers'],'size_options':[],'placement_options':[],'quantity_presets':[],'material_options':[],
                 'quantity_price_table':[
                     {'quantity':50,'total':'60'},{'quantity':100,'total':'73'},{'quantity':200,'total':'95'},
                     {'quantity':300,'total':'115'},{'quantity':500,'total':'152'},{'quantity':1000,'total':'232'},
@@ -405,14 +472,14 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 'description':'Custom printed vinyl decals for windows, equipment, vehicles and general signage.',
                 'is_wrap':False,'requires_installation':False,'supports_installation':False,
                 'supports_multiple_dimensions':False,'self_approve_artwork':True,'usdot_customizer':False,
-                'storefront_categories':['Stickers','Vehicle Signage'],'size_options':[],
+                'storefront_categories':['Vehicles','Fleet Services','Stickers'],'size_options':[],'quantity_presets':[1,2,5,10,25,50],
                 'material_options':[],
                 'lamination_options':[
                     {'id':'none','label':'No laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
                     {'id':'gloss','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
                     {'id':'premium_matte','label':'Matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
                 ],
-                'tiers':[{'from':1,'multiplier':'1'},{'from':50,'multiplier':'.9'},{'from':100,'multiplier':'.8'}]
+                'tiers':[{'from':1,'multiplier':'1'},{'from':10,'multiplier':'.95'},{'from':25,'multiplier':'.90'},{'from':50,'multiplier':'.85'},{'from':100,'multiplier':'.80'}]
             })
             conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?,?)',
                          ('Decals','Stickers',1,1,sticker_workflow_for_decals['id'] if sticker_workflow_for_decals else 1,json.dumps(decal_cfg),now()))
@@ -425,7 +492,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 'description':'Basic USDOT identification decals with an instant text preview. Enter your company information and choose a lettering style before ordering.',
                 'is_wrap':False,'requires_installation':False,'supports_installation':False,
                 'supports_multiple_dimensions':False,'self_approve_artwork':True,'usdot_customizer':True,
-                'storefront_categories':['Vehicle Signage'],'size_options':[
+                'storefront_categories':['Vehicles','Fleet Services'],'quantity_presets':[1,2,5,10,25,50],'size_options':[
                     {'label':'18 x 12 in','width':'18','height':'12'},
                     {'label':'24 x 12 in','width':'24','height':'12'},
                     {'label':'24 x 18 in','width':'24','height':'18'}
@@ -436,10 +503,33 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     {'id':'gloss','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
                     {'id':'premium_matte','label':'Matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
                 ],
-                'tiers':[{'from':1,'multiplier':'1'},{'from':10,'multiplier':'.9'},{'from':25,'multiplier':'.8'}]
+                'tiers':[{'from':1,'multiplier':'1'},{'from':5,'multiplier':'.95'},{'from':10,'multiplier':'.90'},{'from':25,'multiplier':'.85'},{'from':50,'multiplier':'.80'}]
             })
             conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?,?)',
                          ('USDOT Decals','Stickers',1,1,sticker_workflow_for_decals['id'] if sticker_workflow_for_decals else 1,json.dumps(usdot_cfg),now()))
+        vehicle_workflow_for_fleet = conn.execute("SELECT id FROM workflows WHERE name='Vehicle wraps'").fetchone()
+        if not conn.execute("SELECT id FROM products WHERE lower(name)='fleet window tinting' LIMIT 1").fetchone():
+            fleet_tint_cfg = validate_config({
+                'unit':'piece','sell_per_sqft':'350','cost_per_sqft':'0','setup_price':'0','setup_cost':'0',
+                'minimum_price':'350','waste_percent':'0','labor_minutes_per_unit':'0',
+                'min_quantity':1,'max_quantity':500,'default_width':12,'default_height':12,
+                'min_width':12,'min_height':12,'max_width':12,'max_height':12,
+                'instant':False,'quantity_only':True,
+                'description':'Fleet window tinting starting at a retail single-vehicle baseline. Final pricing is reviewed by vehicle, glass coverage, film choice and access. Larger fleets receive progressively better volume pricing.',
+                'is_wrap':False,'requires_installation':True,'supports_installation':False,
+                'supports_multiple_dimensions':False,'self_approve_artwork':False,'usdot_customizer':False,
+                'storefront_categories':['Fleet Services'],'size_options':[],'placement_options':[],
+                'quantity_presets':[1,2,5,10,25,50],'material_options':[],'lamination_options':[],
+                'tiers':[
+                    {'from':1,'multiplier':'1'},
+                    {'from':5,'multiplier':'0.95'},
+                    {'from':10,'multiplier':'0.90'},
+                    {'from':25,'multiplier':'0.85'},
+                    {'from':50,'multiplier':'0.80'}
+                ]
+            })
+            conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?,?)',
+                         ('Fleet Window Tinting','Fleet Services',1,1,vehicle_workflow_for_fleet['id'] if vehicle_workflow_for_fleet else 4,json.dumps(fleet_tint_cfg),now()))
         apparel_workflow = conn.execute("SELECT id FROM workflows WHERE name='Signs and storefronts'").fetchone()
         apparel_profiles = {
             'DTF transfers': {
