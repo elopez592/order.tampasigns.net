@@ -139,6 +139,19 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                      (digest(token), job_id, time.time() + days * 86400, now()))
         return f'{public_url}/portal#token={token}'
 
+    def wholesale_client(conn, token_value):
+        if not token_value:
+            return None
+        if not isinstance(token_value, str) or len(token_value) > 200:
+            raise HTTPException(422, 'Wholesale pricing session is invalid.')
+        conn.execute('DELETE FROM wholesale_sessions WHERE expires_at<?', (time.time(),))
+        return conn.execute(
+            '''SELECT c.* FROM wholesale_sessions s
+               JOIN wholesale_clients c ON c.id=s.client_id
+               WHERE s.token_hash=? AND s.expires_at>? AND c.active=1''',
+            (digest(token_value), time.time())
+        ).fetchone()
+
     def proof_specs(job):
         return [{k: item[k] for k in ('name','description','width','height','quantity')} for item in json.loads(job['quote_snapshot'])['lines']]
 
@@ -256,19 +269,36 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         with transaction(database) as conn:
             shop = settings(conn)
             products = []
-            for row in conn.execute('SELECT * FROM products WHERE public=1 AND active=1 ORDER BY id'):
+            for row in conn.execute("""SELECT * FROM products WHERE public=1 AND active=1 ORDER BY
+                CASE WHEN name='Die-cut stickers' THEN 1 WHEN name='Transfer stickers' THEN 2 ELSE 100+id END, id"""):
                 cfg = json.loads(row['config'])
                 products.append({k: row[k] for k in ('id','name','category','version')} | {
                     'config': {k: cfg[k] for k in ('unit','description','min_quantity','max_quantity','max_width','max_height',
-                                                  'default_width','default_height','min_width','min_height','instant','supports_installation','self_approve_artwork','lamination_options')}})
+                                                  'default_width','default_height','min_width','min_height','instant','supports_installation','supports_multiple_dimensions','self_approve_artwork','lamination_options')}})
             return {'products': products, 'shop': {k: shop[k] for k in ('shop_name','contact_email','contact_phone','rates_live','quote_note')},
                     'checkout': availability(shop, app.state.gateway), 'notifications': email_status()}
+
+    @app.post('/api/wholesale/activate')
+    def activate_wholesale(request: Request, payload: dict = Body(...)):
+        throttle(request, 'wholesale_activate', 10, 900)
+        address = email(payload.get('email', ''))
+        code = text(payload.get('code', ''), 'Wholesale access code', 128, True)
+        with transaction(database, True) as conn:
+            client = conn.execute('SELECT * FROM wholesale_clients WHERE email=? AND active=1', (address,)).fetchone()
+            if not client or not password_matches(code, client['code_hash']):
+                raise HTTPException(401, 'Wholesale email or access code is incorrect.')
+            token = secrets.token_urlsafe(32)
+            conn.execute('DELETE FROM wholesale_sessions WHERE expires_at<? OR client_id=?', (time.time(), client['id']))
+            conn.execute('INSERT INTO wholesale_sessions(token_hash,client_id,expires_at,created_at) VALUES(?,?,?,?)',
+                         (digest(token), client['id'], time.time()+8*3600, now()))
+        return {'token': token, 'client': {'name': client['name'], 'email': client['email']}}
 
     @app.post('/api/calculate')
     def customer_calculate(request: Request, payload: dict = Body(...)):
         throttle(request, 'calculate', 180, 60)
-        with transaction(database) as conn:
-            quote = calculate(conn, payload.get('items', []))
+        with transaction(database, True) as conn:
+            wholesale = wholesale_client(conn, payload.get('wholesale_token', ''))
+            quote = calculate(conn, payload.get('items', []), wholesale_client_id=wholesale['id'] if wholesale else None)
         result = public_quote(quote)
         result['fingerprint'] = digest(json.dumps(result, sort_keys=True))
         return result
@@ -296,12 +326,16 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                     raise HTTPException(409, 'This checkout request is already in use.')
                 job_id = previous['job_id']
             else:
-                quote = eligible_quote(conn, payload.get('items',[]))
+                wholesale = wholesale_client(conn, payload.get('wholesale_token', ''))
+                quote = eligible_quote(conn, payload.get('items',[]), wholesale_client_id=wholesale['id'] if wholesale else None)
                 expected = digest(json.dumps(public_quote(quote), sort_keys=True))
                 if payload.get('fingerprint') != expected:
                     raise HTTPException(409, 'Pricing has changed. Recalculate before ordering.')
                 policy = checkout_policy(shop, delivery)
-                job_id = create_job(conn,payload,source='checkout',actor='Online customer')
+                order_payload = dict(payload)
+                if wholesale:
+                    order_payload['_wholesale_client_id'] = wholesale['id']
+                job_id = create_job(conn,order_payload,source='checkout',actor='Online customer')
                 tax = 0
                 if delivery=='pickup':
                     from decimal import Decimal
@@ -343,11 +377,16 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         if payload.get('website'):
             raise HTTPException(422, 'Request could not be submitted.')
         with transaction(database, True) as conn:
-            computed = public_quote(calculate(conn, payload.get('items', [])))
+            wholesale = wholesale_client(conn, payload.get('wholesale_token', ''))
+            wholesale_id = wholesale['id'] if wholesale else None
+            computed = public_quote(calculate(conn, payload.get('items', []), wholesale_client_id=wholesale_id))
             expected = digest(json.dumps(computed, sort_keys=True))
             if payload.get('fingerprint') != expected:
                 raise HTTPException(409, 'Pricing has changed. Recalculate your estimate before submitting.')
-            job_id = create_job(conn, payload, source='customer', actor='Public estimate request')
+            request_payload = dict(payload)
+            if wholesale:
+                request_payload['_wholesale_client_id'] = wholesale['id']
+            job_id = create_job(conn, request_payload, source='customer', actor='Public estimate request')
             link = issue_portal(conn, job_id)
         notify_customer(database, job_id, 'order_received', f'{f"JOB-{job_id:04d}"} received | Tampa Signs and Stickers',
                         'Project received', 'We received your project. Our team will review the details and keep you updated as it moves forward.', link)
