@@ -52,6 +52,7 @@ def validate_config(cfg: dict) -> dict:
         ('price_table_base_width', '3', '0.1', '10000'),
         ('price_table_base_height', '3', '0.1', '10000'),
         ('price_table_size_weight', '0.45', '0', '1'),
+        ('max_short_axis', '10000', '0.1', '10000'), ('max_long_axis', '10000', '0.1', '10000'),
         ('min_width', '0.1', '0.1', '10000'), ('min_height', '0.1', '0.1', '10000'),
         ('max_width', '120', '0.1', '10000'), ('max_height', '1200', '0.1', '10000'),
         ('min_quantity', '1', '1', '100000'), ('max_quantity', '100000', '1', '100000'),
@@ -174,6 +175,32 @@ def validate_config(cfg: dict) -> dict:
     if checked_materials and material_defaults == 0:
         checked_materials[0]['default'] = True
     result['material_options'] = checked_materials
+
+    categories = cfg.get('storefront_categories', [])
+    if not isinstance(categories, list) or len(categories) > 8:
+        raise HTTPException(422, 'Use no more than 8 storefront categories.')
+    allowed_categories = {'Storefront','Vehicle Signage','Stickers','Signs','Apparel'}
+    checked_categories = []
+    for category in categories:
+        label = str(category).strip()
+        if label not in allowed_categories:
+            raise HTTPException(422, 'Choose a valid storefront category.')
+        if label not in checked_categories:
+            checked_categories.append(label)
+    result['storefront_categories'] = checked_categories
+
+    sizes = cfg.get('size_options', [])
+    if not isinstance(sizes, list) or len(sizes) > 12:
+        raise HTTPException(422, 'Use no more than 12 standard size options.')
+    checked_sizes = []
+    for option in sizes:
+        if not isinstance(option, dict):
+            raise HTTPException(422, 'Invalid standard size option.')
+        width = number(option.get('width'), 'Standard size width', '0.1', '10000')
+        height = number(option.get('height'), 'Standard size height', '0.1', '10000')
+        label = str(option.get('label', f'{width} x {height}')).strip()[:80]
+        checked_sizes.append({'width': str(width), 'height': str(height), 'label': label})
+    result['size_options'] = checked_sizes
     return result
 
 
@@ -243,6 +270,9 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
         qty = int(qty)
         width = number(item.get('width'), 'Width in inches', cfg.get('min_width', '0.1'), '10000')
         height = number(item.get('height'), 'Height in inches', cfg.get('min_height', '0.1'), '10000')
+        short_axis, long_axis = sorted((width, height))
+        if short_axis > D(cfg.get('max_short_axis', '10000')) or long_axis > D(cfg.get('max_long_axis', '10000')):
+            raise HTTPException(422, f'Finished size cannot exceed {cfg.get("max_short_axis", "10000")} x {cfg.get("max_long_axis", "10000")} inches in either orientation.')
         area = width * height / 144
         net_area = area * qty
         material_area = net_area * (1 + D(cfg['waste_percent']) / 100)
