@@ -100,9 +100,9 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     {'quantity': 5000, 'total': '723'}, {'quantity': 10000, 'total': '1225'}
                 ]
                 cfg['lamination_options'] = [
-                    {'id':'standard_matte','label':'Standard matte — no laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
-                    {'id':'premium_matte','label':'Premium matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
-                    {'id':'gloss_laminate','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
+                    {'id':'none','label':'No laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
+                    {'id':'gloss','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
+                    {'id':'premium_matte','label':'Premium matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
                 ]
             if 'die-cut sticker' in lname and not cfg.get('quantity_price_table'):
                 cfg['quantity_price_table'] = [
@@ -117,9 +117,16 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 cfg['price_table_size_weight'] = '0.45'
                 cfg['minimum_price'] = '60'
                 cfg['lamination_options'] = [
-                    {'id':'standard_matte','label':'Standard matte — no laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
-                    {'id':'premium_matte','label':'Premium matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
-                    {'id':'gloss_laminate','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
+                    {'id':'none','label':'No laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
+                    {'id':'gloss','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
+                    {'id':'premium_matte','label':'Premium matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
+                ]
+
+            if any(x in lname for x in ('die-cut sticker','transfer sticker')):
+                cfg['lamination_options'] = [
+                    {'id':'none','label':'No laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
+                    {'id':'gloss','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
+                    {'id':'premium_matte','label':'Premium matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
                 ]
 
             # Common large-format laminate add-ons, based on public trade-shop finishing rates.
@@ -210,9 +217,9 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     ] if 'die-cut sticker' in name.lower() else [],
                     'price_table_base_width': '3', 'price_table_base_height': '3', 'price_table_size_weight': '0.45',
                     'lamination_options': (
-                        [{'id':'standard_matte','label':'Standard matte — no laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
-                         {'id':'premium_matte','label':'Premium matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
-                         {'id':'gloss_laminate','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}]
+                        [{'id':'none','label':'No laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
+                         {'id':'gloss','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
+                         {'id':'premium_matte','label':'Premium matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}]
                         if 'die-cut sticker' in name.lower() else
                         [{'id':'cast_gloss','label':'Cast gloss laminate (included)','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
                          {'id':'cast_matte','label':'Cast matte laminate (included)','sell_per_sqft':'0','cost_per_sqft':'0','default':False}]
@@ -253,9 +260,9 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 ],
                 'price_table_base_width':'3','price_table_base_height':'3','price_table_size_weight':'0.45',
                 'lamination_options':[
-                    {'id':'standard_matte','label':'Standard matte — no laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
-                    {'id':'premium_matte','label':'Premium matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
-                    {'id':'gloss_laminate','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
+                    {'id':'none','label':'No laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
+                    {'id':'gloss','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
+                    {'id':'premium_matte','label':'Premium matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
                 ],
                 'tiers':[{'from':1,'multiplier':'1'}]
             })
