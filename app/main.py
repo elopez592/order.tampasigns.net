@@ -25,7 +25,7 @@ from .seed import bootstrap
 from .images import sanitize, save_asset, panel_sheet, MAX_UPLOAD
 from .checkout import (StripeGateway, availability, eligible_quote, checkout_policy,
                        start_checkout, process_event, order_for_job)
-from .mailer import public_status as email_status, notify_customer, notify_staff
+from .mailer import public_status as email_status, notify_customer, notify_staff, send_test_email
 import uuid
 
 COOKIE = 'signshop_session'
@@ -1038,6 +1038,13 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             counts = {row['status']: row['count'] for row in conn.execute('SELECT status,COUNT(*) AS count FROM email_notifications GROUP BY status')}
         return {'configured': email_status()['enabled'], 'provider': email_status()['provider'],
                 'counts': counts, 'recent': [dict(row) for row in rows]}
+
+    @app.post('/api/admin/email-test')
+    def admin_email_test(request: Request, user=Depends(require_admin)):
+        ok, error = send_test_email(user['email'])
+        if not ok:
+            raise HTTPException(502, error or 'Email test failed.')
+        return {'ok': True, 'recipient': user['email']}
 
     @app.get('/api/admin/settings')
     def get_settings(request: Request, user=Depends(require_admin)):
