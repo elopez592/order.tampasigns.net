@@ -82,7 +82,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
 
             lname = (old['name'] + ' ' + old['category']).lower()
             category_map = []
-            if any(x in lname for x in ('window','storefront','acrylic sign face')):
+            if any(x in lname for x in ('window','storefront','acrylic sign face','banner','acm')):
                 category_map.append('Storefront')
             if any(x in lname for x in ('vehicle','wrap','magnet','transfer sticker')):
                 category_map.append('Vehicle Signage')
@@ -243,8 +243,8 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                         ['Vehicle Signage','Signs'] if 'magnet' in name.lower() else
                         ['Vehicle Signage','Stickers'] if 'transfer sticker' in name.lower() else
                         ['Stickers'] if any(x in name.lower() for x in ('sticker','label')) else
-                        ['Storefront','Signs'] if 'acrylic sign face' in name.lower() else
-                        ['Signs'] if any(x in name.lower() for x in ('banner','acm','yard sign')) else []
+                        ['Storefront','Signs'] if any(x in name.lower() for x in ('acrylic sign face','banner','acm')) else
+                        ['Signs'] if 'yard sign' in name.lower() else []
                     ),
                     'size_options': (
                         [{'label':'18 x 12 in','width':'18','height':'12'},
