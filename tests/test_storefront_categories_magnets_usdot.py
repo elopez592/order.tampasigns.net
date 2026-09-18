@@ -114,19 +114,21 @@ def test_fleet_window_tint_is_fleet_only_and_retail_first(env):
     assert cfg['quantity_only'] is True
     assert cfg['quantity_presets'][:4] == [1, 2, 5, 10]
     assert cfg['instant'] is False
+    assert cfg['vehicle_details_required'] is True
+    assert '$600' in cfg['description']
 
     single = client.post('/api/calculate', json={'items':[{
         'product_id': tint['id'], 'width': 12, 'height': 12, 'quantity': 1
     }]})
     assert single.status_code == 200, single.text
-    assert single.json()['subtotal_cents'] == 35000
+    assert single.json()['subtotal_cents'] == 60000
     assert single.json()['review_required'] is True
 
     bulk = client.post('/api/calculate', json={'items':[{
         'product_id': tint['id'], 'width': 12, 'height': 12, 'quantity': 10
     }]})
     assert bulk.status_code == 200, bulk.text
-    assert bulk.json()['subtotal_cents'] < 35000 * 10
+    assert bulk.json()['subtotal_cents'] < 60000 * 10
 
 
 def test_usdot_quote_preserves_generated_preview_copy(env):

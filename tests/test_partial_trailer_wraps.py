@@ -95,4 +95,12 @@ def test_wrap_coverage_storefront_ui_is_present(env):
     assert 'input[name="coverage_option"]:checked' in text
     assert "Approximate dimensions" in text
     assert "Trailer / truck type" in text
+    assert "Vehicle year" in text
+    assert "Window package" in text
+    assert "vehicleType==='car'?'sedan'" in text
+    assert "vehicleType==='cargo_van'?'van'" in text
     assert "multiple" in text
+
+    css = client.get('/static/styles.css').text
+    assert 'sedan-coverage-blue.webp' in css
+    assert 'van-coverage-blue.webp' in css

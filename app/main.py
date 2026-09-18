@@ -284,11 +284,12 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 keys = ('finished_apparel','shirt_colors','shirt_sizes','quote_only','unit','description','min_quantity','max_quantity','max_width','max_height',
                         'default_width','default_height','min_width','min_height','instant','supports_installation',
                         'supports_multiple_dimensions','self_approve_artwork','lamination_options','material_options',
-                        'storefront_categories','size_options','placement_options','quantity_presets','coverage_options','vehicle_type_options','quantity_only_note','max_short_axis','max_long_axis','usdot_customizer','quantity_only')
+                        'storefront_categories','size_options','placement_options','quantity_presets','coverage_options','vehicle_type_options','quantity_only_note','max_short_axis','max_long_axis','usdot_customizer','quantity_only','vehicle_details_required')
                 defaults = {'supports_installation': False, 'supports_multiple_dimensions': False,
                             'self_approve_artwork': False, 'lamination_options': [], 'material_options': [],
                             'storefront_categories': [], 'size_options': [], 'placement_options': [], 'quantity_presets': [], 'coverage_options': [], 'vehicle_type_options': [], 'quantity_only_note': '', 'max_short_axis': '10000',
-                            'max_long_axis': '10000', 'usdot_customizer': False, 'quantity_only': False}
+                            'max_long_axis': '10000', 'usdot_customizer': False, 'quantity_only': False,
+                            'vehicle_details_required': False}
                 products.append({k: row[k] for k in ('id','name','category','version')} | {
                     'config': {k: cfg.get(k, defaults.get(k)) for k in keys}})
             return {'products': products, 'shop': {k: shop[k] for k in ('shop_name','contact_email','contact_phone','rates_live','quote_note')},

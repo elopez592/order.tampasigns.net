@@ -27,6 +27,13 @@ def upgrade_catalog(database):
                 cats = ['Apparel', 'Events']
             if name == 'Custom T-shirts':
                 cfg.update(finished_apparel=True, shirt_colors=COLORS, shirt_sizes=SIZES)
+            if name == 'Fleet Window Tinting':
+                cfg.update(
+                    sell_per_sqft='600', minimum_price='600', instant=False,
+                    quantity_only=True, requires_installation=True, vehicle_details_required=True,
+                    description='Full ceramic window tint for a standard vehicle starts at $600 and includes four side windows plus the front and rear windshields. Larger glass or additional windows cost extra after review. Fleet quantity savings apply.',
+                    quantity_only_note='$600 standard-vehicle package: four side windows plus front and rear windshields. Larger glass or additional windows are extra and confirmed after review.'
+                )
             cfg['storefront_categories'] = cats
             if cfg != json.loads(row['config']) or name != row['name']:
                 conn.execute('UPDATE products SET name=?,config=?,version=version+1,updated_at=? WHERE id=?', (name, json.dumps(cfg), now(), row['id']))

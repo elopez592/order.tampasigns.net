@@ -603,12 +603,13 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                          ('Trailer / Food Truck Wraps','Vehicle Wraps',1,1,vehicle_workflow_for_fleet['id'] if vehicle_workflow_for_fleet else 4,json.dumps(trailer_wrap_cfg),now()))
         if not conn.execute("SELECT id FROM products WHERE lower(name)='fleet window tinting' LIMIT 1").fetchone():
             fleet_tint_cfg = validate_config({
-                'unit':'piece','sell_per_sqft':'350','cost_per_sqft':'0','setup_price':'0','setup_cost':'0',
-                'minimum_price':'350','waste_percent':'0','labor_minutes_per_unit':'0',
+                'unit':'piece','sell_per_sqft':'600','cost_per_sqft':'0','setup_price':'0','setup_cost':'0',
+                'minimum_price':'600','waste_percent':'0','labor_minutes_per_unit':'0',
                 'min_quantity':1,'max_quantity':500,'default_width':12,'default_height':12,
                 'min_width':12,'min_height':12,'max_width':12,'max_height':12,
-                'instant':False,'quantity_only':True,
-                'description':'Fleet window tinting starting at a retail single-vehicle baseline. Final pricing is reviewed by vehicle, glass coverage, film choice and access. Larger fleets receive progressively better volume pricing.',
+                'instant':False,'quantity_only':True,'vehicle_details_required':True,
+                'description':'Full ceramic window tint for a standard vehicle starts at $600 and includes four side windows plus the front and rear windshields. Larger glass or additional windows cost extra after review. Fleet quantity savings apply.',
+                'quantity_only_note':'$600 standard-vehicle package: four side windows plus front and rear windshields. Larger glass or additional windows are extra and confirmed after review.',
                 'is_wrap':False,'requires_installation':True,'supports_installation':False,
                 'supports_multiple_dimensions':False,'self_approve_artwork':False,'usdot_customizer':False,
                 'storefront_categories':['Fleet Services'],'size_options':[],'placement_options':[],
