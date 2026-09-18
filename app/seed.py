@@ -138,11 +138,14 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 ]
             if 'storefront perforated' in lname or old['category'].lower() == 'windows':
                 cfg['supports_multiple_dimensions'] = True
-            if ('perforated' in lname or 'window' in lname) and not cfg.get('lamination_options'):
-                cfg['lamination_options'] = [
-                    {'id':'none','label':'No laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
-                    {'id':'optically_clear','label':'Optically clear laminate','sell_per_sqft':'3.5','cost_per_sqft':'2','default':False}
+                cfg['lamination_options'] = []
+                cfg['material_options'] = [
+                    {'id':'perforated','label':'Perforated window vinyl','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','default':True},
+                    {'id':'opaque','label':'Standard opaque vinyl','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','default':False}
                 ]
+                cfg['description'] = 'Window graphics with your choice of perforated window vinyl or standard opaque vinyl. Add each window or panel size separately. Lamination is not included.'
+            if old['category'].lower() == 'windows' and old['name'] != 'Window Graphics':
+                conn.execute("UPDATE products SET name='Window Graphics' WHERE id=?", (old['id'],))
             conn.execute('UPDATE products SET config=? WHERE id=?', (json.dumps(cfg), old['id']))
         print_wrap = conn.execute("SELECT * FROM products WHERE name IN ('Cast wrap film - print and laminate','Vehicle Wraps') ORDER BY id LIMIT 1").fetchone()
         installed_wrap = conn.execute("SELECT * FROM products WHERE name='Vehicle wrap - installed estimate' ORDER BY id LIMIT 1").fetchone()
@@ -191,7 +194,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
               ('Banners', 'Banners', 2, 'sqft', '5', '1.5', '10', '4', '45', 1, 72, 36, 120, 1200, True, 'Single-sided banner, standard hem and grommets.'),
               ('ACM signs', 'Signs', 3, 'sqft', '14', '5', '20', '8', '65', 1, 24, 18, 48, 96, True, 'Printed graphic on 3mm ACM. Installation priced separately.'),
               ('Yard signs', 'Signs', 3, 'piece', '8', '2.5', '15', '5', '30', 1, 24, 18, 48, 96, True, '4mm corrugated plastic; hardware and installation not included.'),
-              ('Storefront perforated graphics', 'Windows', 3, 'sqft', '10.5', '4.25', '0', '0', '75', 1, 44, 92, 54, 1200, False, 'Budget allowance for printed, laminated and installed perf. Verify approved film/laminate and site access.'),
+              ('Window Graphics', 'Windows', 3, 'sqft', '10.5', '4.25', '0', '0', '75', 1, 44, 92, 54, 1200, False, 'Window graphics with your choice of perforated window vinyl or standard opaque vinyl. Add each window or panel size separately. Lamination is not included.'),
               ('Acrylic sign face replacement', 'Signs', 3, 'sqft', '22', '12', '0', '0', '150', 1, 120, 30.5, 120, 96, False, 'Review thickness, full-sheet purchase, print type, retainers and installation labor.'),
               ('Vehicle Wraps', 'Vehicle Wraps', 5, 'sqft', '5.27', '0', '0', '0', '5.27', 1, 54, 120, 54, 1200, True, 'Premium cast wrap film printed and laminated at the current WePrintWraps benchmark rate. Installation is estimated instantly and reviewed before production.'),
             ]
@@ -202,7 +205,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     'max_width': maxw, 'max_height': maxh, 'instant': instant, 'description': description,
                     'is_wrap': 'wrap' in category.lower(), 'requires_installation': not instant,
                     'supports_installation': 'vehicle wrap' in name.lower(),
-                    'supports_multiple_dimensions': ('vehicle wrap' in name.lower() or 'storefront perforated' in name.lower()),
+                    'supports_multiple_dimensions': ('vehicle wrap' in name.lower() or category.lower() == 'windows'),
                     'installation_workflow_id': 4 if 'vehicle wrap' in name.lower() else None,
                     'min_width': '1' if 'sticker' in name.lower() else '0.1',
                     'min_height': '1' if 'sticker' in name.lower() else '0.1',
@@ -224,13 +227,17 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                         [{'id':'cast_gloss','label':'Cast gloss laminate (included)','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
                          {'id':'cast_matte','label':'Cast matte laminate (included)','sell_per_sqft':'0','cost_per_sqft':'0','default':False}]
                         if 'vehicle wrap' in name.lower() else
-                        [{'id':'optically_clear','label':'Optically clear laminate','sell_per_sqft':'3.5','cost_per_sqft':'2','default':False},
-                         {'id':'none','label':'No laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True}]
-                        if 'storefront perforated' in name.lower() else
+                        []
+                        if category.lower() == 'windows' else
                         [{'id':'none','label':'No laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
                          {'id':'gloss','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
                          {'id':'premium_matte','label':'Matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}]
                         if any(x in name.lower() for x in ('label','magnet','acm','yard sign','acrylic')) else []
+                    ),
+                    'material_options': (
+                        [{'id':'perforated','label':'Perforated window vinyl','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','default':True},
+                         {'id':'opaque','label':'Standard opaque vinyl','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','default':False}]
+                        if category.lower() == 'windows' else []
                     ),
                     'tiers': [{'from': 1, 'multiplier': '1'}, {'from': 100, 'multiplier': '.90'},
                               {'from': 500, 'multiplier': '.80'}, {'from': 1000, 'multiplier': '.70'}] if unit == 'piece'
