@@ -89,7 +89,7 @@ function quantityChoices(cfg){
   let base=cfg.quantity_presets?.length?cfg.quantity_presets:(min<=1?[1,5,10,25,50,100]:min<=10?[min,25,50,100,250,500]:min<=50?[min,100,200,500,1000,2500]:[min,min*2,min*5,min*10,min*20,min*50]);
   return [...new Set(base.map(Number).filter(q=>q>=min&&q<=max))].sort((a,b)=>a-b);
 }
-const storefrontCategories=['Storefront','Vehicles','Fleet Services','Stickers','Signs','Apparel'];
+const storefrontCategories=['Storefront','Vehicles','Fleet Services','Trailers / Food Trucks','Stickers','Signs','Apparel'];
 function sizeSelector(cfg){
   const fields='<div class="fields">'+input('width','Width',cfg.default_width,'number','min="'+(cfg.min_width||0.1)+'" max="10000" step="0.01" required')+input('height','Height',cfg.default_height,'number','min="'+(cfg.min_height||0.1)+'" max="10000" step="0.01" required')+'</div>';
   if(!cfg.size_options?.length)return fields;
@@ -120,6 +120,19 @@ function updateUsdotPreview(){
   $('.usdot-preview-company',preview).textContent=company;
   $('.usdot-preview-number',preview).textContent='USDOT '+number;
   $('.usdot-preview-location',preview).textContent=location;
+}
+function coverageIcon(id,trailer=false){
+  const fill='<rect x="12" y="18" width="72" height="30" rx="8" fill="currentColor" opacity=".16"/>';
+  const outline=trailer?'<path d="M12 18h58v30H12zM70 28h10l8 10v10H70zM24 52a6 6 0 1 0 0 .1M72 52a6 6 0 1 0 0 .1" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>':'<path d="M14 42l8-17c2-4 5-6 10-6h25c5 0 8 2 11 6l10 17h5a5 5 0 0 1 5 5v5H8v-5a5 5 0 0 1 5-5h1zM24 52a6 6 0 1 0 0 .1M72 52a6 6 0 1 0 0 .1" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>';
+  const art={spot:'<circle cx="37" cy="34" r="7" fill="currentColor"/><circle cx="58" cy="34" r="7" fill="currentColor"/>',lettering:'<path d="M25 31h42v8H25z" fill="currentColor"/>',doors:'<rect x="30" y="24" width="30" height="24" fill="currentColor" opacity=".85"/>',hood:'<path d="M14 42h25l7-17H22z" fill="currentColor" opacity=".85"/>',roof:'<path d="M31 19h28l9 13H23z" fill="currentColor" opacity=".85"/>',partial:'<rect x="12" y="18" width="36" height="30" fill="currentColor" opacity=".85"/>',half:'<rect x="12" y="18" width="38" height="30" fill="currentColor" opacity=".85"/>',sides:'<rect x="12" y="18" width="58" height="30" fill="currentColor" opacity=".85"/>',sides_rear:'<rect x="12" y="18" width="66" height="30" fill="currentColor" opacity=".85"/>',three_quarter:'<rect x="12" y="18" width="58" height="30" fill="currentColor" opacity=".85"/>',full:fill}[id]||fill;
+  return '<svg viewBox="0 0 96 64" aria-hidden="true">'+art+outline+'</svg>';
+}
+function coverageCustomizer(cfg){
+  if(!cfg.coverage_options?.length)return '';
+  const trailer=(cfg.storefront_categories||[]).includes('Trailers / Food Trucks');
+  const cards=cfg.coverage_options.map((o,i)=>'<label class="coverage-card '+(i===0?'selected':'')+'"><input type="radio" name="coverage_option" value="'+esc(o.id)+'" '+(i===0?'checked':'')+'><span class="coverage-visual">'+coverageIcon(o.id,trailer)+'</span><strong>'+esc(o.label)+'</strong><small>'+esc(o.description||'')+'</small></label>').join('');
+  const types=cfg.vehicle_type_options?.length?select('vehicle_type',trailer?'Trailer / truck type':'Vehicle type',cfg.vehicle_type_options.map(o=>[o.id,o.label]),cfg.vehicle_type_options[0].id):'';
+  return '<div class="coverage-config"><div class="row between mb"><div><h3>Choose wrap coverage</h3><p class="field-hint">Pick the closest visual coverage. We review exact panels before production.</p></div></div><div class="coverage-grid">'+cards+'</div><div class="mt">'+types+'</div><div class="row mt mb"><h3>Approximate dimensions <span class="muted tiny">(optional)</span></h3></div><div class="fields">'+input('approx_width',trailer?'Approx side length (in)':'Approx graphic length (in)','','number','min="1" max="1000" step=".1"')+input('approx_height','Approx height (in)','','number','min="1" max="300" step=".1"')+'</div></div><div class="divider"></div>';
 }
 async function calculatorView(){
   if(!state.catalog)state.catalog=await api('/api/catalog');
