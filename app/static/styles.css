@@ -84,6 +84,7 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .coverage-config{margin-bottom:4px}
 .coverage-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .coverage-card{position:relative;display:flex;flex-direction:column;gap:6px;min-height:166px;padding:13px;border:1px solid var(--line);border-radius:12px;background:#fff;cursor:pointer;transition:.16s ease}
+.coverage-card[hidden]{display:none}
 .coverage-card:hover{border-color:#9fc9c4;transform:translateY(-1px)}
 .coverage-card.selected{border:2px solid var(--accent);background:#effaf8;box-shadow:0 0 0 3px #16b2b418}
 .coverage-card input{position:absolute;opacity:0;pointer-events:none}
@@ -93,7 +94,7 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .coverage-photo{display:block;width:100%;background-repeat:no-repeat;background-color:#fff}
 .coverage-photo-vehicle{aspect-ratio:3/2;background-image:url('/static/wraps/vehicle-coverage-blue.webp?v=20260918-3');background-size:300% 300%}
 .coverage-photo-sedan{aspect-ratio:3/2;background-image:url('/static/wraps/sedan-coverage-blue.webp?v=20260918-3');background-size:300% 300%}
-.coverage-photo-van{aspect-ratio:3/2;background-image:url('/static/wraps/van-coverage-blue.webp?v=20260918-3');background-size:300% 300%}
+.coverage-photo-van{aspect-ratio:3/2;background-image:url('/static/wraps/van-coverage-blue.webp?v=20260918-4');background-size:300% 300%}
 .coverage-photo-pickup{aspect-ratio:3/2;background-image:url('/static/wraps/pickup-coverage-blue.webp?v=20260918-3');background-size:300% 300%}
 .coverage-photo-trailer{aspect-ratio:1;background-image:url('/static/wraps/trailer-coverage-blue.webp?v=20260918-3');background-size:300% 200%}
 .coverage-card.selected .coverage-visual{background:white;color:var(--accent)}

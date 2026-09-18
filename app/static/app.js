@@ -144,8 +144,17 @@ function updateCoverageVisuals(){
   const trailer=(product?.config.storefront_categories||[]).includes('Trailers / Food Trucks');
   const vehicleType=form.elements.vehicle_type?.value||'';
   all('.coverage-card',form).forEach(card=>{
-    $('.coverage-visual',card).innerHTML=coverageIcon($('input[name="coverage_option"]',card).value,trailer,vehicleType);
+    const option=$('input[name="coverage_option"]',card);
+    card.hidden=vehicleType==='cargo_van'&&option.value==='hood';
+    $('.coverage-visual',card).innerHTML=coverageIcon(option.value,trailer,vehicleType);
   });
+  const selected=form.querySelector('input[name="coverage_option"]:checked');
+  if(selected?.closest('.coverage-card').hidden){
+    selected.checked=false;
+    const fallback=all('input[name="coverage_option"]',form).find(option=>!option.closest('.coverage-card').hidden);
+    if(fallback)fallback.checked=true;
+  }
+  all('.coverage-card',form).forEach(card=>card.classList.toggle('selected',!!$('input[name="coverage_option"]',card).checked));
 }
 function coverageCustomizer(cfg){
   if(!cfg.coverage_options?.length)return '';
