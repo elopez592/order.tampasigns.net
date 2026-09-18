@@ -15,7 +15,7 @@ def test_transfer_stickers_are_second_and_allow_single_unit(env):
 
     quote = client.post('/api/calculate', json={'items':[{
         'product_id': transfer['id'], 'width': 3, 'height': 3, 'quantity': 1,
-        'lamination': 'standard_matte'
+        'lamination': 'none'
     }]})
     assert quote.status_code == 200, quote.text
     data = quote.json()
@@ -61,13 +61,13 @@ def test_wholesale_profile_can_apply_default_and_product_discount(env):
 
     retail = public.post('/api/calculate', json={'items':[{
         'product_id': sticker['id'], 'width': 3, 'height': 3, 'quantity': 50,
-        'lamination': 'standard_matte'
+        'lamination': 'none'
     }]}).json()
     wholesale = public.post('/api/calculate', json={
         'wholesale_token': token,
         'items':[{
             'product_id': sticker['id'], 'width': 3, 'height': 3, 'quantity': 50,
-            'lamination': 'standard_matte'
+            'lamination': 'none'
         }]
     })
     assert wholesale.status_code == 200, wholesale.text
