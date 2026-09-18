@@ -201,6 +201,25 @@ def validate_config(cfg: dict) -> dict:
         label = str(option.get('label', f'{width} x {height}')).strip()[:80]
         checked_sizes.append({'width': str(width), 'height': str(height), 'label': label})
     result['size_options'] = checked_sizes
+
+    placements = cfg.get('placement_options', [])
+    if not isinstance(placements, list) or len(placements) > 16:
+        raise HTTPException(422, 'Use no more than 16 apparel placement options.')
+    checked_placements, placement_ids = [], set()
+    for option in placements:
+        if not isinstance(option, dict):
+            raise HTTPException(422, 'Invalid apparel placement option.')
+        oid = str(option.get('id', '')).strip().lower()
+        if not re.fullmatch(r'[a-z0-9_-]{1,40}', oid) or oid in placement_ids:
+            raise HTTPException(422, 'Placement IDs must be unique letters, numbers, hyphens or underscores.')
+        label = str(option.get('label', '')).strip()[:100]
+        if not label:
+            raise HTTPException(422, 'Placement label is required.')
+        width = number(option.get('width'), 'Placement width', '0.1', '10000')
+        height = number(option.get('height'), 'Placement height', '0.1', '10000')
+        placement_ids.add(oid)
+        checked_placements.append({'id': oid, 'label': label, 'width': str(width), 'height': str(height)})
+    result['placement_options'] = checked_placements
     return result
 
 
