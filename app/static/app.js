@@ -29,7 +29,8 @@ const paths = {
  sticker:'M7 3h7l7 7-11 11-7-7V7z M8 8h.01', label:'M4 5h16v14H4z M7 9h10 M7 13h7', magnet:'M5 4v9a7 7 0 0 0 14 0V4h-4v9a3 3 0 0 1-6 0V4z', banner:'M4 4h16v12H4z M7 20v-4 M17 20v-4 M7 8h10', sign:'M5 4h14v11H5z M12 15v6 M8 21h8', yard:'M5 4h14v10H5z M9 14v7 M15 14v7', window:'M4 3h16v18H4z M12 3v18 M4 12h16', acrylic:'M6 3h12l3 3v15H6L3 18V6z M8 8h8 M8 12h8', vehicle:'M3 14l2-5h14l2 5v5h-2a2 2 0 0 1-4 0H9a2 2 0 0 1-4 0H3z M7 14h10 M7 10l2-4h6l2 4',
 };
 const icon = (name,cls='') => `<svg class="icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[name]||paths.box}"/></svg>`;
-const publicProductName = p => { const n=String(p?.name||''); if(/label/i.test(n))return 'Labels'; if(/magnet/i.test(n))return 'Magnets'; if(/banner/i.test(n))return 'Banners'; if(/yard sign/i.test(n))return 'Yard signs'; if(/ACM/i.test(n))return 'ACM signs'; if(/perforated|window/i.test(n))return 'Window graphics'; if(/acrylic/i.test(n))return 'Acrylic sign faces'; if(/wrap/i.test(n))return 'Vehicle Wraps'; return n.replace(/\s*-\s*single sided/ig,'').replace(/^Roll\s*\/\s*sheet\s+/i,''); };
+const publicProductName = p => { const n=String(p?.name||''),key=n.trim().toLowerCase(); if(key==='partial vehicle wraps')return 'Vehicle Wraps'; if(key==='trailer / food truck wraps')return 'Trailer / Food Truck Wraps'; if(/label/i.test(n))return 'Labels'; if(/magnet/i.test(n))return 'Magnets'; if(/banner/i.test(n))return 'Banners'; if(/yard sign/i.test(n))return 'Yard signs'; if(/ACM/i.test(n))return 'ACM signs'; if(/perforated|window/i.test(n))return 'Window graphics'; if(/acrylic/i.test(n))return 'Acrylic sign faces'; if(/wrap/i.test(n))return 'Vehicle Wraps'; return n.replace(/\s*-\s*single sided/ig,'').replace(/^Roll\s*\/\s*sheet\s+/i,''); };
+const storefrontProductsFor = (products,category) => { const inCategory=products.filter(p=>(p.config.storefront_categories||[]).includes(category)),hasCoverageWrap=inCategory.some(p=>String(p.name||'').trim().toLowerCase()==='partial vehicle wraps'); return inCategory.filter(p=>!(hasCoverageWrap&&String(p.name||'').trim().toLowerCase()==='vehicle wraps')); };
 const productIconName = p => { const n=(String(p?.name||'')+' '+String(p?.category||'')).toLowerCase(); if(n.includes('dtf')||n.includes('embroider')||n.includes('polo')||n.includes('hat'))return 'box'; if(n.includes('label'))return 'label'; if(n.includes('magnet'))return 'magnet'; if(n.includes('banner'))return 'banner'; if(n.includes('yard'))return 'yard'; if(n.includes('perforated')||n.includes('window'))return 'window'; if(n.includes('acrylic'))return 'acrylic'; if(n.includes('vehicle')||n.includes('wrap'))return 'vehicle'; if(n.includes('acm')||n.includes('sign'))return 'sign'; return 'sticker'; };
 const productIcon = p => `<span class="product-symbol">${icon(productIconName(p),'product-icon')}</span>`;
 const badge = (text_,type='') => `<span class="badge ${type}">${esc(text_)}</span>`;
@@ -122,10 +123,31 @@ function updateUsdotPreview(){
   $('.usdot-preview-location',preview).textContent=location;
 }
 function coverageIcon(id,trailer=false){
-  const fill='<rect x="12" y="18" width="72" height="30" rx="8" fill="currentColor" opacity=".16"/>';
-  const outline=trailer?'<path d="M12 18h58v30H12zM70 28h10l8 10v10H70zM24 52a6 6 0 1 0 0 .1M72 52a6 6 0 1 0 0 .1" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>':'<path d="M14 42l8-17c2-4 5-6 10-6h25c5 0 8 2 11 6l10 17h5a5 5 0 0 1 5 5v5H8v-5a5 5 0 0 1 5-5h1zM24 52a6 6 0 1 0 0 .1M72 52a6 6 0 1 0 0 .1" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>';
-  const art={spot:'<circle cx="37" cy="34" r="7" fill="currentColor"/><circle cx="58" cy="34" r="7" fill="currentColor"/>',lettering:'<path d="M25 31h42v8H25z" fill="currentColor"/>',doors:'<rect x="30" y="24" width="30" height="24" fill="currentColor" opacity=".85"/>',hood:'<path d="M14 42h25l7-17H22z" fill="currentColor" opacity=".85"/>',roof:'<path d="M31 19h28l9 13H23z" fill="currentColor" opacity=".85"/>',partial:'<rect x="12" y="18" width="36" height="30" fill="currentColor" opacity=".85"/>',half:'<rect x="12" y="18" width="38" height="30" fill="currentColor" opacity=".85"/>',sides:'<rect x="12" y="18" width="58" height="30" fill="currentColor" opacity=".85"/>',sides_rear:'<rect x="12" y="18" width="66" height="30" fill="currentColor" opacity=".85"/>',three_quarter:'<rect x="12" y="18" width="58" height="30" fill="currentColor" opacity=".85"/>',full:fill}[id]||fill;
-  return '<svg viewBox="0 0 96 64" aria-hidden="true">'+art+outline+'</svg>';
+  const safe=String(id).replace(/[^a-z0-9_-]/gi,''),clip='wrap-'+(trailer?'trailer-':'vehicle-')+safe;
+  const orange='<path d="M12 43 53 10h16L28 48zm27 8 45-37h16L55 51z" fill="var(--brand-orange)" opacity=".95"/>';
+  if(trailer){
+    const body='<path d="M18 14h72v40H18z"/>';
+    const coverage={
+      lettering:'<rect x="33" y="32" width="38" height="8" rx="2"/><circle cx="28" cy="36" r="5"/>',
+      partial:'<path d="M18 14h42L48 54H18z"/>',
+      sides:'<rect x="21" y="17" width="66" height="34" rx="2"/>',
+      sides_rear:'<rect x="18" y="14" width="72" height="40"/><rect x="83" y="14" width="7" height="40" fill="var(--brand-orange)"/>',
+      three_quarter:'<path d="M18 14h61L67 54H18z"/>',
+      full:'<rect x="18" y="14" width="72" height="40"/>'
+    }[id]||'<rect x="18" y="14" width="72" height="40"/>';
+    return '<svg viewBox="0 0 120 72" aria-hidden="true"><defs><clipPath id="'+clip+'">'+body+'</clipPath><clipPath id="'+clip+'-coverage">'+coverage+'</clipPath></defs><path d="M18 14h72v40H18z" fill="#fff" stroke="#153739" stroke-width="2.2"/><g clip-path="url(#'+clip+')" fill="var(--brand-teal)">'+coverage+'</g><g clip-path="url(#'+clip+'-coverage)">'+orange+'</g><path d="M29 23h37v17H29z" fill="#f8fbfb" stroke="#153739" stroke-width="1.7"/><path d="M32 26h31M32 30h31" stroke="#b5cac8" stroke-width="1.3"/><path d="M18 54H9l-5 5m86-30h7l12 13v12H90M23 59h72" fill="none" stroke="#153739" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="34" cy="57" r="7" fill="#fff" stroke="#153739" stroke-width="2.2"/><circle cx="34" cy="57" r="2.5" fill="var(--brand-orange)"/><circle cx="82" cy="57" r="7" fill="#fff" stroke="#153739" stroke-width="2.2"/><circle cx="82" cy="57" r="2.5" fill="var(--brand-orange)"/><path d="M18 14h72v40H18z" fill="none" stroke="#153739" stroke-width="2.2"/></svg>';
+  }
+  const body='<path d="M10 51v-8l7-3 8-17c2-5 6-8 12-8h39c7 0 12 3 17 9l11 15 7 2c3 1 5 4 5 8v2z"/>';
+  const coverage={
+    spot:'<circle cx="67" cy="39" r="8"/><path d="M55 48h24v3H55z"/>',
+    doors:'<path d="M51 28h30v23H51z"/>',
+    hood:'<path d="M89 35h16l9 8v8H83z"/>',
+    roof:'<path d="M28 23c2-5 5-8 11-8h38c5 0 9 2 13 7l4 5H26z"/>',
+    half:'<path d="M10 38h56L54 51H10z"/>',
+    three_quarter:'<path d="M10 25h81L79 51H10z"/>',
+    full:body
+  }[id]||body;
+  return '<svg viewBox="0 0 120 72" aria-hidden="true"><defs><clipPath id="'+clip+'">'+body+'</clipPath><clipPath id="'+clip+'-coverage">'+coverage+'</clipPath></defs><path d="M10 51v-8l7-3 8-17c2-5 6-8 12-8h39c7 0 12 3 17 9l11 15 7 2c3 1 5 4 5 8v2z" fill="#fff" stroke="#153739" stroke-width="2.2" stroke-linejoin="round"/><g clip-path="url(#'+clip+')" fill="var(--brand-teal)">'+coverage+'</g><g clip-path="url(#'+clip+'-coverage)">'+orange+'</g><path d="M30 24c2-4 5-6 9-6h15v15H26zm28-6h17c5 0 9 2 13 7l6 8H58z" fill="#dceceb" stroke="#153739" stroke-width="1.7" stroke-linejoin="round"/><path d="M58 18v33M82 33l2 18" fill="none" stroke="#153739" stroke-width="1.5"/><circle cx="32" cy="52" r="8" fill="#fff" stroke="#153739" stroke-width="2.2"/><circle cx="32" cy="52" r="3" fill="var(--brand-orange)"/><circle cx="94" cy="52" r="8" fill="#fff" stroke="#153739" stroke-width="2.2"/><circle cx="94" cy="52" r="3" fill="var(--brand-orange)"/><path d="M10 51v-8l7-3 8-17c2-5 6-8 12-8h39c7 0 12 3 17 9l11 15 7 2c3 1 5 4 5 8v2z" fill="none" stroke="#153739" stroke-width="2.2" stroke-linejoin="round"/></svg>';
 }
 function coverageCustomizer(cfg){
   if(!cfg.coverage_options?.length)return '';
@@ -139,7 +161,7 @@ async function calculatorView(){
   const products=state.catalog.products;
   const availableCategories=storefrontCategories.filter(c=>products.some(p=>(p.config.storefront_categories||[]).includes(c)));
   if(!availableCategories.includes(state.selectedCategory))state.selectedCategory=availableCategories[0]||'Storefront';
-  const visibleProducts=products.filter(p=>(p.config.storefront_categories||[]).includes(state.selectedCategory));
+  const visibleProducts=storefrontProductsFor(products,state.selectedCategory);
   const product=visibleProducts.find(p=>p.id===state.selectedProduct)||visibleProducts[0]||products[0];
   if(!product){app.innerHTML=publicHeader()+'<main class="public-page"><div class="empty">No public products are available yet. Please contact the shop.</div></main>';return;}
   state.selectedProduct=product.id;
