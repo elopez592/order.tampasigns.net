@@ -63,6 +63,10 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             cfg.setdefault('supports_installation', False)
             cfg.setdefault('supports_multiple_dimensions', False)
             cfg.setdefault('material_options', [])
+            cfg.setdefault('storefront_categories', [])
+            cfg.setdefault('size_options', [])
+            cfg.setdefault('max_short_axis', '10000')
+            cfg.setdefault('max_long_axis', '10000')
             cfg.setdefault('installation_workflow_id', None)
             cfg.setdefault('lamination_options', [])
             cfg.setdefault('quantity_price_table', [])
@@ -76,6 +80,19 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             cfg.setdefault('self_approve_artwork', False)
 
             lname = (old['name'] + ' ' + old['category']).lower()
+            category_map = []
+            if any(x in lname for x in ('window','storefront','acrylic sign face')):
+                category_map.append('Storefront')
+            if any(x in lname for x in ('vehicle','wrap','magnet','transfer sticker')):
+                category_map.append('Vehicle Signage')
+            if any(x in lname for x in ('sticker','label')):
+                category_map.append('Stickers')
+            if any(x in lname for x in ('acm','yard sign','banner','acrylic sign','magnet')):
+                category_map.append('Signs')
+            if old['category'].lower() == 'apparel' or any(x in lname for x in ('dtf','embroider','polo','hat')):
+                category_map.append('Apparel')
+            if category_map:
+                cfg['storefront_categories'] = category_map
             if any(x in lname for x in ('sticker', 'transfer')):
                 cfg['min_width'] = '1'
                 cfg['min_height'] = '1'
@@ -89,8 +106,20 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 cfg['self_approve_artwork'] = True
             if 'die-cut sticker' in lname:
                 cfg['min_quantity'] = '50'
-            if 'magnet' in lname and str(cfg.get('min_quantity', '10')) == '10':
-                cfg['min_quantity'] = '1'
+            if 'magnet' in lname:
+                if str(cfg.get('min_quantity', '10')) == '10':
+                    cfg['min_quantity'] = '1'
+                cfg['size_options'] = [
+                    {'label':'18 x 12 in','width':'18','height':'12'},
+                    {'label':'24 x 12 in','width':'24','height':'12'},
+                    {'label':'24 x 18 in','width':'24','height':'18'}
+                ]
+                cfg['default_width'] = '18'
+                cfg['default_height'] = '12'
+                cfg['max_short_axis'] = '24'
+                cfg['max_long_axis'] = '48'
+                cfg['max_width'] = '48'
+                cfg['max_height'] = '48'
             # Public benchmark profile: Sticker Mule-style 3x3 quantity anchors.
             if 'die-cut sticker' in lname and len(cfg.get('quantity_price_table', [])) == 5 and [r.get('quantity') for r in cfg.get('quantity_price_table', [])] == [50,100,200,500,1000]:
                 cfg['quantity_price_table'] = [
@@ -191,7 +220,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             entries = [
               ('Die-cut stickers', 'Stickers', 1, 'piece', '24', '4', '0', '8', '50', 50, 3, 3, 24, 48, True, 'Die-cut vinyl stickers with quantity-break pricing benchmarked to current Sticker Mule public pricing.'),
               ('Labels', 'Labels', 1, 'piece', '18', '3', '30', '10', '45', 50, 2, 2, 12, 12, True, 'Example label configuration; confirm roll direction and packaging.'),
-              ('Magnets', 'Magnets', 1, 'piece', '18', '5', '20', '8', '50', 1, 3, 3, 24, 48, True, 'Printed magnetic stock. Thickness and suitability require confirmation.'),
+              ('Magnets', 'Magnets', 1, 'piece', '18', '5', '20', '8', '50', 1, 18, 12, 48, 48, True, 'Printed magnetic stock. Thickness and suitability require confirmation.'),
               ('Banners', 'Banners', 2, 'sqft', '5', '1.5', '10', '4', '45', 1, 72, 36, 120, 1200, True, 'Single-sided banner, standard hem and grommets.'),
               ('ACM signs', 'Signs', 3, 'sqft', '14', '5', '20', '8', '65', 1, 24, 18, 48, 96, True, 'Printed graphic on 3mm ACM. Installation priced separately.'),
               ('Yard signs', 'Signs', 3, 'piece', '8', '2.5', '15', '5', '30', 1, 24, 18, 48, 96, True, '4mm corrugated plastic; hardware and installation not included.'),
@@ -207,6 +236,23 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     'is_wrap': 'wrap' in category.lower(), 'requires_installation': not instant,
                     'supports_installation': 'vehicle wrap' in name.lower(),
                     'supports_multiple_dimensions': ('vehicle wrap' in name.lower() or category.lower() == 'windows'),
+                    'storefront_categories': (
+                        ['Storefront'] if category.lower() == 'windows' else
+                        ['Vehicle Signage'] if 'vehicle wrap' in name.lower() else
+                        ['Vehicle Signage','Signs'] if 'magnet' in name.lower() else
+                        ['Vehicle Signage','Stickers'] if 'transfer sticker' in name.lower() else
+                        ['Stickers'] if any(x in name.lower() for x in ('sticker','label')) else
+                        ['Storefront','Signs'] if 'acrylic sign face' in name.lower() else
+                        ['Signs'] if any(x in name.lower() for x in ('banner','acm','yard sign')) else []
+                    ),
+                    'size_options': (
+                        [{'label':'18 x 12 in','width':'18','height':'12'},
+                         {'label':'24 x 12 in','width':'24','height':'12'},
+                         {'label':'24 x 18 in','width':'24','height':'18'}]
+                        if 'magnet' in name.lower() else []
+                    ),
+                    'max_short_axis': '24' if 'magnet' in name.lower() else '10000',
+                    'max_long_axis': '48' if 'magnet' in name.lower() else '10000',
                     'installation_workflow_id': 4 if 'vehicle wrap' in name.lower() else None,
                     'min_width': '1' if 'sticker' in name.lower() else '0.1',
                     'min_height': '1' if 'sticker' in name.lower() else '0.1',
@@ -276,6 +322,25 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             })
             conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?,?)',
                          ('Transfer stickers','Stickers',1,1,sticker_workflow['id'] if sticker_workflow else 1,json.dumps(transfer_cfg),now()))
+        apparel_workflow = conn.execute("SELECT id FROM workflows WHERE name='Signs and storefronts'").fetchone()
+        for apparel_name, description in [
+            ('DTF transfers', 'Direct-to-film heat transfers for apparel. Size, quantity, garment compatibility and finishing are reviewed before quoting.'),
+            ('Embroidered hats', 'Custom embroidered hats. Garment style, stitch count, placement and quantity are reviewed before quoting.'),
+            ('Embroidered polos', 'Custom embroidered polos. Garment style, stitch count, placement, sizes and quantity are reviewed before quoting.')
+        ]:
+            if not conn.execute('SELECT id FROM products WHERE lower(name)=lower(?) LIMIT 1', (apparel_name,)).fetchone():
+                apparel_cfg = validate_config({
+                    'unit':'piece','sell_per_sqft':'0','cost_per_sqft':'0','setup_price':'0','setup_cost':'0',
+                    'minimum_price':'0','waste_percent':'0','labor_minutes_per_unit':'0','min_quantity':1,
+                    'max_quantity':100000,'default_width':12,'default_height':12,'min_width':0.1,'min_height':0.1,
+                    'max_width':10000,'max_height':10000,'instant':False,'description':description,
+                    'is_wrap':False,'requires_installation':False,'supports_installation':False,
+                    'supports_multiple_dimensions':False,'self_approve_artwork':False,
+                    'storefront_categories':['Apparel'],'size_options':[],'material_options':[],'lamination_options':[],
+                    'tiers':[{'from':1,'multiplier':'1'}]
+                })
+                conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?,?)',
+                             (apparel_name,'Apparel',1,1,apparel_workflow['id'] if apparel_workflow else 3,json.dumps(apparel_cfg),now()))
         if not conn.execute("SELECT id FROM products WHERE category='Custom' LIMIT 1").fetchone():
             custom_cfg = validate_config({
                 'unit': 'piece', 'sell_per_sqft': '0', 'cost_per_sqft': '0',
