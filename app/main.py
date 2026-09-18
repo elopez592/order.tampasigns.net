@@ -282,10 +282,10 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 keys = ('unit','description','min_quantity','max_quantity','max_width','max_height',
                         'default_width','default_height','min_width','min_height','instant','supports_installation',
                         'supports_multiple_dimensions','self_approve_artwork','lamination_options','material_options',
-                        'storefront_categories','size_options','max_short_axis','max_long_axis','usdot_customizer')
+                        'storefront_categories','size_options','placement_options','max_short_axis','max_long_axis','usdot_customizer')
                 defaults = {'supports_installation': False, 'supports_multiple_dimensions': False,
                             'self_approve_artwork': False, 'lamination_options': [], 'material_options': [],
-                            'storefront_categories': [], 'size_options': [], 'max_short_axis': '10000',
+                            'storefront_categories': [], 'size_options': [], 'placement_options': [], 'max_short_axis': '10000',
                             'max_long_axis': '10000', 'usdot_customizer': False}
                 products.append({k: row[k] for k in ('id','name','category','version')} | {
                     'config': {k: cfg.get(k, defaults.get(k)) for k in keys}})
