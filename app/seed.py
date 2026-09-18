@@ -65,6 +65,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             cfg.setdefault('material_options', [])
             cfg.setdefault('storefront_categories', [])
             cfg.setdefault('size_options', [])
+            cfg.setdefault('placement_options', [])
             cfg.setdefault('max_short_axis', '10000')
             cfg.setdefault('max_long_axis', '10000')
             cfg.setdefault('usdot_customizer', False)
@@ -84,7 +85,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             category_map = []
             if any(x in lname for x in ('window','storefront','acrylic sign face','banner','acm')):
                 category_map.append('Storefront')
-            if any(x in lname for x in ('vehicle','wrap','magnet','transfer sticker')):
+            if any(x in lname for x in ('vehicle','wrap','magnet')):
                 category_map.append('Vehicle Signage')
             if any(x in lname for x in ('sticker','label')):
                 category_map.append('Stickers')
@@ -98,6 +99,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 cfg['min_width'] = '1'
                 cfg['min_height'] = '1'
             if 'transfer sticker' in lname:
+                cfg['storefront_categories'] = ['Stickers']
                 cfg['min_quantity'] = '1'
                 cfg['min_width'] = '3'
                 cfg['min_height'] = '3'
@@ -121,6 +123,73 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 cfg['max_long_axis'] = '48'
                 cfg['max_width'] = '48'
                 cfg['max_height'] = '48'
+            if 'usdot decal' in lname:
+                cfg['size_options'] = [
+                    {'label':'18 x 12 in','width':'18','height':'12'},
+                    {'label':'24 x 12 in','width':'24','height':'12'},
+                    {'label':'24 x 18 in','width':'24','height':'18'}
+                ]
+                cfg['default_width'] = '18'
+                cfg['default_height'] = '12'
+                cfg['max_short_axis'] = '24'
+                cfg['max_long_axis'] = '48'
+                cfg['max_width'] = '48'
+                cfg['max_height'] = '48'
+            if old['name'].lower() == 'dtf transfers':
+                cfg['storefront_categories'] = ['Apparel']
+                cfg['sell_per_sqft'] = '8.64'
+                cfg['cost_per_sqft'] = '0'
+                cfg['setup_price'] = '0'
+                cfg['setup_cost'] = '0'
+                cfg['minimum_price'] = '0'
+                cfg['instant'] = True
+                cfg['self_approve_artwork'] = True
+                cfg['default_width'] = '3.5'
+                cfg['default_height'] = '3.5'
+                cfg['min_width'] = '1'
+                cfg['min_height'] = '1'
+                cfg['max_width'] = '14'
+                cfg['max_height'] = '14'
+                cfg['max_short_axis'] = '12'
+                cfg['max_long_axis'] = '14'
+                cfg['placement_options'] = [
+                    {'id':'adult_left_chest','label':'Adult left chest — 3.5 x 3.5 in','width':'3.5','height':'3.5'},
+                    {'id':'adult_right_chest','label':'Adult right chest — 3.5 x 3.5 in','width':'3.5','height':'3.5'},
+                    {'id':'adult_full_front','label':'Adult full front — 11 x 11 in','width':'11','height':'11'},
+                    {'id':'adult_full_back','label':'Adult full back — 11 x 11 in','width':'11','height':'11'},
+                    {'id':'youth_full_front','label':'Youth full front — 10.5 x 10.5 in','width':'10.5','height':'10.5'},
+                    {'id':'youth_full_back','label':'Youth full back — 10.5 x 10.5 in','width':'10.5','height':'10.5'},
+                    {'id':'youth_small_front','label':'Youth small full front — 8.5 x 8.5 in','width':'8.5','height':'8.5'},
+                    {'id':'toddler_front','label':'Toddler full front — 5.5 x 5.5 in','width':'5.5','height':'5.5'}
+                ]
+                cfg['size_options'] = []
+                cfg['description'] = 'Ready-to-press DTF transfers priced by print area. Choose a standard apparel placement size or use Custom size. Garments and pressing are not included.'
+            if old['name'].lower() == 'embroidered polos':
+                cfg['storefront_categories'] = ['Apparel']
+                cfg['setup_price'] = '35'
+                cfg['minimum_price'] = '35'
+                cfg['instant'] = False
+                cfg['default_width'] = '3.5'
+                cfg['default_height'] = '3.5'
+                cfg['placement_options'] = [
+                    {'id':'left_chest','label':'Left chest — 3.5 x 3.5 in','width':'3.5','height':'3.5'},
+                    {'id':'right_chest','label':'Right chest — 3.5 x 3.5 in','width':'3.5','height':'3.5'}
+                ]
+                cfg['size_options'] = []
+                cfg['description'] = '$35 digitizing charge for every embroidery order. Choose left chest or right chest. Garment and stitch-count pricing is reviewed before quoting. Over-complex artwork may be rejected or simplified for an additional design fee.'
+            if old['name'].lower() == 'embroidered hats':
+                cfg['storefront_categories'] = ['Apparel']
+                cfg['setup_price'] = '35'
+                cfg['minimum_price'] = '35'
+                cfg['instant'] = False
+                cfg['default_width'] = '4'
+                cfg['default_height'] = '2.25'
+                cfg['placement_options'] = [
+                    {'id':'front','label':'Front — up to 4 x 2.25 in','width':'4','height':'2.25'}
+                ]
+                cfg['size_options'] = []
+                cfg['description'] = '$35 digitizing charge for every embroidery order. Hat embroidery is front placement only. Garment and stitch-count pricing is reviewed before quoting. Over-complex artwork may be rejected or simplified for an additional design fee.'
+
             # Public benchmark profile: Sticker Mule-style 3x3 quantity anchors.
             if 'die-cut sticker' in lname and len(cfg.get('quantity_price_table', [])) == 5 and [r.get('quantity') for r in cfg.get('quantity_price_table', [])] == [50,100,200,500,1000]:
                 cfg['quantity_price_table'] = [
@@ -307,7 +376,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 'description':'Precision-cut transfer stickers for lettering and graphics without a printed background. Minimum finished size is 3 x 3 inches.',
                 'is_wrap':False,'requires_installation':False,'supports_installation':False,
                 'supports_multiple_dimensions':False,'self_approve_artwork':True,'usdot_customizer':False,
-                'storefront_categories':['Vehicle Signage','Stickers'],'size_options':[],'material_options':[],
+                'storefront_categories':['Stickers'],'size_options':[],'placement_options':[],'material_options':[],
                 'quantity_price_table':[
                     {'quantity':50,'total':'60'},{'quantity':100,'total':'73'},{'quantity':200,'total':'95'},
                     {'quantity':300,'total':'115'},{'quantity':500,'total':'152'},{'quantity':1000,'total':'232'},
@@ -349,15 +418,15 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             usdot_cfg = validate_config({
                 'unit':'piece','sell_per_sqft':'20','cost_per_sqft':'4','setup_price':'12','setup_cost':'6',
                 'minimum_price':'0','waste_percent':'15','labor_minutes_per_unit':'0','min_quantity':1,
-                'max_quantity':1000,'default_width':18,'default_height':4,'min_width':6,'min_height':2,
-                'max_width':48,'max_height':24,'instant':True,
+                'max_quantity':1000,'default_width':18,'default_height':12,'min_width':3,'min_height':3,
+                'max_width':48,'max_height':48,'max_short_axis':24,'max_long_axis':48,'instant':True,
                 'description':'Basic USDOT identification decals with an instant text preview. Enter your company information and choose a lettering style before ordering.',
                 'is_wrap':False,'requires_installation':False,'supports_installation':False,
                 'supports_multiple_dimensions':False,'self_approve_artwork':True,'usdot_customizer':True,
                 'storefront_categories':['Vehicle Signage','Stickers'],'size_options':[
-                    {'label':'18 x 4 in','width':'18','height':'4'},
-                    {'label':'24 x 6 in','width':'24','height':'6'},
-                    {'label':'36 x 8 in','width':'36','height':'8'}
+                    {'label':'18 x 12 in','width':'18','height':'12'},
+                    {'label':'24 x 12 in','width':'24','height':'12'},
+                    {'label':'24 x 18 in','width':'24','height':'18'}
                 ],
                 'material_options':[],
                 'lamination_options':[
@@ -370,21 +439,57 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?,?)',
                          ('USDOT Decals','Stickers',1,1,sticker_workflow_for_decals['id'] if sticker_workflow_for_decals else 1,json.dumps(usdot_cfg),now()))
         apparel_workflow = conn.execute("SELECT id FROM workflows WHERE name='Signs and storefronts'").fetchone()
-        for apparel_name, description in [
-            ('DTF transfers', 'Direct-to-film heat transfers for apparel. Size, quantity, garment compatibility and finishing are reviewed before quoting.'),
-            ('Embroidered hats', 'Custom embroidered hats. Garment style, stitch count, placement and quantity are reviewed before quoting.'),
-            ('Embroidered polos', 'Custom embroidered polos. Garment style, stitch count, placement, sizes and quantity are reviewed before quoting.')
-        ]:
+        apparel_profiles = {
+            'DTF transfers': {
+                'sell_per_sqft':'8.64','setup_price':'0','minimum_price':'0','instant':True,
+                'default_width':3.5,'default_height':3.5,'min_width':1,'min_height':1,
+                'max_width':14,'max_height':14,'max_short_axis':12,'max_long_axis':14,
+                'self_approve_artwork':True,
+                'description':'Ready-to-press DTF transfers priced by print area. Choose a standard apparel placement size or use Custom size. Garments and pressing are not included.',
+                'placement_options':[
+                    {'id':'adult_left_chest','label':'Adult left chest — 3.5 x 3.5 in','width':'3.5','height':'3.5'},
+                    {'id':'adult_right_chest','label':'Adult right chest — 3.5 x 3.5 in','width':'3.5','height':'3.5'},
+                    {'id':'adult_full_front','label':'Adult full front — 11 x 11 in','width':'11','height':'11'},
+                    {'id':'adult_full_back','label':'Adult full back — 11 x 11 in','width':'11','height':'11'},
+                    {'id':'youth_full_front','label':'Youth full front — 10.5 x 10.5 in','width':'10.5','height':'10.5'},
+                    {'id':'youth_full_back','label':'Youth full back — 10.5 x 10.5 in','width':'10.5','height':'10.5'},
+                    {'id':'youth_small_front','label':'Youth small full front — 8.5 x 8.5 in','width':'8.5','height':'8.5'},
+                    {'id':'toddler_front','label':'Toddler full front — 5.5 x 5.5 in','width':'5.5','height':'5.5'}
+                ]
+            },
+            'Embroidered hats': {
+                'sell_per_sqft':'0','setup_price':'35','minimum_price':'35','instant':False,
+                'default_width':4,'default_height':2.25,'min_width':1,'min_height':1,'max_width':5,'max_height':3,
+                'self_approve_artwork':False,
+                'description':'$35 digitizing charge for every embroidery order. Hat embroidery is front placement only. Garment and stitch-count pricing is reviewed before quoting. Over-complex artwork may be rejected or simplified for an additional design fee.',
+                'placement_options':[{'id':'front','label':'Front — up to 4 x 2.25 in','width':'4','height':'2.25'}]
+            },
+            'Embroidered polos': {
+                'sell_per_sqft':'0','setup_price':'35','minimum_price':'35','instant':False,
+                'default_width':3.5,'default_height':3.5,'min_width':1,'min_height':1,'max_width':4.5,'max_height':4.5,
+                'self_approve_artwork':False,
+                'description':'$35 digitizing charge for every embroidery order. Choose left chest or right chest. Garment and stitch-count pricing is reviewed before quoting. Over-complex artwork may be rejected or simplified for an additional design fee.',
+                'placement_options':[
+                    {'id':'left_chest','label':'Left chest — 3.5 x 3.5 in','width':'3.5','height':'3.5'},
+                    {'id':'right_chest','label':'Right chest — 3.5 x 3.5 in','width':'3.5','height':'3.5'}
+                ]
+            }
+        }
+        for apparel_name, profile in apparel_profiles.items():
             if not conn.execute('SELECT id FROM products WHERE lower(name)=lower(?) LIMIT 1', (apparel_name,)).fetchone():
                 apparel_cfg = validate_config({
-                    'unit':'piece','sell_per_sqft':'0','cost_per_sqft':'0','setup_price':'0','setup_cost':'0',
-                    'minimum_price':'0','waste_percent':'0','labor_minutes_per_unit':'0','min_quantity':1,
-                    'max_quantity':100000,'default_width':12,'default_height':12,'min_width':0.1,'min_height':0.1,
-                    'max_width':10000,'max_height':10000,'instant':False,'description':description,
+                    'unit':'piece','sell_per_sqft':profile['sell_per_sqft'],'cost_per_sqft':'0',
+                    'setup_price':profile['setup_price'],'setup_cost':'0','minimum_price':profile['minimum_price'],
+                    'waste_percent':'0','labor_minutes_per_unit':'0','min_quantity':1,'max_quantity':100000,
+                    'default_width':profile['default_width'],'default_height':profile['default_height'],
+                    'min_width':profile['min_width'],'min_height':profile['min_height'],
+                    'max_width':profile['max_width'],'max_height':profile['max_height'],
+                    'max_short_axis':profile.get('max_short_axis',10000),'max_long_axis':profile.get('max_long_axis',10000),
+                    'instant':profile['instant'],'description':profile['description'],
                     'is_wrap':False,'requires_installation':False,'supports_installation':False,
-                    'supports_multiple_dimensions':False,'self_approve_artwork':False,
-                    'storefront_categories':['Apparel'],'size_options':[],'material_options':[],'lamination_options':[],
-                    'tiers':[{'from':1,'multiplier':'1'}]
+                    'supports_multiple_dimensions':False,'self_approve_artwork':profile['self_approve_artwork'],
+                    'storefront_categories':['Apparel'],'size_options':[],'placement_options':profile['placement_options'],
+                    'material_options':[],'lamination_options':[],'tiers':[{'from':1,'multiplier':'1'}]
                 })
                 conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?,?)',
                              (apparel_name,'Apparel',1,1,apparel_workflow['id'] if apparel_workflow else 3,json.dumps(apparel_cfg),now()))
