@@ -67,7 +67,6 @@ def test_decals_usdot_and_apparel_listings(env):
     dtf = products['DTF transfers']['config']
     assert dtf['storefront_categories'] == ['Apparel']
     assert dtf['instant'] is True
-    assert dtf['sell_per_sqft'] if 'sell_per_sqft' in dtf else True
     assert [x['id'] for x in dtf['placement_options']][:4] == [
         'adult_left_chest', 'adult_right_chest', 'adult_full_front', 'adult_full_back'
     ]
@@ -79,6 +78,26 @@ def test_decals_usdot_and_apparel_listings(env):
     assert hats['instant'] is False and polos['instant'] is False
     assert [x['id'] for x in hats['placement_options']] == ['front']
     assert [x['id'] for x in polos['placement_options']] == ['left_chest', 'right_chest']
+    assert '$35 digitizing charge' in hats['description']
+    assert '$35 digitizing charge' in polos['description']
+    assert 'Over-complex artwork' in hats['description']
+    assert 'Over-complex artwork' in polos['description']
+
+    dtf_product = products['DTF transfers']
+    dtf_quote = client.post('/api/calculate', json={'items':[{
+        'product_id': dtf_product['id'], 'width': 11, 'height': 11, 'quantity': 1
+    }]})
+    assert dtf_quote.status_code == 200, dtf_quote.text
+    assert dtf_quote.json()['subtotal_cents'] == 726
+    assert dtf_quote.json()['meets_minimum_order'] is False
+
+    hat_product = products['Embroidered hats']
+    hat_quote = client.post('/api/calculate', json={'items':[{
+        'product_id': hat_product['id'], 'width': 4, 'height': 2.25, 'quantity': 1
+    }]})
+    assert hat_quote.status_code == 200, hat_quote.text
+    assert hat_quote.json()['subtotal_cents'] == 3500
+    assert hat_quote.json()['review_required'] is True
 
 
 def test_usdot_quote_preserves_generated_preview_copy(env):
