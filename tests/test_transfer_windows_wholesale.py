@@ -58,16 +58,17 @@ def test_wholesale_profile_can_apply_default_and_product_discount(env):
 
     created = admin.post('/api/admin/wholesale', json={
         'name': 'Wholesale Test Co',
+        'username': 'wholesaletest',
         'email': 'wholesale@example.test',
         'discount_percent': 10,
         'product_discounts': {str(sticker['id']): 25}
     })
     assert created.status_code == 200, created.text
-    code = created.json()['access_code']
+    password = created.json()['temporary_password']
 
     activated = public.post('/api/wholesale/activate', json={
-        'email': 'wholesale@example.test',
-        'code': code
+        'username': 'wholesaletest',
+        'password': password
     })
     assert activated.status_code == 200, activated.text
     token = activated.json()['token']
@@ -91,4 +92,5 @@ def test_wholesale_profile_can_apply_default_and_product_discount(env):
 
     profiles = admin.get('/api/admin/wholesale')
     assert profiles.status_code == 200
+    assert profiles.json()['clients'][0]['username'] == 'wholesaletest'
     assert profiles.json()['clients'][0]['product_discounts'][0]['product_id'] == sticker['id']
