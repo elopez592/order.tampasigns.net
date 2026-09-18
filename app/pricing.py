@@ -66,7 +66,7 @@ def validate_config(cfg: dict) -> dict:
     if not isinstance(cfg.get('instant', True), bool):
         raise HTTPException(422, 'instant must be true or false.')
     result['instant'] = cfg.get('instant', True)
-    for flag in ('requires_installation', 'is_wrap', 'supports_installation', 'supports_multiple_dimensions', 'self_approve_artwork'):
+    for flag in ('requires_installation', 'is_wrap', 'supports_installation', 'supports_multiple_dimensions', 'self_approve_artwork', 'usdot_customizer'):
         if not isinstance(cfg.get(flag, False), bool):
             raise HTTPException(422, f'{flag} must be true or false.')
         result[flag] = cfg.get(flag, False)
