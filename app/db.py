@@ -49,7 +49,8 @@ def initialize(path: Path) -> None:
         columns = {r[1] for r in conn.execute("PRAGMA table_info(wholesale_clients)")}
         if 'username' not in columns:
             conn.execute('ALTER TABLE wholesale_clients ADD COLUMN username TEXT COLLATE NOCASE')
-            conn.execute('UPDATE wholesale_clients SET username=email WHERE username IS NULL OR username=""')
+            for row in conn.execute('SELECT id FROM wholesale_clients WHERE username IS NULL OR username=""').fetchall():
+                conn.execute('UPDATE wholesale_clients SET username=? WHERE id=?', (f'client{row["id"]}', row['id']))
         conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS wholesale_clients_username ON wholesale_clients(username COLLATE NOCASE)')
         conn.execute('INSERT OR IGNORE INTO schema_version VALUES (5)')
     finally:
