@@ -130,7 +130,7 @@ def test_checkout_disabled_until_connected_and_reviewed(env):
     assert admin.put('/api/admin/settings',json={'checkout_enabled':True}).status_code==422
 
 
-@pytest.mark.parametrize('pid,width,height,quantity',[(1,3,3,50),(2,2,2,50),(3,3,3,10),(4,72,36,1),(5,24,18,1),(6,24,18,1)])
+@pytest.mark.parametrize('pid,width,height,quantity',[(1,3,3,50),(2,2,2,50),(3,3,3,10),(4,72,36,1),(5,24,18,1)])
 def test_standard_products_can_be_purchased(live_setup,pid,width,height,quantity):
     app,admin,employee=live_setup
     c,r,b=new_order(app,pid,width,height,quantity)
@@ -142,6 +142,13 @@ def test_standard_products_can_be_purchased(live_setup,pid,width,height,quantity
     assert j['totals']['paid_cents']==0
     assert j['checkout']['status']=='awaiting_payment'
     assert j['checkout']['can_pay']
+
+
+def test_standard_order_below_shop_minimum_cannot_checkout(live_setup):
+    app,admin,employee=live_setup
+    c,r,b=new_order(app,6,24,18,1)
+    assert r.status_code==422,r.text
+    assert 'Minimum order is $50.00' in r.text
 
 
 @pytest.mark.parametrize('pid,width,height',[(7,44,92),(8,120,30.5),(4,200,400)])

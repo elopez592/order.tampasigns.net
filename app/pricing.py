@@ -270,10 +270,10 @@ def calculate(conn, items: list, staff=False) -> dict:
     line_subtotal = sum(x['sell_cents'] for x in lines)
     minimum_order = cents(shop.get('minimum_order_price', '50'), 'Minimum order price')
     apply_order_minimum = not all(x['category'] == 'Custom' for x in lines)
-    subtotal = max(line_subtotal, minimum_order) if apply_order_minimum else line_subtotal
-    return {'lines': lines, 'subtotal_cents': subtotal,
-            'minimum_order_adjustment_cents': max(subtotal - line_subtotal, 0),
+    return {'lines': lines, 'subtotal_cents': line_subtotal,
+            'minimum_order_adjustment_cents': 0,
             'minimum_order_cents': minimum_order if apply_order_minimum else 0,
+            'meets_minimum_order': (not apply_order_minimum) or line_subtotal >= minimum_order,
             'cost_cents': sum(x['cost_cents'] for x in lines),
             'review_required': any(x['review_required'] for x in lines) or not shop['rates_live'],
             'settings_snapshot': {k: shop[k] for k in ['target_margin_percent', 'overhead_percent',

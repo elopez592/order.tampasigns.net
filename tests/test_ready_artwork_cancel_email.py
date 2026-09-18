@@ -1,29 +1,45 @@
 from .conftest import anonymous, create_banner, finalize, portal, accept, image_bytes
 
 
-def test_shop_minimum_and_sticker_minimum_size(env):
+def test_shop_minimum_is_acceptance_gate_not_price_floor(env):
+    app, admin, employee = env
+    client = anonymous(app)
+    catalog = client.get('/api/catalog').json()['products']
+    banner = next(p for p in catalog if p['name'] == 'Banners')
+    quote = client.post('/api/calculate', json={'items': [{
+        'product_id': banner['id'], 'width': 12, 'height': 12, 'quantity': 1
+    }]})
+    assert quote.status_code == 200, quote.text
+    data = quote.json()
+    assert data['subtotal_cents'] < 5000
+    assert data['minimum_order_cents'] == 5000
+    assert data['meets_minimum_order'] is False
+    assert data['minimum_order_adjustment_cents'] == 0
+
+
+def test_sticker_minimums_are_50_pieces_and_one_inch(env):
     app, admin, employee = env
     client = anonymous(app)
     catalog = client.get('/api/catalog').json()
     sticker = next(p for p in catalog['products'] if p['name'] == 'Die-cut stickers')
-    assert sticker['config']['min_quantity'] == '1'
+    assert sticker['config']['min_quantity'] == '50'
     assert sticker['config']['min_width'] == '1'
     assert sticker['config']['min_height'] == '1'
     assert sticker['config']['self_approve_artwork'] is True
 
     too_small = client.post('/api/calculate', json={'items': [{
-        'product_id': sticker['id'], 'width': .9, 'height': 1, 'quantity': 1,
+        'product_id': sticker['id'], 'width': .9, 'height': 1, 'quantity': 50,
         'lamination': 'standard_matte'
     }]})
     assert too_small.status_code == 422
 
-    one = client.post('/api/calculate', json={'items': [{
-        'product_id': sticker['id'], 'width': 1, 'height': 1, 'quantity': 1,
+    valid = client.post('/api/calculate', json={'items': [{
+        'product_id': sticker['id'], 'width': 1, 'height': 1, 'quantity': 50,
         'lamination': 'standard_matte'
     }]})
-    assert one.status_code == 200, one.text
-    assert one.json()['subtotal_cents'] == 5000
-    assert one.json()['minimum_order_cents'] == 5000
+    assert valid.status_code == 200, valid.text
+    assert valid.json()['minimum_order_cents'] == 5000
+    assert valid.json()['meets_minimum_order'] is True
 
 
 def test_transfer_stickers_and_low_quantity_products(env):
@@ -33,14 +49,13 @@ def test_transfer_stickers_and_low_quantity_products(env):
     transfer = next(p for p in catalog if p['name'] == 'Transfer stickers')
     magnet = next(p for p in catalog if p['name'] == 'Magnets')
     banner = next(p for p in catalog if p['name'] == 'Banners')
-    assert transfer['config']['min_quantity'] == '1'
+    assert transfer['config']['min_quantity'] == '50'
     assert transfer['config']['min_width'] == '1'
     assert transfer['config']['min_height'] == '1'
     assert transfer['config']['self_approve_artwork'] is True
     assert magnet['config']['min_quantity'] == '1'
     assert magnet['config']['self_approve_artwork'] is True
     assert banner['config']['self_approve_artwork'] is True
-
 
 def test_customer_can_approve_print_ready_banner_upload(env):
     app, admin, employee = env
