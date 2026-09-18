@@ -62,6 +62,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             cfg.setdefault('is_wrap', 'wrap' in (old['name']+' '+old['category']).lower())
             cfg.setdefault('supports_installation', False)
             cfg.setdefault('supports_multiple_dimensions', False)
+            cfg.setdefault('material_options', [])
             cfg.setdefault('installation_workflow_id', None)
             cfg.setdefault('lamination_options', [])
             cfg.setdefault('quantity_price_table', [])
