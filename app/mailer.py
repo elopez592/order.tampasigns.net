@@ -115,5 +115,6 @@ def notify_customer(database, job_id: int, event_key: str, subject: str, title: 
     with transaction(database) as conn:
         job = conn.execute("SELECT customer_email FROM jobs WHERE id=?", (job_id,)).fetchone()
     if job:
-        notify_one(database, job_id, event_key, job["customer_email"], "customer",
-                   subject, title, message, portal_url, "View order", force=force)
+        return notify_one(database, job_id, event_key, job["customer_email"], "customer",
+                          subject, title, message, portal_url, "View order", force=force)
+    return False
