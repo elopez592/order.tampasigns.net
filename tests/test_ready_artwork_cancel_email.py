@@ -50,9 +50,14 @@ def test_transfer_stickers_and_low_quantity_products(env):
     magnet = next(p for p in catalog if p['name'] == 'Magnets')
     banner = next(p for p in catalog if p['name'] == 'Banners')
     assert transfer['config']['min_quantity'] == '50'
-    assert transfer['config']['min_width'] == '1'
-    assert transfer['config']['min_height'] == '1'
+    assert transfer['config']['min_width'] == '3'
+    assert transfer['config']['min_height'] == '3'
     assert transfer['config']['self_approve_artwork'] is True
+    too_small = client.post('/api/calculate', json={'items': [{
+        'product_id': transfer['id'], 'width': 2.9, 'height': 3, 'quantity': 50,
+        'lamination': 'standard_matte'
+    }]})
+    assert too_small.status_code == 422
     assert magnet['config']['min_quantity'] == '1'
     assert magnet['config']['self_approve_artwork'] is True
     assert banner['config']['self_approve_artwork'] is True
