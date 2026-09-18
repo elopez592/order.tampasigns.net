@@ -136,6 +136,13 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 cfg['max_width'] = '48'
                 cfg['max_height'] = '48'
                 cfg['quantity_presets'] = [1,2,5,10,25,50]
+                cfg['tiers'] = [
+                    {'from':1,'multiplier':'1'},
+                    {'from':5,'multiplier':'0.95'},
+                    {'from':10,'multiplier':'0.90'},
+                    {'from':25,'multiplier':'0.85'},
+                    {'from':50,'multiplier':'0.80'}
+                ]
             if 'usdot decal' in lname:
                 cfg['storefront_categories'] = ['Vehicles','Fleet Services']
                 cfg['size_options'] = [
@@ -150,6 +157,13 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 cfg['max_width'] = '48'
                 cfg['max_height'] = '48'
                 cfg['quantity_presets'] = [1,2,5,10,25,50]
+                cfg['tiers'] = [
+                    {'from':1,'multiplier':'1'},
+                    {'from':5,'multiplier':'0.95'},
+                    {'from':10,'multiplier':'0.90'},
+                    {'from':25,'multiplier':'0.85'},
+                    {'from':50,'multiplier':'0.80'}
+                ]
             if old['name'].lower() == 'fleet window tinting':
                 cfg['storefront_categories'] = ['Fleet Services']
                 cfg['unit'] = 'piece'
@@ -179,6 +193,16 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     {'from':50,'multiplier':'0.80'}
                 ]
                 cfg['description'] = 'Fleet window tinting starting at a retail single-vehicle baseline. Final pricing is reviewed by vehicle, glass coverage, film choice and access. Larger fleets receive progressively better volume pricing.'
+            if old['name'].lower() == 'decals':
+                cfg['storefront_categories'] = ['Vehicles','Fleet Services','Stickers']
+                cfg['quantity_presets'] = [1,2,5,10,25,50,100]
+                cfg['tiers'] = [
+                    {'from':1,'multiplier':'1'},
+                    {'from':10,'multiplier':'0.95'},
+                    {'from':25,'multiplier':'0.90'},
+                    {'from':50,'multiplier':'0.85'},
+                    {'from':100,'multiplier':'0.80'}
+                ]
             if old['name'].lower() == 'dtf transfers':
                 cfg['storefront_categories'] = ['Apparel']
                 cfg['sell_per_sqft'] = '8.64'
@@ -455,7 +479,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     {'id':'gloss','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
                     {'id':'premium_matte','label':'Matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
                 ],
-                'tiers':[{'from':1,'multiplier':'1'},{'from':50,'multiplier':'.9'},{'from':100,'multiplier':'.8'}]
+                'tiers':[{'from':1,'multiplier':'1'},{'from':10,'multiplier':'.95'},{'from':25,'multiplier':'.90'},{'from':50,'multiplier':'.85'},{'from':100,'multiplier':'.80'}]
             })
             conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?,?)',
                          ('Decals','Stickers',1,1,sticker_workflow_for_decals['id'] if sticker_workflow_for_decals else 1,json.dumps(decal_cfg),now()))
@@ -479,7 +503,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     {'id':'gloss','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
                     {'id':'premium_matte','label':'Matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
                 ],
-                'tiers':[{'from':1,'multiplier':'1'},{'from':10,'multiplier':'.9'},{'from':25,'multiplier':'.8'}]
+                'tiers':[{'from':1,'multiplier':'1'},{'from':5,'multiplier':'.95'},{'from':10,'multiplier':'.90'},{'from':25,'multiplier':'.85'},{'from':50,'multiplier':'.80'}]
             })
             conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?,?)',
                          ('USDOT Decals','Stickers',1,1,sticker_workflow_for_decals['id'] if sticker_workflow_for_decals else 1,json.dumps(usdot_cfg),now()))
