@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS wholesale_clients (
  id INTEGER PRIMARY KEY,
  name TEXT NOT NULL,
  email TEXT NOT NULL COLLATE NOCASE UNIQUE,
+ username TEXT NOT NULL COLLATE NOCASE UNIQUE,
  code_hash TEXT NOT NULL,
  discount_percent TEXT NOT NULL DEFAULT '0',
  active INTEGER NOT NULL DEFAULT 1,
@@ -161,3 +162,5 @@ CREATE TABLE IF NOT EXISTS wholesale_sessions (
  created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS wholesale_sessions_expiry ON wholesale_sessions(expires_at);
+
+-- Version 5: wholesale username/password profiles; code_hash now stores the password hash.
