@@ -49,7 +49,7 @@ def test_transfer_stickers_and_low_quantity_products(env):
     transfer = next(p for p in catalog if p['name'] == 'Transfer stickers')
     magnet = next(p for p in catalog if p['name'] == 'Magnets')
     banner = next(p for p in catalog if p['name'] == 'Banners')
-    assert transfer['config']['min_quantity'] == '50'
+    assert transfer['config']['min_quantity'] == '1'
     assert transfer['config']['min_width'] == '3'
     assert transfer['config']['min_height'] == '3'
     assert transfer['config']['self_approve_artwork'] is True

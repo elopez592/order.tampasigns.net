@@ -65,7 +65,7 @@ def validate_config(cfg: dict) -> dict:
     if not isinstance(cfg.get('instant', True), bool):
         raise HTTPException(422, 'instant must be true or false.')
     result['instant'] = cfg.get('instant', True)
-    for flag in ('requires_installation', 'is_wrap', 'supports_installation', 'self_approve_artwork'):
+    for flag in ('requires_installation', 'is_wrap', 'supports_installation', 'supports_multiple_dimensions', 'self_approve_artwork'):
         if not isinstance(cfg.get(flag, False), bool):
             raise HTTPException(422, f'{flag} must be true or false.')
         result[flag] = cfg.get(flag, False)
@@ -167,7 +167,7 @@ def table_total(quantity: int, table: list) -> Decimal:
     return D(quantity) * rows[-1][1] / D(rows[-1][0])
 
 
-def calculate(conn, items: list, staff=False) -> dict:
+def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
     if not isinstance(items, list) or not 1 <= len(items) <= 30:
         raise HTTPException(422, 'A quote needs 1 to 30 product lines.')
     shop = settings(conn)
@@ -175,6 +175,19 @@ def calculate(conn, items: list, staff=False) -> dict:
     overhead = number(shop['overhead_percent'], 'Overhead', '0', '200') / 100
     labor_cost = number(shop['labor_cost_per_hour']) * 100
     labor_sell = number(shop['labor_sell_per_hour']) * 100
+    wholesale = None
+    product_discounts = {}
+    if wholesale_client_id is not None:
+        wholesale = conn.execute('SELECT * FROM wholesale_clients WHERE id=? AND active=1', (int(wholesale_client_id),)).fetchone()
+        if not wholesale:
+            raise HTTPException(422, 'Wholesale pricing profile is no longer active.')
+        product_discounts = {
+            row['product_id']: number(row['discount_percent'], 'Wholesale product discount', '0', '90')
+            for row in conn.execute('SELECT product_id,discount_percent FROM wholesale_product_discounts WHERE client_id=?', (wholesale['id'],))
+        }
+        wholesale_default = number(wholesale['discount_percent'], 'Wholesale discount', '0', '90')
+    else:
+        wholesale_default = D(0)
     lines = []
     installation_setup_applied = set()
     for item in items:
@@ -243,6 +256,11 @@ def calculate(conn, items: list, staff=False) -> dict:
 
         floor = 0 if cfg.get('quantity_price_table') else int((D(cost) / (1 - margin)).quantize(D('1'), rounding=ROUND_CEILING))
         sell = max(cent_round(calculated), cents(cfg['minimum_price']), floor)
+        retail_sell = sell
+        wholesale_discount = product_discounts.get(row['id'], wholesale_default)
+        if wholesale and wholesale_discount > 0:
+            discounted = cent_round(D(sell) * (D(1) - wholesale_discount / 100))
+            sell = max(discounted, cost)
         if sell > 1_000_000_000:
             raise HTTPException(422, 'This project exceeds the automatic estimating limit. Split the job or request a manual quote.')
         review = (not cfg['instant'] or cfg.get('requires_installation', False) or installation_requested
@@ -257,6 +275,7 @@ def calculate(conn, items: list, staff=False) -> dict:
             'net_sqft': str(net_area.quantize(D('0.0001'))),
             'material_sqft': str(material_area.quantize(D('0.0001'))),
             'labor_hours': str(labor_hours), 'sell_cents': sell, 'cost_cents': cost,
+            'retail_sell_cents': retail_sell, 'wholesale_discount_percent': str(wholesale_discount) if wholesale else '',
             'price_per_item_cents': cent_round(D(sell) / qty), 'review_required': review,
             'installation_requested': installation_requested,
             'self_approve_artwork': bool(cfg.get('self_approve_artwork', False)),
@@ -271,6 +290,7 @@ def calculate(conn, items: list, staff=False) -> dict:
     minimum_order = cents(shop.get('minimum_order_price', '50'), 'Minimum order price')
     apply_order_minimum = not all(x['category'] == 'Custom' for x in lines)
     return {'lines': lines, 'subtotal_cents': line_subtotal,
+            'wholesale': {'name': wholesale['name']} if wholesale else None,
             'minimum_order_adjustment_cents': 0,
             'minimum_order_cents': minimum_order if apply_order_minimum else 0,
             'meets_minimum_order': (not apply_order_minimum) or line_subtotal >= minimum_order,

@@ -135,3 +135,29 @@ CREATE TABLE IF NOT EXISTS portal_links (
 );
 CREATE INDEX IF NOT EXISTS email_notifications_job ON email_notifications(job_id,id);
 CREATE INDEX IF NOT EXISTS portal_links_expiry ON portal_links(expires_at);
+
+
+-- Version 4: reusable wholesale client pricing profiles.
+CREATE TABLE IF NOT EXISTS wholesale_clients (
+ id INTEGER PRIMARY KEY,
+ name TEXT NOT NULL,
+ email TEXT NOT NULL COLLATE NOCASE UNIQUE,
+ code_hash TEXT NOT NULL,
+ discount_percent TEXT NOT NULL DEFAULT '0',
+ active INTEGER NOT NULL DEFAULT 1,
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS wholesale_product_discounts (
+ client_id INTEGER NOT NULL REFERENCES wholesale_clients(id) ON DELETE CASCADE,
+ product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+ discount_percent TEXT NOT NULL,
+ PRIMARY KEY(client_id, product_id)
+);
+CREATE TABLE IF NOT EXISTS wholesale_sessions (
+ token_hash TEXT PRIMARY KEY,
+ client_id INTEGER NOT NULL REFERENCES wholesale_clients(id) ON DELETE CASCADE,
+ expires_at REAL NOT NULL,
+ created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS wholesale_sessions_expiry ON wholesale_sessions(expires_at);

@@ -61,6 +61,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             cfg.setdefault('requires_installation', old['id'] in (7, 8, 10))
             cfg.setdefault('is_wrap', 'wrap' in (old['name']+' '+old['category']).lower())
             cfg.setdefault('supports_installation', False)
+            cfg.setdefault('supports_multiple_dimensions', False)
             cfg.setdefault('installation_workflow_id', None)
             cfg.setdefault('lamination_options', [])
             cfg.setdefault('quantity_price_table', [])
@@ -78,9 +79,11 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 cfg['min_width'] = '1'
                 cfg['min_height'] = '1'
             if 'transfer sticker' in lname:
-                cfg['min_quantity'] = '50'
+                cfg['min_quantity'] = '1'
                 cfg['min_width'] = '3'
                 cfg['min_height'] = '3'
+                if str(cfg.get('minimum_price', '')) in ('50', '50.0', '50.00'):
+                    cfg['minimum_price'] = '0'
             if any(x in lname for x in ('die-cut sticker', 'transfer sticker', 'magnet', 'banner')):
                 cfg['self_approve_artwork'] = True
             if 'die-cut sticker' in lname:
@@ -126,6 +129,8 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     {'id':'gloss','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
                     {'id':'premium_matte','label':'Premium matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
                 ]
+            if 'storefront perforated' in lname or old['category'].lower() == 'windows':
+                cfg['supports_multiple_dimensions'] = True
             if ('perforated' in lname or 'window' in lname) and not cfg.get('lamination_options'):
                 cfg['lamination_options'] = [
                     {'id':'none','label':'No laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
@@ -140,6 +145,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             cfg['is_wrap'] = True
             cfg['requires_installation'] = False
             cfg['supports_installation'] = True
+            cfg['supports_multiple_dimensions'] = True
             cfg['installation_workflow_id'] = wrap_install_workflow['id'] if wrap_install_workflow else 4
             if str(cfg.get('sell_per_sqft', '10')) == '10':
                 cfg['sell_per_sqft'] = '5.27'
@@ -189,6 +195,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     'max_width': maxw, 'max_height': maxh, 'instant': instant, 'description': description,
                     'is_wrap': 'wrap' in category.lower(), 'requires_installation': not instant,
                     'supports_installation': 'vehicle wrap' in name.lower(),
+                    'supports_multiple_dimensions': ('vehicle wrap' in name.lower() or 'storefront perforated' in name.lower()),
                     'installation_workflow_id': 4 if 'vehicle wrap' in name.lower() else None,
                     'min_width': '1' if 'sticker' in name.lower() else '0.1',
                     'min_height': '1' if 'sticker' in name.lower() else '0.1',
@@ -232,8 +239,8 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             sticker_workflow = conn.execute("SELECT id FROM workflows WHERE name='Stickers and labels'").fetchone()
             transfer_cfg = validate_config({
                 'unit':'piece','sell_per_sqft':'24','cost_per_sqft':'4','setup_price':'0','setup_cost':'8',
-                'minimum_price':'50','waste_percent':'15','labor_minutes_per_unit':'0',
-                'min_quantity':50,'max_quantity':100000,'default_width':3,'default_height':3,
+                'minimum_price':'0','waste_percent':'15','labor_minutes_per_unit':'0',
+                'min_quantity':1,'max_quantity':100000,'default_width':3,'default_height':3,
                 'min_width':3,'min_height':3,'max_width':24,'max_height':48,'instant':True,
                 'description':'Precision-cut transfer stickers for lettering and graphics without a printed background. Minimum finished size is 3 x 3 inches.',
                 'is_wrap':False,'requires_installation':False,'supports_installation':False,

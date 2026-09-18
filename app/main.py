@@ -139,6 +139,19 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                      (digest(token), job_id, time.time() + days * 86400, now()))
         return f'{public_url}/portal#token={token}'
 
+    def wholesale_client(conn, token_value):
+        if not token_value:
+            return None
+        if not isinstance(token_value, str) or len(token_value) > 200:
+            raise HTTPException(422, 'Wholesale pricing session is invalid.')
+        conn.execute('DELETE FROM wholesale_sessions WHERE expires_at<?', (time.time(),))
+        return conn.execute(
+            '''SELECT c.* FROM wholesale_sessions s
+               JOIN wholesale_clients c ON c.id=s.client_id
+               WHERE s.token_hash=? AND s.expires_at>? AND c.active=1''',
+            (digest(token_value), time.time())
+        ).fetchone()
+
     def proof_specs(job):
         return [{k: item[k] for k in ('name','description','width','height','quantity')} for item in json.loads(job['quote_snapshot'])['lines']]
 
@@ -256,19 +269,36 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         with transaction(database) as conn:
             shop = settings(conn)
             products = []
-            for row in conn.execute('SELECT * FROM products WHERE public=1 AND active=1 ORDER BY id'):
+            for row in conn.execute("""SELECT * FROM products WHERE public=1 AND active=1 ORDER BY
+                CASE WHEN name='Die-cut stickers' THEN 1 WHEN name='Transfer stickers' THEN 2 ELSE 100+id END, id"""):
                 cfg = json.loads(row['config'])
                 products.append({k: row[k] for k in ('id','name','category','version')} | {
                     'config': {k: cfg[k] for k in ('unit','description','min_quantity','max_quantity','max_width','max_height',
-                                                  'default_width','default_height','min_width','min_height','instant','supports_installation','self_approve_artwork','lamination_options')}})
+                                                  'default_width','default_height','min_width','min_height','instant','supports_installation','supports_multiple_dimensions','self_approve_artwork','lamination_options')}})
             return {'products': products, 'shop': {k: shop[k] for k in ('shop_name','contact_email','contact_phone','rates_live','quote_note')},
                     'checkout': availability(shop, app.state.gateway), 'notifications': email_status()}
+
+    @app.post('/api/wholesale/activate')
+    def activate_wholesale(request: Request, payload: dict = Body(...)):
+        throttle(request, 'wholesale_activate', 10, 900)
+        address = email(payload.get('email', ''))
+        code = text(payload.get('code', ''), 'Wholesale access code', 128, True)
+        with transaction(database, True) as conn:
+            client = conn.execute('SELECT * FROM wholesale_clients WHERE email=? AND active=1', (address,)).fetchone()
+            if not client or not password_matches(code, client['code_hash']):
+                raise HTTPException(401, 'Wholesale email or access code is incorrect.')
+            token = secrets.token_urlsafe(32)
+            conn.execute('DELETE FROM wholesale_sessions WHERE expires_at<? OR client_id=?', (time.time(), client['id']))
+            conn.execute('INSERT INTO wholesale_sessions(token_hash,client_id,expires_at,created_at) VALUES(?,?,?,?)',
+                         (digest(token), client['id'], time.time()+8*3600, now()))
+        return {'token': token, 'client': {'name': client['name'], 'email': client['email']}}
 
     @app.post('/api/calculate')
     def customer_calculate(request: Request, payload: dict = Body(...)):
         throttle(request, 'calculate', 180, 60)
-        with transaction(database) as conn:
-            quote = calculate(conn, payload.get('items', []))
+        with transaction(database, True) as conn:
+            wholesale = wholesale_client(conn, payload.get('wholesale_token', ''))
+            quote = calculate(conn, payload.get('items', []), wholesale_client_id=wholesale['id'] if wholesale else None)
         result = public_quote(quote)
         result['fingerprint'] = digest(json.dumps(result, sort_keys=True))
         return result
@@ -296,12 +326,18 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                     raise HTTPException(409, 'This checkout request is already in use.')
                 job_id = previous['job_id']
             else:
-                quote = eligible_quote(conn, payload.get('items',[]))
+                wholesale = wholesale_client(conn, payload.get('wholesale_token', ''))
+                if wholesale and email(payload.get('customer_email', '')) != wholesale['email']:
+                    raise HTTPException(422, 'Use the approved wholesale account email for this pricing.')
+                quote = eligible_quote(conn, payload.get('items',[]), wholesale_client_id=wholesale['id'] if wholesale else None)
                 expected = digest(json.dumps(public_quote(quote), sort_keys=True))
                 if payload.get('fingerprint') != expected:
                     raise HTTPException(409, 'Pricing has changed. Recalculate before ordering.')
                 policy = checkout_policy(shop, delivery)
-                job_id = create_job(conn,payload,source='checkout',actor='Online customer')
+                order_payload = dict(payload)
+                if wholesale:
+                    order_payload['_wholesale_client_id'] = wholesale['id']
+                job_id = create_job(conn,order_payload,source='checkout',actor='Online customer')
                 tax = 0
                 if delivery=='pickup':
                     from decimal import Decimal
@@ -343,11 +379,18 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         if payload.get('website'):
             raise HTTPException(422, 'Request could not be submitted.')
         with transaction(database, True) as conn:
-            computed = public_quote(calculate(conn, payload.get('items', [])))
+            wholesale = wholesale_client(conn, payload.get('wholesale_token', ''))
+            if wholesale and email(payload.get('customer_email', '')) != wholesale['email']:
+                raise HTTPException(422, 'Use the approved wholesale account email for this pricing.')
+            wholesale_id = wholesale['id'] if wholesale else None
+            computed = public_quote(calculate(conn, payload.get('items', []), wholesale_client_id=wholesale_id))
             expected = digest(json.dumps(computed, sort_keys=True))
             if payload.get('fingerprint') != expected:
                 raise HTTPException(409, 'Pricing has changed. Recalculate your estimate before submitting.')
-            job_id = create_job(conn, payload, source='customer', actor='Public estimate request')
+            request_payload = dict(payload)
+            if wholesale:
+                request_payload['_wholesale_client_id'] = wholesale['id']
+            job_id = create_job(conn, request_payload, source='customer', actor='Public estimate request')
             link = issue_portal(conn, job_id)
         notify_customer(database, job_id, 'order_received', f'{f"JOB-{job_id:04d}"} received | Tampa Signs and Stickers',
                         'Project received', 'We received your project. Our team will review the details and keep you updated as it moves forward.', link)
@@ -1030,6 +1073,80 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                          (text(payload.get('name', ''), 'Workflow name', 120, True), json.dumps(steps), workflow_id))
             audit(conn, None, actor(user), 'workflow.updated', {'workflow_id': workflow_id, 'version': old['version'] + 1})
         return {'ok': True}
+
+    @app.get('/api/admin/wholesale')
+    def wholesale_profiles(request: Request, user=Depends(require_admin)):
+        with transaction(database) as conn:
+            clients = []
+            for row in conn.execute('SELECT id,name,email,discount_percent,active,created_at,updated_at FROM wholesale_clients ORDER BY name,email'):
+                discounts = [dict(x) for x in conn.execute(
+                    '''SELECT d.product_id,p.name AS product_name,d.discount_percent
+                       FROM wholesale_product_discounts d JOIN products p ON p.id=d.product_id
+                       WHERE d.client_id=? ORDER BY p.name''', (row['id'],))]
+                clients.append(dict(row) | {'product_discounts': discounts})
+            products = [dict(p) for p in conn.execute('SELECT id,name FROM products WHERE active=1 ORDER BY name')]
+        return {'clients': clients, 'products': products}
+
+    @app.post('/api/admin/wholesale')
+    def create_wholesale_profile(request: Request, payload: dict = Body(...), user=Depends(require_admin)):
+        name = text(payload.get('name', ''), 'Wholesale client name', 120, True)
+        address = email(payload.get('email', ''))
+        discount = str(number(payload.get('discount_percent', 0), 'Wholesale discount', '0', '90'))
+        overrides = payload.get('product_discounts', {})
+        if not isinstance(overrides, dict) or len(overrides) > 100:
+            raise HTTPException(422, 'Wholesale product discounts must be a product-to-discount map.')
+        access_code = secrets.token_urlsafe(12)
+        with transaction(database, True) as conn:
+            cid = conn.execute(
+                'INSERT INTO wholesale_clients(name,email,code_hash,discount_percent,active,created_at,updated_at) VALUES(?,?,?,?,1,?,?)',
+                (name, address, password_hash(access_code), discount, now(), now())
+            ).lastrowid
+            for pid, value in overrides.items():
+                product_id = int(number(pid, 'Product ID', '1', '100000000'))
+                pct = str(number(value, 'Product discount', '0', '90'))
+                if not conn.execute('SELECT id FROM products WHERE id=?', (product_id,)).fetchone():
+                    raise HTTPException(422, 'Wholesale discount references an unknown product.')
+                conn.execute('INSERT INTO wholesale_product_discounts(client_id,product_id,discount_percent) VALUES(?,?,?)',
+                             (cid, product_id, pct))
+            audit(conn, None, actor(user), 'wholesale.created', {'client_id': cid, 'email': address, 'discount_percent': discount})
+        return {'client_id': cid, 'access_code': access_code,
+                'message': 'Save this wholesale access code securely. It is displayed only once.'}
+
+    @app.put('/api/admin/wholesale/{client_id}')
+    def update_wholesale_profile(client_id: int, request: Request, payload: dict = Body(...), user=Depends(require_admin)):
+        overrides = payload.get('product_discounts')
+        new_code = secrets.token_urlsafe(12) if payload.get('reset_code') is True else None
+        with transaction(database, True) as conn:
+            current = conn.execute('SELECT * FROM wholesale_clients WHERE id=?', (client_id,)).fetchone()
+            if not current:
+                raise HTTPException(404, 'Wholesale client not found.')
+            name = text(payload.get('name', current['name']), 'Wholesale client name', 120, True)
+            address = email(payload.get('email', current['email']))
+            discount = str(number(payload.get('discount_percent', current['discount_percent']), 'Wholesale discount', '0', '90'))
+            active = payload.get('active', bool(current['active']))
+            if not isinstance(active, bool):
+                raise HTTPException(422, 'active must be true or false.')
+            conn.execute('UPDATE wholesale_clients SET name=?,email=?,discount_percent=?,active=?,updated_at=? WHERE id=?',
+                         (name, address, discount, int(active), now(), client_id))
+            if new_code:
+                conn.execute('UPDATE wholesale_clients SET code_hash=? WHERE id=?', (password_hash(new_code), client_id))
+                conn.execute('DELETE FROM wholesale_sessions WHERE client_id=?', (client_id,))
+            if overrides is not None:
+                if not isinstance(overrides, dict) or len(overrides) > 100:
+                    raise HTTPException(422, 'Wholesale product discounts must be a product-to-discount map.')
+                conn.execute('DELETE FROM wholesale_product_discounts WHERE client_id=?', (client_id,))
+                for pid, value in overrides.items():
+                    if value in ('', None):
+                        continue
+                    product_id = int(number(pid, 'Product ID', '1', '100000000'))
+                    pct = str(number(value, 'Product discount', '0', '90'))
+                    if not conn.execute('SELECT id FROM products WHERE id=?', (product_id,)).fetchone():
+                        raise HTTPException(422, 'Wholesale discount references an unknown product.')
+                    conn.execute('INSERT INTO wholesale_product_discounts(client_id,product_id,discount_percent) VALUES(?,?,?)',
+                                 (client_id, product_id, pct))
+            audit(conn, None, actor(user), 'wholesale.updated',
+                  {'client_id': client_id, 'active': active, 'discount_percent': discount, 'code_reset': bool(new_code)})
+        return {'ok': True, 'access_code': new_code}
 
     @app.get('/api/admin/email-status')
     def admin_email_status(request: Request, user=Depends(require_admin)):

@@ -121,13 +121,13 @@ def checkout_policy(shop, fulfillment):
             'terms': shop['checkout_terms'], 'tax_mode': 'automatic' if fulfillment == 'shipping' else 'pickup_fixed'}
 
 
-def eligible_quote(conn, items):
+def eligible_quote(conn, items, wholesale_client_id=None):
     if not isinstance(items, list) or not 1 <= len(items) <= 20:
         raise HTTPException(422, 'Checkout supports 1 to 20 size lines for one product.')
     product_ids = {str(item.get('product_id')) for item in items if isinstance(item, dict)}
     if len(product_ids) != 1:
         raise HTTPException(422, 'Checkout supports multiple sizes of one product at a time. Request a quote for mixed products.')
-    quote = calculate(conn, items)
+    quote = calculate(conn, items, wholesale_client_id=wholesale_client_id)
     if quote['subtotal_cents'] > 99_999_999:
         raise HTTPException(422, 'This amount requires a custom quote rather than online checkout.')
     if not quote.get('meets_minimum_order', True):
