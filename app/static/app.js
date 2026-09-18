@@ -491,6 +491,8 @@ document.addEventListener('input',event=>{
   if(event.target.closest('.usdot-config'))updateUsdotPreview();
 });
 document.addEventListener('change',event=>{
+  if(event.target.name==='coverage_option'){all('.coverage-card').forEach(card=>card.classList.toggle('selected',card.contains(event.target)));recalculate();}
+  if(event.target.name==='vehicle_type'&&event.target.closest('#calculator'))recalculate();
   if(event.target.matches('[data-line-product]')){const row=event.target.closest('[data-quote-line]'),p=state.products.find(p=>p.id===Number(event.target.value));const w=$('[data-line-width]',row),h=$('[data-line-height]',row),q=$('[data-line-quantity]',row);w.value=p.config.default_width;w.min=p.config.min_width||0.1;h.value=p.config.default_height;h.min=p.config.min_height||0.1;q.value=p.config.min_quantity;q.min=p.config.min_quantity;}
   if(event.target.name==='size_preset'&&event.target.closest('#calculator')){const form=$('#calculator');if(event.target.value!=='custom'){const parts=event.target.value.split('|');form.elements.width.value=parts[0];form.elements.height.value=parts[1];}form.elements.width.readOnly=event.target.value!=='custom';form.elements.height.readOnly=event.target.value!=='custom';recalculate();}
   if(event.target.name==='placement'&&event.target.closest('#calculator')){const form=$('#calculator'),product=state.catalog.products.find(p=>p.id===state.selectedProduct),choice=(product?.config.placement_options||[]).find(x=>x.id===event.target.value);if(choice){form.elements.width.value=choice.width;form.elements.height.value=choice.height;}form.elements.width.readOnly=event.target.value!=='custom';form.elements.height.readOnly=event.target.value!=='custom';recalculate();}
