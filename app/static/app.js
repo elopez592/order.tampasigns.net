@@ -272,12 +272,31 @@ function approvalModal(action){const j=state.portalJob;showModal(action==='appro
 async function refreshAfterTask(){if(location.hash.startsWith('#job/'))await loadJob(state.job.id);else await loadQueue();}
 function customDimensionRow(index){return `<div class="dimension-row" data-custom-dimension><div class="fields four">${input('custom_label_'+index,'Label / area','','text','maxlength="120" placeholder="Driver side, panel 1..."')}${input('custom_width_'+index,'Width (in)','','number','min=".1" max="10000" step=".01"')}${input('custom_height_'+index,'Height (in)','','number','min=".1" max="10000" step=".01"')}${input('custom_qty_'+index,'Qty',1,'number','min="1" max="100000" step="1"')}</div><button type="button" class="btn light small" data-action="remove-custom-dimension">Remove</button></div>`;}
 
+function wholesaleEditor(client=null){
+  const products=state.wholesaleAdmin?.products||[], overrides=new Map((client?.product_discounts||[]).map(x=>[String(x.product_id),x.discount_percent]));
+  state.editWholesale=client;
+  showModal(client?'Edit wholesale client':'Add wholesale client',`<form data-form="wholesale-client" class="stack">
+    <div class="notice info">Wholesale pricing is private. Clients unlock it with their email and an access code. Product-specific discounts override the default discount.</div>
+    <div class="fields">${input('name','Client / company name',client?.name||'','text','required maxlength="120"')}${input('email','Wholesale contact email',client?.email||'','email','required maxlength="254"')}${input('discount_percent','Default discount %',client?.discount_percent||0,'number','min="0" max="90" step=".1" required')}</div>
+    ${client?checkbox('active','Wholesale pricing active',!!client.active):''}
+    <div><h3>Product-specific discounts <span class="muted tiny">(optional)</span></h3><div class="stack-sm mt-sm">${products.map(p=>`<div class="row between"><span>${esc(p.name)}</span><input data-wholesale-product="${p.id}" type="number" min="0" max="90" step=".1" placeholder="Use default" value="${esc(overrides.get(String(p.id))||'')}" style="max-width:120px"></div>`).join('')}</div></div>
+    ${client?checkbox('reset_code','Generate a new client access code',false):''}
+    ${formFooter(client?'Save wholesale pricing':'Create wholesale client')}</form>`,true);
+}
+function showWholesaleCode(code){
+  showModal('Save wholesale access code',`<div class="stack"><div class="notice">This code is displayed only once. Send it securely to the approved wholesale client together with the email address on their profile.</div><input value="${esc(code)}" readonly aria-label="Wholesale access code"><button class="btn primary" data-action="close">Saved securely</button></div>`);
+}
+
 /* Every mutating action calls the backend; the DOM is never the price authority. */
 const actions = {
  'online-pay':async()=>{const r=await api('/api/portal/checkout','POST',{});location.href=r.url;},
  close:()=>closeModal(),
  refresh:()=>route(),
  'email-test':async()=>{const r=await api('/api/admin/email-test','POST',{});toast('Test email sent to '+r.recipient+'.');await loadSettings();},
+ 'wholesale-login':()=>showModal('Wholesale pricing',`<form data-form="wholesale-login" class="stack"><div class="notice info">Approved wholesale clients can unlock their negotiated pricing here.</div>${input('email','Wholesale account email','','email','required maxlength="254"')}${input('code','Access code','','password','required maxlength="128" autocomplete="off"')}${formFooter('Apply wholesale pricing')}</form>`),
+ 'wholesale-clear':async()=>{state.wholesaleToken='';state.wholesaleName='';sessionStorage.removeItem('wholesale_token');sessionStorage.removeItem('wholesale_name');toast('Wholesale pricing removed.');await calculatorView();},
+ 'new-wholesale':()=>wholesaleEditor(),
+ 'edit-wholesale':b=>wholesaleEditor((state.wholesaleAdmin?.clients||[]).find(x=>x.id===Number(b.dataset.id))),
  'portal-refresh':()=>loadPortal(),
  print:()=>window.print(),
  'choose-product':async b=>{state.selectedProduct=Number(b.dataset.id);await calculatorView();},
@@ -336,6 +355,8 @@ function showCredentials(password){showModal('Save the new account password',`<d
 const forms = {
  login:async(f,d)=>{const r=await api('/api/auth/login','POST',d);state.user=r.user;state.csrf=r.csrf;await route();},
  calculator:async()=>{await recalculate();},
+ 'wholesale-login':async(f,d)=>{const r=await api('/api/wholesale/activate','POST',{email:d.email,code:d.code});state.wholesaleToken=r.token;state.wholesaleName=r.client.name;sessionStorage.setItem('wholesale_token',r.token);sessionStorage.setItem('wholesale_name',r.client.name);closeModal();toast('Wholesale pricing applied.');await calculatorView();},
+ 'wholesale-client':async(f,d)=>{const product_discounts={};all('[data-wholesale-product]',f).forEach(x=>{if(x.value!=='')product_discounts[x.dataset.wholesaleProduct]=x.value;});const payload={name:d.name,email:d.email,discount_percent:d.discount_percent,product_discounts,active:state.editWholesale?!!d.active:true,reset_code:!!d.reset_code};const r=state.editWholesale?await api('/api/admin/wholesale/'+state.editWholesale.id,'PUT',payload):await api('/api/admin/wholesale','POST',payload);closeModal();await loadSettings();if(r.access_code)showWholesaleCode(r.access_code);else toast('Wholesale pricing updated.');},
  'design-quote':async(f,d)=>{
    const files=[...f.elements.artwork.files];delete d.artwork;
    if(files.some(file=>file.size>10*1024*1024))throw new Error('Each reference file must be 10 MB or smaller.');
