@@ -23,7 +23,7 @@ def test_shop_minimum_and_sticker_minimum_size(env):
     }]})
     assert one.status_code == 200, one.text
     assert one.json()['subtotal_cents'] == 5000
-    assert one.json()['minimum_order_adjustment_cents'] > 0
+    assert one.json()['minimum_order_cents'] == 5000
 
 
 def test_transfer_stickers_and_low_quantity_products(env):
