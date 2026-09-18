@@ -179,7 +179,7 @@ def validate_config(cfg: dict) -> dict:
     categories = cfg.get('storefront_categories', [])
     if not isinstance(categories, list) or len(categories) > 8:
         raise HTTPException(422, 'Use no more than 8 storefront categories.')
-    allowed_categories = {'Storefront','Vehicles','Fleet Services','Stickers','Signs','Apparel'}
+    allowed_categories = {'Storefront','Vehicles','Fleet Services','Trailers / Food Trucks','Stickers','Signs','Apparel'}
     checked_categories = []
     for category in categories:
         label = str(category).strip()
@@ -234,6 +234,44 @@ def validate_config(cfg: dict) -> dict:
         if qty not in checked_quantities:
             checked_quantities.append(qty)
     result['quantity_presets'] = checked_quantities
+
+    coverage = cfg.get('coverage_options', [])
+    if not isinstance(coverage, list) or len(coverage) > 12:
+        raise HTTPException(422, 'Use no more than 12 wrap coverage options.')
+    checked_coverage, coverage_ids = [], set()
+    for option in coverage:
+        if not isinstance(option, dict):
+            raise HTTPException(422, 'Invalid wrap coverage option.')
+        oid = str(option.get('id', '')).strip().lower()
+        if not re.fullmatch(r'[a-z0-9_-]{1,40}', oid) or oid in coverage_ids:
+            raise HTTPException(422, 'Wrap coverage IDs must be unique letters, numbers, hyphens or underscores.')
+        label = str(option.get('label', '')).strip()[:80]
+        description = str(option.get('description', '')).strip()[:180]
+        multiplier = number(option.get('multiplier', 1), 'Wrap coverage multiplier', '0.05', '2')
+        if not label:
+            raise HTTPException(422, 'Wrap coverage label is required.')
+        coverage_ids.add(oid)
+        checked_coverage.append({'id': oid, 'label': label, 'description': description, 'multiplier': str(multiplier)})
+    result['coverage_options'] = checked_coverage
+
+    vehicle_types = cfg.get('vehicle_type_options', [])
+    if not isinstance(vehicle_types, list) or len(vehicle_types) > 12:
+        raise HTTPException(422, 'Use no more than 12 vehicle type options.')
+    checked_vehicle_types, vehicle_type_ids = [], set()
+    for option in vehicle_types:
+        if not isinstance(option, dict):
+            raise HTTPException(422, 'Invalid vehicle type option.')
+        oid = str(option.get('id', '')).strip().lower()
+        if not re.fullmatch(r'[a-z0-9_-]{1,40}', oid) or oid in vehicle_type_ids:
+            raise HTTPException(422, 'Vehicle type IDs must be unique letters, numbers, hyphens or underscores.')
+        label = str(option.get('label', '')).strip()[:80]
+        multiplier = number(option.get('multiplier', 1), 'Vehicle type multiplier', '0.5', '3')
+        if not label:
+            raise HTTPException(422, 'Vehicle type label is required.')
+        vehicle_type_ids.add(oid)
+        checked_vehicle_types.append({'id': oid, 'label': label, 'multiplier': str(multiplier)})
+    result['vehicle_type_options'] = checked_vehicle_types
+    result['quantity_only_note'] = str(cfg.get('quantity_only_note', ''))[:300]
     return result
 
 
@@ -307,6 +345,37 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
         if short_axis > D(cfg.get('max_short_axis', '10000')) or long_axis > D(cfg.get('max_long_axis', '10000')):
             raise HTTPException(422, f'Finished size cannot exceed {cfg.get("max_short_axis", "10000")} x {cfg.get("max_long_axis", "10000")} inches in either orientation.')
         area = width * height / 144
+
+        coverage_options = cfg.get('coverage_options', [])
+        coverage_id = str(item.get('coverage_option', '') or '').strip().lower()
+        if coverage_options:
+            if not coverage_id:
+                coverage_id = coverage_options[0]['id']
+            coverage_option = next((o for o in coverage_options if o['id'] == coverage_id), None)
+            if not coverage_option:
+                raise HTTPException(422, 'Choose a valid wrap coverage option.')
+        else:
+            if coverage_id:
+                raise HTTPException(422, 'Wrap coverage selection is not available for this product.')
+            coverage_option = None
+
+        vehicle_type_options = cfg.get('vehicle_type_options', [])
+        vehicle_type_id = str(item.get('vehicle_type', '') or '').strip().lower()
+        if vehicle_type_options:
+            if not vehicle_type_id:
+                vehicle_type_id = vehicle_type_options[0]['id']
+            vehicle_type_option = next((o for o in vehicle_type_options if o['id'] == vehicle_type_id), None)
+            if not vehicle_type_option:
+                raise HTTPException(422, 'Choose a valid vehicle or trailer type.')
+        else:
+            if vehicle_type_id:
+                raise HTTPException(422, 'Vehicle type selection is not available for this product.')
+            vehicle_type_option = None
+
+        coverage_factor = D(coverage_option['multiplier']) if coverage_option else D(1)
+        vehicle_factor = D(vehicle_type_option['multiplier']) if vehicle_type_option else D(1)
+        pricing_factor = coverage_factor * vehicle_factor
+
         net_area = area * qty
         material_area = net_area * (1 + D(cfg['waste_percent']) / 100)
         labor_hours = D(cfg['labor_minutes_per_unit']) * qty / 60
@@ -348,8 +417,8 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
                 installation_hours += D(cfg.get('installation_setup_minutes', '0')) / 60
                 installation_setup_applied.add(row['id'])
 
-        raw_cost = (material_area * D(cfg['cost_per_sqft']) * 100 + D(cfg['setup_cost']) * 100
-                    + labor_hours * labor_cost + lamination_cost + material_cost + installation_hours * labor_cost)
+        raw_cost = (material_area * D(cfg['cost_per_sqft']) * 100 * pricing_factor + D(cfg['setup_cost']) * 100
+                    + labor_hours * labor_cost * pricing_factor + lamination_cost + material_cost + installation_hours * labor_cost * pricing_factor)
         cost = cent_round(raw_cost * (1 + overhead))
 
         if cfg.get('quantity_price_table'):
@@ -358,11 +427,11 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             area_ratio = area / base_area
             size_weight = D(cfg['price_table_size_weight'])
             size_factor = (D(1) - size_weight) + size_weight * area_ratio
-            calculated = base_total * size_factor + lamination_sell + material_sell + installation_hours * labor_sell
+            calculated = base_total * size_factor * pricing_factor + lamination_sell + material_sell + installation_hours * labor_sell * pricing_factor
         else:
             band_qty = weighted_quantity(qty, cfg['tiers'])
-            calculated = (D(cfg['setup_price']) * 100 + area * band_qty * D(cfg['sell_per_sqft']) * 100
-                          + labor_hours * labor_sell + lamination_sell + material_sell + installation_hours * labor_sell)
+            calculated = (D(cfg['setup_price']) * 100 + area * band_qty * D(cfg['sell_per_sqft']) * 100 * pricing_factor
+                          + labor_hours * labor_sell * pricing_factor + lamination_sell + material_sell + installation_hours * labor_sell * pricing_factor)
 
         floor = 0 if cfg.get('quantity_price_table') else int((D(cost) / (1 - margin)).quantize(D('1'), rounding=ROUND_CEILING))
         sell = max(cent_round(calculated), cents(cfg['minimum_price']), floor)
@@ -396,6 +465,10 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             'material': material_option['id'] if material_option else '',
             'material_label': material_option['label'] if material_option else '',
             'material_cents': cent_round(material_sell),
+            'coverage_option': coverage_option['id'] if coverage_option else '',
+            'coverage_label': coverage_option['label'] if coverage_option else '',
+            'vehicle_type': vehicle_type_option['id'] if vehicle_type_option else '',
+            'vehicle_type_label': vehicle_type_option['label'] if vehicle_type_option else '',
             'workflow_id': workflow_id, 'floor_applied': sell == floor,
             'rate_snapshot': cfg,
         })
