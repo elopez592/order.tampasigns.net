@@ -163,7 +163,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     {'id':'toddler_front','label':'Toddler full front — 5.5 x 5.5 in','width':'5.5','height':'5.5'}
                 ]
                 cfg['size_options'] = []
-                cfg['description'] = 'Ready-to-press DTF transfers priced by print area, benchmarked to current Jiffy transfer pricing. Choose a standard apparel placement size or use Custom size. Garments and pressing are not included.'
+                cfg['description'] = 'Ready-to-press DTF transfers priced by print area. Choose a standard apparel placement size or use Custom size. Garments and pressing are not included.'
             if old['name'].lower() == 'embroidered polos':
                 cfg['storefront_categories'] = ['Apparel']
                 cfg['setup_price'] = '35'
@@ -445,7 +445,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 'default_width':3.5,'default_height':3.5,'min_width':1,'min_height':1,
                 'max_width':14,'max_height':14,'max_short_axis':12,'max_long_axis':14,
                 'self_approve_artwork':True,
-                'description':'Ready-to-press DTF transfers priced by print area, benchmarked to current Jiffy transfer pricing. Choose a standard apparel placement size or use Custom size. Garments and pressing are not included.',
+                'description':'Ready-to-press DTF transfers priced by print area. Choose a standard apparel placement size or use Custom size. Garments and pressing are not included.',
                 'placement_options':[
                     {'id':'adult_left_chest','label':'Adult left chest — 3.5 x 3.5 in','width':'3.5','height':'3.5'},
                     {'id':'adult_right_chest','label':'Adult right chest — 3.5 x 3.5 in','width':'3.5','height':'3.5'},
