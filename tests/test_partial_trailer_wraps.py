@@ -93,6 +93,7 @@ def test_wrap_coverage_storefront_ui_is_present(env):
     assert "storefrontProductsFor" in text
     assert "hasCoverageWrap" in text
     assert "var(--brand-orange)" in text
+    assert 'input[name="coverage_option"]:checked' in text
     assert "Approximate dimensions" in text
     assert "Trailer / truck type" in text
     assert "multiple" in text
