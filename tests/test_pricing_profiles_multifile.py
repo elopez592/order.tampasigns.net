@@ -5,15 +5,19 @@ def test_sticker_benchmark_quantity_breaks(env):
     app, admin, employee = env
     client = anonymous(app)
     sticker = next(p for p in client.get('/api/catalog').json()['products'] if p['name'] == 'Die-cut stickers')
+    expected = {
+        50:6000, 100:7300, 200:9500, 300:11500, 500:15200,
+        1000:23200, 2000:37100, 3000:49600, 5000:72300, 10000:122500
+    }
     totals = {}
-    for qty in [50,100,200,500,1000]:
+    for qty in expected:
         r = client.post('/api/calculate', json={'items':[{
             'product_id':sticker['id'],'width':3,'height':3,'quantity':qty,
-            'lamination':'standard_gloss'
+            'lamination':'standard_matte'
         }]})
         assert r.status_code == 200, r.text
         totals[qty] = r.json()['subtotal_cents']
-    assert totals == {50:6000,100:7300,200:9500,500:15200,1000:23200}
+    assert totals == expected
 
 
 def test_wrap_multi_panel_install_estimate_and_lamination(env):
