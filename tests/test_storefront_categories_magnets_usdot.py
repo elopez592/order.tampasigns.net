@@ -58,7 +58,7 @@ def test_decals_usdot_and_apparel_listings(env):
     assert decals['config']['self_approve_artwork'] is True
 
     usdot = products['USDOT Decals']
-    assert set(usdot['config']['storefront_categories']) == {'Vehicle Signage', 'Stickers'}
+    assert usdot['config']['storefront_categories'] == ['Vehicle Signage']
     assert usdot['config']['usdot_customizer'] is True
     assert [x['label'] for x in usdot['config']['size_options']] == ['18 x 12 in', '24 x 12 in', '24 x 18 in']
     assert usdot['config']['max_short_axis'] == '24'
