@@ -70,6 +70,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             cfg.setdefault('max_short_axis', '10000')
             cfg.setdefault('max_long_axis', '10000')
             cfg.setdefault('usdot_customizer', False)
+            cfg.setdefault('quantity_only', False)
             cfg.setdefault('installation_workflow_id', None)
             cfg.setdefault('lamination_options', [])
             cfg.setdefault('quantity_price_table', [])
@@ -167,6 +168,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 cfg['max_height'] = '12'
                 cfg['instant'] = False
                 cfg['requires_installation'] = True
+                cfg['quantity_only'] = True
                 cfg['self_approve_artwork'] = False
                 cfg['quantity_presets'] = [1,2,5,10,25,50]
                 cfg['tiers'] = [
@@ -488,7 +490,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 'minimum_price':'350','waste_percent':'0','labor_minutes_per_unit':'0',
                 'min_quantity':1,'max_quantity':500,'default_width':12,'default_height':12,
                 'min_width':12,'min_height':12,'max_width':12,'max_height':12,
-                'instant':False,
+                'instant':False,'quantity_only':True,
                 'description':'Fleet window tinting starting at a retail single-vehicle baseline. Final pricing is reviewed by vehicle, glass coverage, film choice and access. Larger fleets receive progressively better volume pricing.',
                 'is_wrap':False,'requires_installation':True,'supports_installation':False,
                 'supports_multiple_dimensions':False,'self_approve_artwork':False,'usdot_customizer':False,
