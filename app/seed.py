@@ -306,7 +306,8 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 'min_width':3,'min_height':3,'max_width':24,'max_height':48,'instant':True,
                 'description':'Precision-cut transfer stickers for lettering and graphics without a printed background. Minimum finished size is 3 x 3 inches.',
                 'is_wrap':False,'requires_installation':False,'supports_installation':False,
-                'self_approve_artwork':True,
+                'supports_multiple_dimensions':False,'self_approve_artwork':True,'usdot_customizer':False,
+                'storefront_categories':['Vehicle Signage','Stickers'],'size_options':[],'material_options':[],
                 'quantity_price_table':[
                     {'quantity':50,'total':'60'},{'quantity':100,'total':'73'},{'quantity':200,'total':'95'},
                     {'quantity':300,'total':'115'},{'quantity':500,'total':'152'},{'quantity':1000,'total':'232'},
