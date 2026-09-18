@@ -1052,7 +1052,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 shop[key] = text(payload.get(key, shop[key]), key, maxlen, required=key == 'shop_name')
             shop['contact_email'] = email(payload['contact_email']) if payload.get('contact_email') else ''
             for key, maximum in [('deposit_percent','100'),('target_margin_percent','90'),('overhead_percent','200'),
-                                 ('labor_cost_per_hour','10000'),('labor_sell_per_hour','10000')]:
+                                 ('labor_cost_per_hour','10000'),('labor_sell_per_hour','10000'),('minimum_order_price','10000')]:
                 shop[key] = str(number(payload.get(key, shop[key]), key, '0', maximum))
             if not isinstance(payload.get('rates_live', shop['rates_live']), bool):
                 raise HTTPException(422, 'rates_live must be true or false.')
