@@ -111,13 +111,14 @@ async function recalculate(){
     if(sequence!==state.calcSequence || !$('#estimate-total'))return;
     state.quote=q;state.currentQuoteItems=items;$('#calc-feedback').textContent='';
     $('#estimate-total').textContent=money(q.subtotal_cents);
-    $('#estimate-unit').textContent=q.minimum_order_adjustment_cents?'$50 minimum order applies':items.length>1?`${items.length} sizes / panels`:`About ${money(q.lines[0].price_per_item_cents)} per item`;
-    const totalSqft=q.lines.reduce((a,l)=>a+Number(l.net_sqft),0);const lamLabel=q.lines[0]?.lamination_label||'';$('#estimate-details').innerHTML=`<div class="line-total"><span class="muted">Sizes / panels</span><strong>${items.length}</strong></div><div class="line-total"><span class="muted">Net printed area</span><strong>${num(totalSqft)} sq ft</strong></div>${q.lines[0].installation_requested?'<div class="line-total"><span class="muted">Service</span><strong>Print + installation</strong></div>':''}${lamLabel?'<div class="line-total"><span class="muted">Finish</span><strong>'+esc(lamLabel)+'</strong></div>':''}${q.minimum_order_adjustment_cents?'<div class="line-total"><span class="muted">$50 shop minimum</span><strong>Applied</strong></div>':''}<div class="line-total"><span class="muted">Pricing</span>${badge(q.review_required?'Instant estimate / review required':state.catalog.checkout?.available?'Ready to order':'Price preview',q.review_required?'orange':'green')}</div>`;
-    const canBuy=!q.review_required&&state.catalog.checkout?.available;
-    state.canBuy=canBuy;
+    $('#estimate-unit').textContent=!q.meets_minimum_order?`Minimum order ${money(q.minimum_order_cents)}`:items.length>1?`${items.length} sizes / panels`:`About ${money(q.lines[0].price_per_item_cents)} per item`;
+    const totalSqft=q.lines.reduce((a,l)=>a+Number(l.net_sqft),0);const lamLabel=q.lines[0]?.lamination_label||'';const minimumDue=Math.max(0,(q.minimum_order_cents||0)-q.subtotal_cents);$('#estimate-details').innerHTML=`<div class="line-total"><span class="muted">Sizes / panels</span><strong>${items.length}</strong></div><div class="line-total"><span class="muted">Net printed area</span><strong>${num(totalSqft)} sq ft</strong></div>${q.lines[0].installation_requested?'<div class="line-total"><span class="muted">Service</span><strong>Print + installation</strong></div>':''}${lamLabel?'<div class="line-total"><span class="muted">Finish</span><strong>'+esc(lamLabel)+'</strong></div>':''}${!q.meets_minimum_order?'<div class="notice mt-sm">Minimum order is '+money(q.minimum_order_cents)+'. Increase quantity by enough to add '+money(minimumDue)+' or more.</div>':''}<div class="line-total"><span class="muted">Pricing</span>${badge(q.review_required?'Instant estimate / review required':!q.meets_minimum_order?'Below minimum order':state.catalog.checkout?.available?'Ready to order':'Price preview',q.review_required?'orange':!q.meets_minimum_order?'orange':'green')}</div>`;
+    const minimumBlocked=!q.review_required&&!q.meets_minimum_order;
+    const canBuy=!q.review_required&&q.meets_minimum_order&&state.catalog.checkout?.available;
+    state.canBuy=canBuy;state.minimumBlocked=minimumBlocked;
     $('#estimate-heading').textContent=q.review_required?'YOUR ESTIMATE':'YOUR PRICE';
-    $('#continue-btn').innerHTML=(q.review_required?'Request quote':'Place order')+icon('arrow');
-    $('#continue-btn').disabled=false;
+    $('#continue-btn').innerHTML=(q.review_required?'Request quote':minimumBlocked?`Minimum order ${money(q.minimum_order_cents)}`:'Place order')+icon('arrow');
+    $('#continue-btn').disabled=minimumBlocked;
     all('.quantity-btn').forEach(b=>b.classList.toggle('active',b.dataset.value===String(items[0]?.quantity)));
   }catch(error){if(sequence!==state.calcSequence)return;state.quote=null;$('#calc-feedback').textContent=error.message;$('#continue-btn').disabled=true;$('#estimate-total').textContent='--';}
 }
