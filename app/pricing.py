@@ -290,7 +290,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
     minimum_order = cents(shop.get('minimum_order_price', '50'), 'Minimum order price')
     apply_order_minimum = not all(x['category'] == 'Custom' for x in lines)
     return {'lines': lines, 'subtotal_cents': line_subtotal,
-            'wholesale': {'client_id': wholesale['id'], 'name': wholesale['name']} if wholesale else None,
+            'wholesale': {'name': wholesale['name']} if wholesale else None,
             'minimum_order_adjustment_cents': 0,
             'minimum_order_cents': minimum_order if apply_order_minimum else 0,
             'meets_minimum_order': (not apply_order_minimum) or line_subtotal >= minimum_order,
