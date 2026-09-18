@@ -81,6 +81,8 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 cfg['self_approve_artwork'] = True
             if 'die-cut sticker' in lname:
                 cfg['min_quantity'] = '1'
+                if str(cfg.get('minimum_price', '')) in ('60', '60.0', '60.00'):
+                    cfg['minimum_price'] = '50'
             if 'magnet' in lname and str(cfg.get('min_quantity', '10')) == '10':
                 cfg['min_quantity'] = '1'
             # Public benchmark profile: Sticker Mule-style 3x3 quantity anchors.
