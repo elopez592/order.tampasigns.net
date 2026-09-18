@@ -52,6 +52,7 @@ def validate_config(cfg: dict) -> dict:
         ('price_table_base_width', '3', '0.1', '10000'),
         ('price_table_base_height', '3', '0.1', '10000'),
         ('price_table_size_weight', '0.45', '0', '1'),
+        ('min_width', '0.1', '0.1', '10000'), ('min_height', '0.1', '0.1', '10000'),
         ('max_width', '120', '0.1', '10000'), ('max_height', '1200', '0.1', '10000'),
         ('min_quantity', '1', '1', '100000'), ('max_quantity', '100000', '1', '100000'),
         ('default_width', '3', '0.1', '10000'), ('default_height', '3', '0.1', '10000')]:
@@ -64,7 +65,7 @@ def validate_config(cfg: dict) -> dict:
     if not isinstance(cfg.get('instant', True), bool):
         raise HTTPException(422, 'instant must be true or false.')
     result['instant'] = cfg.get('instant', True)
-    for flag in ('requires_installation', 'is_wrap', 'supports_installation'):
+    for flag in ('requires_installation', 'is_wrap', 'supports_installation', 'self_approve_artwork'):
         if not isinstance(cfg.get(flag, False), bool):
             raise HTTPException(422, f'{flag} must be true or false.')
         result[flag] = cfg.get(flag, False)
@@ -195,8 +196,8 @@ def calculate(conn, items: list, staff=False) -> dict:
         if qty != qty.to_integral():
             raise HTTPException(422, 'Quantity must be a whole number.')
         qty = int(qty)
-        width = number(item.get('width'), 'Width in inches', '0.1', '10000')
-        height = number(item.get('height'), 'Height in inches', '0.1', '10000')
+        width = number(item.get('width'), 'Width in inches', cfg.get('min_width', '0.1'), '10000')
+        height = number(item.get('height'), 'Height in inches', cfg.get('min_height', '0.1'), '10000')
         area = width * height / 144
         net_area = area * qty
         material_area = net_area * (1 + D(cfg['waste_percent']) / 100)
@@ -258,6 +259,7 @@ def calculate(conn, items: list, staff=False) -> dict:
             'labor_hours': str(labor_hours), 'sell_cents': sell, 'cost_cents': cost,
             'price_per_item_cents': cent_round(D(sell) / qty), 'review_required': review,
             'installation_requested': installation_requested,
+            'self_approve_artwork': bool(cfg.get('self_approve_artwork', False)),
             'installation_estimate_cents': cent_round(installation_hours * labor_sell),
             'lamination': lamination_option['id'] if lamination_option else '',
             'lamination_label': lamination_option['label'] if lamination_option else '',
@@ -265,12 +267,18 @@ def calculate(conn, items: list, staff=False) -> dict:
             'workflow_id': workflow_id, 'floor_applied': sell == floor,
             'rate_snapshot': cfg,
         })
-    return {'lines': lines, 'subtotal_cents': sum(x['sell_cents'] for x in lines),
+    line_subtotal = sum(x['sell_cents'] for x in lines)
+    minimum_order = cents(shop.get('minimum_order_price', '50'), 'Minimum order price')
+    apply_order_minimum = not all(x['category'] == 'Custom' for x in lines)
+    subtotal = max(line_subtotal, minimum_order) if apply_order_minimum else line_subtotal
+    return {'lines': lines, 'subtotal_cents': subtotal,
+            'minimum_order_adjustment_cents': max(subtotal - line_subtotal, 0),
+            'minimum_order_cents': minimum_order if apply_order_minimum else 0,
             'cost_cents': sum(x['cost_cents'] for x in lines),
             'review_required': any(x['review_required'] for x in lines) or not shop['rates_live'],
             'settings_snapshot': {k: shop[k] for k in ['target_margin_percent', 'overhead_percent',
-                                                       'labor_cost_per_hour', 'labor_sell_per_hour']},
-            'currency': 'USD', 'pricing_basis': 'Server-calculated product rates, quantity breaks, finishing options and labor; waste affects internal cost only.'}
+                                                       'labor_cost_per_hour', 'labor_sell_per_hour', 'minimum_order_price']},
+            'currency': 'USD', 'pricing_basis': 'Server-calculated product rates, quantity breaks, finishing options and labor; a shop-wide minimum order may apply; waste affects internal cost only.'}
 
 
 def public_quote(quote: dict) -> dict:
