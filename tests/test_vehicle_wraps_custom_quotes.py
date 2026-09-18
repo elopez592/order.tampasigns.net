@@ -6,9 +6,9 @@ def test_vehicle_wraps_are_one_public_product_with_optional_installation(env):
     client = anonymous(app)
     catalog = client.get('/api/catalog').json()
     wraps = [p for p in catalog['products'] if 'wrap' in (p['name'] + ' ' + p['category']).lower()]
-    assert len(wraps) == 1
-    wrap = wraps[0]
-    assert wrap['name'] == 'Vehicle Wraps'
+    names = {p['name'] for p in wraps}
+    assert {'Vehicle Wraps', 'Partial Vehicle Wraps', 'Trailer / Food Truck Wraps'} <= names
+    wrap = next(p for p in wraps if p['name'] == 'Vehicle Wraps')
     assert wrap['config']['supports_installation'] is True
 
     print_only = client.post('/api/calculate', json={'items': [{
