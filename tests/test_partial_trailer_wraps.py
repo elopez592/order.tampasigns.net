@@ -88,6 +88,11 @@ def test_wrap_coverage_storefront_ui_is_present(env):
     assert "Trailers / Food Trucks" in text
     assert "Choose wrap coverage" in text
     assert "coverage-card" in text
+    assert "key==='partial vehicle wraps'" in text
+    assert "return 'Trailer / Food Truck Wraps'" in text
+    assert "storefrontProductsFor" in text
+    assert "hasCoverageWrap" in text
+    assert "var(--brand-orange)" in text
     assert "Approximate dimensions" in text
     assert "Trailer / truck type" in text
     assert "multiple" in text
