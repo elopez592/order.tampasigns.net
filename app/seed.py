@@ -103,6 +103,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 cfg['min_quantity'] = '1'
                 cfg['min_width'] = '3'
                 cfg['min_height'] = '3'
+                cfg['description'] = 'Precision-cut transfer stickers for lettering and graphics without a printed background. Minimum finished size is 3 x 3 inches.'
                 if str(cfg.get('minimum_price', '')) in ('50', '50.0', '50.00'):
                     cfg['minimum_price'] = '0'
             if any(x in lname for x in ('die-cut sticker', 'transfer sticker', 'magnet', 'banner')):
@@ -124,6 +125,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 cfg['max_width'] = '48'
                 cfg['max_height'] = '48'
             if 'usdot decal' in lname:
+                cfg['storefront_categories'] = ['Vehicle Signage']
                 cfg['size_options'] = [
                     {'label':'18 x 12 in','width':'18','height':'12'},
                     {'label':'24 x 12 in','width':'24','height':'12'},
@@ -423,7 +425,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 'description':'Basic USDOT identification decals with an instant text preview. Enter your company information and choose a lettering style before ordering.',
                 'is_wrap':False,'requires_installation':False,'supports_installation':False,
                 'supports_multiple_dimensions':False,'self_approve_artwork':True,'usdot_customizer':True,
-                'storefront_categories':['Vehicle Signage','Stickers'],'size_options':[
+                'storefront_categories':['Vehicle Signage'],'size_options':[
                     {'label':'18 x 12 in','width':'18','height':'12'},
                     {'label':'24 x 12 in','width':'24','height':'12'},
                     {'label':'24 x 18 in','width':'24','height':'18'}
