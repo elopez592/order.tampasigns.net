@@ -79,6 +79,8 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 cfg['min_height'] = '1'
             if 'transfer sticker' in lname:
                 cfg['min_quantity'] = '50'
+                cfg['min_width'] = '3'
+                cfg['min_height'] = '3'
             if any(x in lname for x in ('die-cut sticker', 'transfer sticker', 'magnet', 'banner')):
                 cfg['self_approve_artwork'] = True
             if 'die-cut sticker' in lname:
@@ -232,8 +234,8 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 'unit':'piece','sell_per_sqft':'24','cost_per_sqft':'4','setup_price':'0','setup_cost':'8',
                 'minimum_price':'50','waste_percent':'15','labor_minutes_per_unit':'0',
                 'min_quantity':50,'max_quantity':100000,'default_width':3,'default_height':3,
-                'min_width':1,'min_height':1,'max_width':24,'max_height':48,'instant':True,
-                'description':'Precision-cut transfer stickers for lettering and graphics without a printed background. Minimum finished size is 1 x 1 inch.',
+                'min_width':3,'min_height':3,'max_width':24,'max_height':48,'instant':True,
+                'description':'Precision-cut transfer stickers for lettering and graphics without a printed background. Minimum finished size is 3 x 3 inches.',
                 'is_wrap':False,'requires_installation':False,'supports_installation':False,
                 'self_approve_artwork':True,
                 'quantity_price_table':[
