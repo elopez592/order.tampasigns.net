@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import sqlite3
 import time
@@ -138,6 +139,12 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         conn.execute('INSERT INTO portal_links(token_hash,job_id,expires_at,created_at) VALUES(?,?,?,?)',
                      (digest(token), job_id, time.time() + days * 86400, now()))
         return f'{public_url}/portal#token={token}'
+
+    def wholesale_username(value):
+        value = text(value, 'Wholesale username', 60, True).lower()
+        if not re.fullmatch(r'[a-z0-9][a-z0-9._-]{2,59}', value):
+            raise HTTPException(422, 'Wholesale usernames must be 3-60 characters using letters, numbers, dots, hyphens or underscores.')
+        return value
 
     def wholesale_client(conn, token_value):
         if not token_value:
@@ -288,17 +295,19 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     @app.post('/api/wholesale/activate')
     def activate_wholesale(request: Request, payload: dict = Body(...)):
         throttle(request, 'wholesale_activate', 10, 900)
-        address = email(payload.get('email', ''))
-        code = text(payload.get('code', ''), 'Wholesale access code', 128, True)
+        username = wholesale_username(payload.get('username', ''))
+        password = payload.get('password', '')
         with transaction(database, True) as conn:
-            client = conn.execute('SELECT * FROM wholesale_clients WHERE email=? AND active=1', (address,)).fetchone()
-            if not client or not password_matches(code, client['code_hash']):
-                raise HTTPException(401, 'Wholesale email or access code is incorrect.')
+            client = conn.execute('SELECT * FROM wholesale_clients WHERE username=? AND active=1', (username,)).fetchone()
+            if not client or not password_matches(password, client['code_hash']):
+                if not client:
+                    password_hash('dummy-' + secrets.token_urlsafe(12))
+                raise HTTPException(401, 'Wholesale username or password is incorrect.')
             token = secrets.token_urlsafe(32)
-            conn.execute('DELETE FROM wholesale_sessions WHERE expires_at<? OR client_id=?', (time.time(), client['id']))
+            conn.execute('DELETE FROM wholesale_sessions WHERE expires_at<?', (time.time(),))
             conn.execute('INSERT INTO wholesale_sessions(token_hash,client_id,expires_at,created_at) VALUES(?,?,?,?)',
-                         (digest(token), client['id'], time.time()+8*3600, now()))
-        return {'token': token, 'client': {'name': client['name'], 'email': client['email']}}
+                         (digest(token), client['id'], time.time()+30*86400, now()))
+        return {'token': token, 'client': {'name': client['name'], 'email': client['email'], 'username': client['username']}}
 
     @app.post('/api/calculate')
     def customer_calculate(request: Request, payload: dict = Body(...)):
@@ -1085,7 +1094,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     def wholesale_profiles(request: Request, user=Depends(require_admin)):
         with transaction(database) as conn:
             clients = []
-            for row in conn.execute('SELECT id,name,email,discount_percent,active,created_at,updated_at FROM wholesale_clients ORDER BY name,email'):
+            for row in conn.execute('SELECT id,name,email,username,discount_percent,active,created_at,updated_at FROM wholesale_clients ORDER BY name,email'):
                 discounts = [dict(x) for x in conn.execute(
                     '''SELECT d.product_id,p.name AS product_name,d.discount_percent
                        FROM wholesale_product_discounts d JOIN products p ON p.id=d.product_id
@@ -1098,15 +1107,16 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     def create_wholesale_profile(request: Request, payload: dict = Body(...), user=Depends(require_admin)):
         name = text(payload.get('name', ''), 'Wholesale client name', 120, True)
         address = email(payload.get('email', ''))
+        username = wholesale_username(payload.get('username', ''))
         discount = str(number(payload.get('discount_percent', 0), 'Wholesale discount', '0', '90'))
         overrides = payload.get('product_discounts', {})
         if not isinstance(overrides, dict) or len(overrides) > 100:
             raise HTTPException(422, 'Wholesale product discounts must be a product-to-discount map.')
-        access_code = secrets.token_urlsafe(12)
+        temporary_password = secrets.token_urlsafe(18)
         with transaction(database, True) as conn:
             cid = conn.execute(
-                'INSERT INTO wholesale_clients(name,email,code_hash,discount_percent,active,created_at,updated_at) VALUES(?,?,?,?,1,?,?)',
-                (name, address, password_hash(access_code), discount, now(), now())
+                'INSERT INTO wholesale_clients(name,email,username,code_hash,discount_percent,active,created_at,updated_at) VALUES(?,?,?,?,?,1,?,?)',
+                (name, address, username, password_hash(temporary_password), discount, now(), now())
             ).lastrowid
             for pid, value in overrides.items():
                 product_id = int(number(pid, 'Product ID', '1', '100000000'))
@@ -1115,28 +1125,29 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                     raise HTTPException(422, 'Wholesale discount references an unknown product.')
                 conn.execute('INSERT INTO wholesale_product_discounts(client_id,product_id,discount_percent) VALUES(?,?,?)',
                              (cid, product_id, pct))
-            audit(conn, None, actor(user), 'wholesale.created', {'client_id': cid, 'email': address, 'discount_percent': discount})
-        return {'client_id': cid, 'access_code': access_code,
-                'message': 'Save this wholesale access code securely. It is displayed only once.'}
+            audit(conn, None, actor(user), 'wholesale.created', {'client_id': cid, 'email': address, 'username': username, 'discount_percent': discount})
+        return {'client_id': cid, 'username': username, 'temporary_password': temporary_password,
+                'message': 'Save this temporary wholesale password securely. It is displayed only once.'}
 
     @app.put('/api/admin/wholesale/{client_id}')
     def update_wholesale_profile(client_id: int, request: Request, payload: dict = Body(...), user=Depends(require_admin)):
         overrides = payload.get('product_discounts')
-        new_code = secrets.token_urlsafe(12) if payload.get('reset_code') is True else None
+        new_password = secrets.token_urlsafe(18) if payload.get('reset_password') is True else None
         with transaction(database, True) as conn:
             current = conn.execute('SELECT * FROM wholesale_clients WHERE id=?', (client_id,)).fetchone()
             if not current:
                 raise HTTPException(404, 'Wholesale client not found.')
             name = text(payload.get('name', current['name']), 'Wholesale client name', 120, True)
             address = email(payload.get('email', current['email']))
+            username = wholesale_username(payload.get('username', current['username']))
             discount = str(number(payload.get('discount_percent', current['discount_percent']), 'Wholesale discount', '0', '90'))
             active = payload.get('active', bool(current['active']))
             if not isinstance(active, bool):
                 raise HTTPException(422, 'active must be true or false.')
-            conn.execute('UPDATE wholesale_clients SET name=?,email=?,discount_percent=?,active=?,updated_at=? WHERE id=?',
-                         (name, address, discount, int(active), now(), client_id))
-            if new_code:
-                conn.execute('UPDATE wholesale_clients SET code_hash=? WHERE id=?', (password_hash(new_code), client_id))
+            conn.execute('UPDATE wholesale_clients SET name=?,email=?,username=?,discount_percent=?,active=?,updated_at=? WHERE id=?',
+                         (name, address, username, discount, int(active), now(), client_id))
+            if new_password:
+                conn.execute('UPDATE wholesale_clients SET code_hash=? WHERE id=?', (password_hash(new_password), client_id))
                 conn.execute('DELETE FROM wholesale_sessions WHERE client_id=?', (client_id,))
             if overrides is not None:
                 if not isinstance(overrides, dict) or len(overrides) > 100:
@@ -1152,8 +1163,8 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                     conn.execute('INSERT INTO wholesale_product_discounts(client_id,product_id,discount_percent) VALUES(?,?,?)',
                                  (client_id, product_id, pct))
             audit(conn, None, actor(user), 'wholesale.updated',
-                  {'client_id': client_id, 'active': active, 'discount_percent': discount, 'code_reset': bool(new_code)})
-        return {'ok': True, 'access_code': new_code}
+                  {'client_id': client_id, 'active': active, 'username': username, 'discount_percent': discount, 'password_reset': bool(new_password)})
+        return {'ok': True, 'username': username, 'temporary_password': new_password}
 
     @app.get('/api/admin/email-status')
     def admin_email_status(request: Request, user=Depends(require_admin)):
