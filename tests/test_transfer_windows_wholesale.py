@@ -15,7 +15,7 @@ def test_transfer_stickers_are_second_and_allow_single_unit(env):
 
     quote = client.post('/api/calculate', json={'items':[{
         'product_id': transfer['id'], 'width': 3, 'height': 3, 'quantity': 1,
-        'lamination': 'standard_matte'
+        'lamination': 'none'
     }]})
     assert quote.status_code == 200, quote.text
     data = quote.json()
@@ -28,14 +28,27 @@ def test_storefront_windows_accept_multiple_panels(env):
     app, admin, employee = env
     client = anonymous(app)
     windows = next(p for p in client.get('/api/catalog').json()['products'] if p['category'] == 'Windows')
+    assert windows['name'] == 'Window Graphics'
     assert windows['config']['supports_multiple_dimensions'] is True
+    assert windows['config']['lamination_options'] == []
+    assert [x['label'] for x in windows['config']['material_options']] == [
+        'Perforated window vinyl', 'Standard opaque vinyl'
+    ]
 
     r = client.post('/api/calculate', json={'items':[
-        {'product_id': windows['id'], 'width': 44, 'height': 92, 'quantity': 1, 'lamination': 'none'},
-        {'product_id': windows['id'], 'width': 43.75, 'height': 92, 'quantity': 1, 'lamination': 'none'},
+        {'product_id': windows['id'], 'width': 44, 'height': 92, 'quantity': 1, 'material': 'perforated'},
+        {'product_id': windows['id'], 'width': 43.75, 'height': 92, 'quantity': 1, 'material': 'perforated'},
     ]})
     assert r.status_code == 200, r.text
     assert len(r.json()['lines']) == 2
+    assert all(line['lamination'] == '' for line in r.json()['lines'])
+    assert all(line['material_label'] == 'Perforated window vinyl' for line in r.json()['lines'])
+
+    opaque = client.post('/api/calculate', json={'items':[
+        {'product_id': windows['id'], 'width': 24, 'height': 36, 'quantity': 1, 'material': 'opaque'}
+    ]})
+    assert opaque.status_code == 200, opaque.text
+    assert opaque.json()['lines'][0]['material_label'] == 'Standard opaque vinyl'
 
 
 def test_wholesale_profile_can_apply_default_and_product_discount(env):
@@ -61,13 +74,13 @@ def test_wholesale_profile_can_apply_default_and_product_discount(env):
 
     retail = public.post('/api/calculate', json={'items':[{
         'product_id': sticker['id'], 'width': 3, 'height': 3, 'quantity': 50,
-        'lamination': 'standard_matte'
+        'lamination': 'none'
     }]}).json()
     wholesale = public.post('/api/calculate', json={
         'wholesale_token': token,
         'items':[{
             'product_id': sticker['id'], 'width': 3, 'height': 3, 'quantity': 50,
-            'lamination': 'standard_matte'
+            'lamination': 'none'
         }]
     })
     assert wholesale.status_code == 200, wholesale.text

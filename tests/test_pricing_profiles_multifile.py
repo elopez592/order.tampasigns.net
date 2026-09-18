@@ -13,7 +13,7 @@ def test_sticker_benchmark_quantity_breaks(env):
     for qty in expected:
         r = client.post('/api/calculate', json={'items':[{
             'product_id':sticker['id'],'width':3,'height':3,'quantity':qty,
-            'lamination':'standard_matte'
+            'lamination':'none'
         }]})
         assert r.status_code == 200, r.text
         totals[qty] = r.json()['subtotal_cents']

@@ -142,6 +142,38 @@ def validate_config(cfg: dict) -> dict:
     if checked_options and default_count == 0:
         checked_options[0]['default'] = True
     result['lamination_options'] = checked_options
+
+    materials = cfg.get('material_options', [])
+    if not isinstance(materials, list) or len(materials) > 12:
+        raise HTTPException(422, 'Use no more than 12 material options.')
+    checked_materials, material_ids, material_defaults = [], set(), 0
+    for option in materials:
+        if not isinstance(option, dict):
+            raise HTTPException(422, 'Invalid material option.')
+        oid = str(option.get('id', '')).strip().lower()
+        if not re.fullmatch(r'[a-z0-9_-]{1,40}', oid) or oid in material_ids:
+            raise HTTPException(422, 'Material option IDs must be unique letters, numbers, hyphens or underscores.')
+        label = str(option.get('label', '')).strip()[:80]
+        if not label:
+            raise HTTPException(422, 'Material option label is required.')
+        sell_adjustment = number(option.get('sell_per_sqft_adjustment', 0), 'Material selling adjustment', '0', '1000')
+        cost_adjustment = number(option.get('cost_per_sqft_adjustment', 0), 'Material cost adjustment', '0', '1000')
+        is_default = option.get('default', False)
+        if not isinstance(is_default, bool):
+            raise HTTPException(422, 'Material default flag must be true or false.')
+        material_defaults += int(is_default)
+        material_ids.add(oid)
+        checked_materials.append({
+            'id': oid, 'label': label,
+            'sell_per_sqft_adjustment': str(sell_adjustment),
+            'cost_per_sqft_adjustment': str(cost_adjustment),
+            'default': is_default
+        })
+    if material_defaults > 1:
+        raise HTTPException(422, 'Choose only one default material option.')
+    if checked_materials and material_defaults == 0:
+        checked_materials[0]['default'] = True
+    result['material_options'] = checked_materials
     return result
 
 
@@ -231,6 +263,21 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
         lamination_sell = net_area * D(lamination_option['sell_per_sqft']) * 100 if lamination_option else D(0)
         lamination_cost = material_area * D(lamination_option['cost_per_sqft']) * 100 if lamination_option else D(0)
 
+        material_options = cfg.get('material_options', [])
+        material = str(item.get('material', '') or '').strip().lower()
+        if material_options:
+            if not material:
+                material = next((o['id'] for o in material_options if o.get('default')), material_options[0]['id'])
+            material_option = next((o for o in material_options if o['id'] == material), None)
+            if not material_option:
+                raise HTTPException(422, 'Choose a valid material option.')
+        else:
+            if material:
+                raise HTTPException(422, 'Material selection is not available for this product.')
+            material_option = None
+        material_sell = net_area * D(material_option['sell_per_sqft_adjustment']) * 100 if material_option else D(0)
+        material_cost = material_area * D(material_option['cost_per_sqft_adjustment']) * 100 if material_option else D(0)
+
         installation_hours = D(0)
         if installation_requested:
             installation_hours = net_area * D(cfg.get('installation_minutes_per_sqft', '0')) / 60
@@ -239,7 +286,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
                 installation_setup_applied.add(row['id'])
 
         raw_cost = (material_area * D(cfg['cost_per_sqft']) * 100 + D(cfg['setup_cost']) * 100
-                    + labor_hours * labor_cost + lamination_cost + installation_hours * labor_cost)
+                    + labor_hours * labor_cost + lamination_cost + material_cost + installation_hours * labor_cost)
         cost = cent_round(raw_cost * (1 + overhead))
 
         if cfg.get('quantity_price_table'):
@@ -248,11 +295,11 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             area_ratio = area / base_area
             size_weight = D(cfg['price_table_size_weight'])
             size_factor = (D(1) - size_weight) + size_weight * area_ratio
-            calculated = base_total * size_factor + lamination_sell + installation_hours * labor_sell
+            calculated = base_total * size_factor + lamination_sell + material_sell + installation_hours * labor_sell
         else:
             band_qty = weighted_quantity(qty, cfg['tiers'])
             calculated = (D(cfg['setup_price']) * 100 + area * band_qty * D(cfg['sell_per_sqft']) * 100
-                          + labor_hours * labor_sell + lamination_sell + installation_hours * labor_sell)
+                          + labor_hours * labor_sell + lamination_sell + material_sell + installation_hours * labor_sell)
 
         floor = 0 if cfg.get('quantity_price_table') else int((D(cost) / (1 - margin)).quantize(D('1'), rounding=ROUND_CEILING))
         sell = max(cent_round(calculated), cents(cfg['minimum_price']), floor)
@@ -283,6 +330,9 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             'lamination': lamination_option['id'] if lamination_option else '',
             'lamination_label': lamination_option['label'] if lamination_option else '',
             'lamination_cents': cent_round(lamination_sell),
+            'material': material_option['id'] if material_option else '',
+            'material_label': material_option['label'] if material_option else '',
+            'material_cents': cent_round(material_sell),
             'workflow_id': workflow_id, 'floor_applied': sell == floor,
             'rate_snapshot': cfg,
         })

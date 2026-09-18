@@ -274,7 +274,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 cfg = json.loads(row['config'])
                 products.append({k: row[k] for k in ('id','name','category','version')} | {
                     'config': {k: cfg[k] for k in ('unit','description','min_quantity','max_quantity','max_width','max_height',
-                                                  'default_width','default_height','min_width','min_height','instant','supports_installation','supports_multiple_dimensions','self_approve_artwork','lamination_options')}})
+                                                  'default_width','default_height','min_width','min_height','instant','supports_installation','supports_multiple_dimensions','self_approve_artwork','lamination_options','material_options')}})
             return {'products': products, 'shop': {k: shop[k] for k in ('shop_name','contact_email','contact_phone','rates_live','quote_note')},
                     'checkout': availability(shop, app.state.gateway), 'notifications': email_status()}
 
