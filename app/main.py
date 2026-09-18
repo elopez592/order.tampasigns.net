@@ -327,6 +327,8 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 job_id = previous['job_id']
             else:
                 wholesale = wholesale_client(conn, payload.get('wholesale_token', ''))
+                if wholesale and email(payload.get('customer_email', '')) != wholesale['email']:
+                    raise HTTPException(422, 'Use the approved wholesale account email for this pricing.')
                 quote = eligible_quote(conn, payload.get('items',[]), wholesale_client_id=wholesale['id'] if wholesale else None)
                 expected = digest(json.dumps(public_quote(quote), sort_keys=True))
                 if payload.get('fingerprint') != expected:
@@ -378,6 +380,8 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             raise HTTPException(422, 'Request could not be submitted.')
         with transaction(database, True) as conn:
             wholesale = wholesale_client(conn, payload.get('wholesale_token', ''))
+            if wholesale and email(payload.get('customer_email', '')) != wholesale['email']:
+                raise HTTPException(422, 'Use the approved wholesale account email for this pricing.')
             wholesale_id = wholesale['id'] if wholesale else None
             computed = public_quote(calculate(conn, payload.get('items', []), wholesale_client_id=wholesale_id))
             expected = digest(json.dumps(computed, sort_keys=True))
