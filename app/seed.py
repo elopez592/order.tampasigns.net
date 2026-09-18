@@ -67,6 +67,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             cfg.setdefault('size_options', [])
             cfg.setdefault('max_short_axis', '10000')
             cfg.setdefault('max_long_axis', '10000')
+            cfg.setdefault('usdot_customizer', False)
             cfg.setdefault('installation_workflow_id', None)
             cfg.setdefault('lamination_options', [])
             cfg.setdefault('quantity_price_table', [])
@@ -322,6 +323,51 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             })
             conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?,?)',
                          ('Transfer stickers','Stickers',1,1,sticker_workflow['id'] if sticker_workflow else 1,json.dumps(transfer_cfg),now()))
+        sticker_workflow_for_decals = conn.execute("SELECT id FROM workflows WHERE name='Stickers and labels'").fetchone()
+        if not conn.execute("SELECT id FROM products WHERE lower(name)='decals' LIMIT 1").fetchone():
+            decal_cfg = validate_config({
+                'unit':'piece','sell_per_sqft':'18','cost_per_sqft':'4','setup_price':'10','setup_cost':'6',
+                'minimum_price':'0','waste_percent':'15','labor_minutes_per_unit':'0','min_quantity':1,
+                'max_quantity':100000,'default_width':6,'default_height':6,'min_width':1,'min_height':1,
+                'max_width':48,'max_height':48,'instant':True,
+                'description':'Custom printed vinyl decals for windows, equipment, vehicles and general signage.',
+                'is_wrap':False,'requires_installation':False,'supports_installation':False,
+                'supports_multiple_dimensions':False,'self_approve_artwork':True,'usdot_customizer':False,
+                'storefront_categories':['Stickers','Vehicle Signage'],'size_options':[],
+                'material_options':[],
+                'lamination_options':[
+                    {'id':'none','label':'No laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
+                    {'id':'gloss','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
+                    {'id':'premium_matte','label':'Matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
+                ],
+                'tiers':[{'from':1,'multiplier':'1'},{'from':50,'multiplier':'.9'},{'from':100,'multiplier':'.8'}]
+            })
+            conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?,?)',
+                         ('Decals','Stickers',1,1,sticker_workflow_for_decals['id'] if sticker_workflow_for_decals else 1,json.dumps(decal_cfg),now()))
+        if not conn.execute("SELECT id FROM products WHERE lower(name)='usdot decals' LIMIT 1").fetchone():
+            usdot_cfg = validate_config({
+                'unit':'piece','sell_per_sqft':'20','cost_per_sqft':'4','setup_price':'12','setup_cost':'6',
+                'minimum_price':'0','waste_percent':'15','labor_minutes_per_unit':'0','min_quantity':1,
+                'max_quantity':1000,'default_width':18,'default_height':4,'min_width':6,'min_height':2,
+                'max_width':48,'max_height':24,'instant':True,
+                'description':'Basic USDOT identification decals with an instant text preview. Enter your company information and choose a lettering style before ordering.',
+                'is_wrap':False,'requires_installation':False,'supports_installation':False,
+                'supports_multiple_dimensions':False,'self_approve_artwork':True,'usdot_customizer':True,
+                'storefront_categories':['Vehicle Signage','Stickers'],'size_options':[
+                    {'label':'18 x 4 in','width':'18','height':'4'},
+                    {'label':'24 x 6 in','width':'24','height':'6'},
+                    {'label':'36 x 8 in','width':'36','height':'8'}
+                ],
+                'material_options':[],
+                'lamination_options':[
+                    {'id':'none','label':'No laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
+                    {'id':'gloss','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
+                    {'id':'premium_matte','label':'Matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
+                ],
+                'tiers':[{'from':1,'multiplier':'1'},{'from':10,'multiplier':'.9'},{'from':25,'multiplier':'.8'}]
+            })
+            conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?,?)',
+                         ('USDOT Decals','Stickers',1,1,sticker_workflow_for_decals['id'] if sticker_workflow_for_decals else 1,json.dumps(usdot_cfg),now()))
         apparel_workflow = conn.execute("SELECT id FROM workflows WHERE name='Signs and storefronts'").fetchone()
         for apparel_name, description in [
             ('DTF transfers', 'Direct-to-film heat transfers for apparel. Size, quantity, garment compatibility and finishing are reviewed before quoting.'),
