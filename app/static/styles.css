@@ -91,9 +91,9 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .coverage-card small{font-size:10px;line-height:1.35;color:var(--muted)}
 .coverage-visual{min-height:90px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid #e3f0ee;border-radius:9px;overflow:hidden}
 .coverage-photo{display:block;width:100%;background-repeat:no-repeat;background-color:#fff}
-.coverage-photo-vehicle{aspect-ratio:3/2;background-image:url('/static/wraps/vehicle-coverage-blue.webp');background-size:300% 300%}
-.coverage-photo-pickup{aspect-ratio:3/2;background-image:url('/static/wraps/pickup-coverage-blue.webp');background-size:300% 300%}
-.coverage-photo-trailer{aspect-ratio:1;background-image:url('/static/wraps/trailer-coverage-blue.webp');background-size:300% 200%}
+.coverage-photo-vehicle{aspect-ratio:3/2;background-image:url('/static/wraps/vehicle-coverage-blue.webp?v=20260918-2');background-size:300% 300%}
+.coverage-photo-pickup{aspect-ratio:3/2;background-image:url('/static/wraps/pickup-coverage-blue.webp?v=20260918-2');background-size:300% 300%}
+.coverage-photo-trailer{aspect-ratio:1;background-image:url('/static/wraps/trailer-coverage-blue.webp?v=20260918-2');background-size:300% 200%}
 .coverage-card.selected .coverage-visual{background:white;color:var(--accent)}
 .nav-button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
 .nav-button:hover{color:var(--brand-teal)}

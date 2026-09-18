@@ -1287,6 +1287,6 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     @app.get('/studio', response_class=HTMLResponse)
     @app.get('/account', response_class=HTMLResponse)
     def frontend():
-        return (STATIC / 'index.html').read_text()
+        return HTMLResponse((STATIC / 'index.html').read_text(), headers={'Cache-Control': 'no-cache'})
 
     return app
