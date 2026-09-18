@@ -57,3 +57,6 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .fields.four{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:800px){.fields.four{grid-template-columns:1fr 1fr}}
 @media(max-width:520px){.fields.four{grid-template-columns:1fr}}
+
+.wholesale-link{background:transparent;border:1px solid #6f878c;color:inherit;border-radius:999px;padding:7px 11px;font:inherit;cursor:pointer}
+.wholesale-link:hover{border-color:var(--brand-teal);color:var(--brand-teal)}
