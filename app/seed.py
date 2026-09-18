@@ -10,7 +10,7 @@ from .domain import create_job, validate_steps
 DEFAULT_SETTINGS = {
  'shop_name': 'Tampa Signs and Stickers', 'contact_email': '', 'contact_phone': '(813) 749-4500',
  'deposit_percent': '50', 'target_margin_percent': '40', 'overhead_percent': '10',
- 'labor_cost_per_hour': '35', 'labor_sell_per_hour': '85', 'rates_live': False,
+ 'labor_cost_per_hour': '35', 'labor_sell_per_hour': '85', 'minimum_order_price': '50', 'rates_live': False,
  'quote_note': 'Order standard-sized prints online. Wraps, installation and custom specifications are quoted by our team. You approve your proof before we print.',
  'checkout_enabled': False, 'checkout_tax_reviewed': False,
  'checkout_pickup_enabled': True, 'checkout_pickup_address': '',
@@ -69,8 +69,20 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             cfg.setdefault('price_table_base_width', cfg.get('default_width', '3'))
             cfg.setdefault('price_table_base_height', cfg.get('default_height', '3'))
             cfg.setdefault('price_table_size_weight', '0.45')
+            cfg.setdefault('min_width', '0.1')
+            cfg.setdefault('min_height', '0.1')
+            cfg.setdefault('self_approve_artwork', False)
 
             lname = (old['name'] + ' ' + old['category']).lower()
+            if any(x in lname for x in ('sticker', 'transfer')):
+                cfg['min_width'] = '1'
+                cfg['min_height'] = '1'
+            if any(x in lname for x in ('die-cut sticker', 'transfer sticker', 'magnet', 'banner')):
+                cfg['self_approve_artwork'] = True
+            if 'die-cut sticker' in lname:
+                cfg['min_quantity'] = '1'
+            if 'magnet' in lname and str(cfg.get('min_quantity', '10')) == '10':
+                cfg['min_quantity'] = '1'
             # Public benchmark profile: Sticker Mule-style 3x3 quantity anchors.
             if 'die-cut sticker' in lname and len(cfg.get('quantity_price_table', [])) == 5 and [r.get('quantity') for r in cfg.get('quantity_price_table', [])] == [50,100,200,500,1000]:
                 cfg['quantity_price_table'] = [
@@ -81,8 +93,9 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     {'quantity': 5000, 'total': '723'}, {'quantity': 10000, 'total': '1225'}
                 ]
                 cfg['lamination_options'] = [
-                    {'id':'standard_matte','label':'Standard matte finish (included)','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
-                    {'id':'gloss_laminate','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'0','default':False}
+                    {'id':'standard_matte','label':'Standard matte — no laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
+                    {'id':'premium_matte','label':'Premium matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
+                    {'id':'gloss_laminate','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
                 ]
             if 'die-cut sticker' in lname and not cfg.get('quantity_price_table'):
                 cfg['quantity_price_table'] = [
@@ -97,8 +110,9 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 cfg['price_table_size_weight'] = '0.45'
                 cfg['minimum_price'] = '60'
                 cfg['lamination_options'] = [
-                    {'id':'standard_matte','label':'Standard matte finish (included)','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
-                    {'id':'gloss_laminate','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'0','default':False}
+                    {'id':'standard_matte','label':'Standard matte — no laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
+                    {'id':'premium_matte','label':'Premium matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
+                    {'id':'gloss_laminate','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
                 ]
 
             # Common large-format laminate add-ons, based on public trade-shop finishing rates.
@@ -106,7 +120,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 cfg['lamination_options'] = [
                     {'id':'none','label':'No laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
                     {'id':'gloss','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
-                    {'id':'matte','label':'Matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
+                    {'id':'premium_matte','label':'Premium matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
                 ]
             if ('perforated' in lname or 'window' in lname) and not cfg.get('lamination_options'):
                 cfg['lamination_options'] = [
@@ -154,12 +168,12 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
         if not conn.execute('SELECT id FROM products LIMIT 1').fetchone():
             # Demonstration inputs only. Not competitor prices or supplier quotations.
             entries = [
-              ('Die-cut stickers', 'Stickers', 1, 'piece', '24', '4', '0', '8', '60', 50, 3, 3, 24, 48, True, 'Die-cut vinyl stickers with quantity-break pricing benchmarked to current Sticker Mule public pricing.'),
-              ('Roll / sheet labels', 'Labels', 1, 'piece', '18', '3', '30', '10', '45', 50, 2, 2, 12, 12, True, 'Example label configuration; confirm roll direction and packaging.'),
-              ('Custom magnets', 'Magnets', 1, 'piece', '18', '5', '20', '8', '40', 10, 3, 3, 24, 48, True, 'Printed magnetic stock. Thickness and suitability require confirmation.'),
-              ('Vinyl banner', 'Banners', 2, 'sqft', '5', '1.5', '10', '4', '45', 1, 72, 36, 120, 1200, True, 'Single-sided banner, standard hem and grommets.'),
-              ('ACM sign - single sided', 'Signs', 3, 'sqft', '14', '5', '20', '8', '65', 1, 24, 18, 48, 96, True, 'Printed graphic on 3mm ACM. Installation priced separately.'),
-              ('Yard sign - single sided', 'Signs', 3, 'piece', '8', '2.5', '15', '5', '30', 1, 24, 18, 48, 96, True, '4mm corrugated plastic; hardware and installation not included.'),
+              ('Die-cut stickers', 'Stickers', 1, 'piece', '24', '4', '0', '8', '50', 1, 3, 3, 24, 48, True, 'Die-cut vinyl stickers with quantity-break pricing benchmarked to current Sticker Mule public pricing.'),
+              ('Labels', 'Labels', 1, 'piece', '18', '3', '30', '10', '45', 50, 2, 2, 12, 12, True, 'Example label configuration; confirm roll direction and packaging.'),
+              ('Magnets', 'Magnets', 1, 'piece', '18', '5', '20', '8', '50', 1, 3, 3, 24, 48, True, 'Printed magnetic stock. Thickness and suitability require confirmation.'),
+              ('Banners', 'Banners', 2, 'sqft', '5', '1.5', '10', '4', '45', 1, 72, 36, 120, 1200, True, 'Single-sided banner, standard hem and grommets.'),
+              ('ACM signs', 'Signs', 3, 'sqft', '14', '5', '20', '8', '65', 1, 24, 18, 48, 96, True, 'Printed graphic on 3mm ACM. Installation priced separately.'),
+              ('Yard signs', 'Signs', 3, 'piece', '8', '2.5', '15', '5', '30', 1, 24, 18, 48, 96, True, '4mm corrugated plastic; hardware and installation not included.'),
               ('Storefront perforated graphics', 'Windows', 3, 'sqft', '10.5', '4.25', '0', '0', '75', 1, 44, 92, 54, 1200, False, 'Budget allowance for printed, laminated and installed perf. Verify approved film/laminate and site access.'),
               ('Acrylic sign face replacement', 'Signs', 3, 'sqft', '22', '12', '0', '0', '150', 1, 120, 30.5, 120, 96, False, 'Review thickness, full-sheet purchase, print type, retainers and installation labor.'),
               ('Vehicle Wraps', 'Vehicle Wraps', 5, 'sqft', '5.27', '0', '0', '0', '5.27', 1, 54, 120, 54, 1200, True, 'Premium cast wrap film printed and laminated at the current WePrintWraps benchmark rate. Installation is estimated instantly and reviewed before production.'),
@@ -172,6 +186,9 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     'is_wrap': 'wrap' in category.lower(), 'requires_installation': not instant,
                     'supports_installation': 'vehicle wrap' in name.lower(),
                     'installation_workflow_id': 4 if 'vehicle wrap' in name.lower() else None,
+                    'min_width': '1' if 'sticker' in name.lower() else '0.1',
+                    'min_height': '1' if 'sticker' in name.lower() else '0.1',
+                    'self_approve_artwork': any(x in name.lower() for x in ('sticker','magnet','banner')),
                     'installation_minutes_per_sqft': '4' if 'vehicle wrap' in name.lower() else '0',
                     'installation_setup_minutes': '60' if 'vehicle wrap' in name.lower() else '0',
                     'quantity_price_table': [
@@ -182,8 +199,9 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     ] if 'die-cut sticker' in name.lower() else [],
                     'price_table_base_width': '3', 'price_table_base_height': '3', 'price_table_size_weight': '0.45',
                     'lamination_options': (
-                        [{'id':'standard_matte','label':'Standard matte finish (included)','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
-                         {'id':'gloss_laminate','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'0','default':False}]
+                        [{'id':'standard_matte','label':'Standard matte — no laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
+                         {'id':'premium_matte','label':'Premium matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
+                         {'id':'gloss_laminate','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}]
                         if 'die-cut sticker' in name.lower() else
                         [{'id':'cast_gloss','label':'Cast gloss laminate (included)','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
                          {'id':'cast_matte','label':'Cast matte laminate (included)','sell_per_sqft':'0','cost_per_sqft':'0','default':False}]
@@ -193,7 +211,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                         if 'storefront perforated' in name.lower() else
                         [{'id':'none','label':'No laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
                          {'id':'gloss','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
-                         {'id':'matte','label':'Matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}]
+                         {'id':'premium_matte','label':'Premium matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}]
                         if any(x in name.lower() for x in ('label','magnet','acm','yard sign','acrylic')) else []
                     ),
                     'tiers': [{'from': 1, 'multiplier': '1'}, {'from': 100, 'multiplier': '.90'},
@@ -206,6 +224,32 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             if str(cfg.get('max_quantity', '1')) == '1':
                 cfg['max_quantity'] = '100000'
                 conn.execute('UPDATE products SET config=? WHERE id=?', (json.dumps(cfg), custom['id']))
+        if not conn.execute("SELECT id FROM products WHERE lower(name)='transfer stickers' LIMIT 1").fetchone():
+            sticker_workflow = conn.execute("SELECT id FROM workflows WHERE name='Stickers and labels'").fetchone()
+            transfer_cfg = validate_config({
+                'unit':'piece','sell_per_sqft':'24','cost_per_sqft':'4','setup_price':'0','setup_cost':'8',
+                'minimum_price':'50','waste_percent':'15','labor_minutes_per_unit':'0',
+                'min_quantity':1,'max_quantity':100000,'default_width':3,'default_height':3,
+                'min_width':1,'min_height':1,'max_width':24,'max_height':48,'instant':True,
+                'description':'Precision-cut transfer stickers for lettering and graphics without a printed background. Minimum finished size is 1 x 1 inch.',
+                'is_wrap':False,'requires_installation':False,'supports_installation':False,
+                'self_approve_artwork':True,
+                'quantity_price_table':[
+                    {'quantity':50,'total':'60'},{'quantity':100,'total':'73'},{'quantity':200,'total':'95'},
+                    {'quantity':300,'total':'115'},{'quantity':500,'total':'152'},{'quantity':1000,'total':'232'},
+                    {'quantity':2000,'total':'371'},{'quantity':3000,'total':'496'},
+                    {'quantity':5000,'total':'723'},{'quantity':10000,'total':'1225'}
+                ],
+                'price_table_base_width':'3','price_table_base_height':'3','price_table_size_weight':'0.45',
+                'lamination_options':[
+                    {'id':'standard_matte','label':'Standard matte — no laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
+                    {'id':'premium_matte','label':'Premium matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
+                    {'id':'gloss_laminate','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
+                ],
+                'tiers':[{'from':1,'multiplier':'1'}]
+            })
+            conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?,?)',
+                         ('Transfer stickers','Stickers',1,1,sticker_workflow['id'] if sticker_workflow else 1,json.dumps(transfer_cfg),now()))
         if not conn.execute("SELECT id FROM products WHERE category='Custom' LIMIT 1").fetchone():
             custom_cfg = validate_config({
                 'unit': 'piece', 'sell_per_sqft': '0', 'cost_per_sqft': '0',

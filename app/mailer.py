@@ -1,11 +1,13 @@
 from __future__ import annotations
 import html
 import json
+import logging
 import os
-import urllib.error
-import urllib.request
+import httpx
 
 from .db import now, transaction
+
+log = logging.getLogger('tampasigns.email')
 
 
 def enabled() -> bool:
@@ -14,6 +16,13 @@ def enabled() -> bool:
 
 def public_status() -> dict:
     return {"enabled": enabled(), "provider": "resend" if enabled() else None}
+
+
+def send_test_email(to_address: str) -> tuple[bool, str]:
+    title = "Email notifications are connected"
+    message = "This test was sent by the Tampa Signs and Stickers production application."
+    return _send(to_address, "Tampa Signs and Stickers email test",
+                 _brand_html(title, message), f"{title}\n\n{message}")
 
 
 def _send(to_address: str, subject: str, html_body: str, text_body: str) -> tuple[bool, str]:
@@ -31,19 +40,23 @@ def _send(to_address: str, subject: str, html_body: str, text_body: str) -> tupl
     reply_to = os.getenv("EMAIL_REPLY_TO", "").strip()
     if reply_to:
         payload["reply_to"] = reply_to
-    request = urllib.request.Request(
-        "https://api.resend.com/emails",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        method="POST",
-    )
     try:
-        with urllib.request.urlopen(request, timeout=12) as response:
-            return 200 <= response.status < 300, ""
-    except urllib.error.HTTPError as exc:
-        return False, f"Email provider returned HTTP {exc.code}."
-    except (urllib.error.URLError, TimeoutError, OSError):
-        return False, "Email provider could not be reached."
+        with httpx.Client(timeout=12.0) as client:
+            response = client.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json=payload,
+            )
+        if 200 <= response.status_code < 300:
+            log.info("Transactional email accepted recipient=%s subject=%s", to_address, subject)
+            return True, ""
+        error = f"Email provider returned HTTP {response.status_code}: {response.text[:180]}"
+        log.error("Transactional email failed recipient=%s subject=%s error=%s", to_address, subject, error)
+        return False, error
+    except (httpx.HTTPError, OSError) as exc:
+        error = f"Email provider could not be reached: {type(exc).__name__}"
+        log.error("Transactional email failed recipient=%s subject=%s error=%s", to_address, subject, error)
+        return False, error
 
 
 def _brand_html(title: str, message: str, action_url: str | None = None, action_label: str = "View order") -> str:
@@ -105,9 +118,10 @@ def notify_staff(database, job_id: int, event_key: str, subject: str, title: str
 
 
 def notify_customer(database, job_id: int, event_key: str, subject: str, title: str,
-                    message: str, portal_url: str | None = None):
+                    message: str, portal_url: str | None = None, force: bool = False):
     with transaction(database) as conn:
         job = conn.execute("SELECT customer_email FROM jobs WHERE id=?", (job_id,)).fetchone()
     if job:
-        notify_one(database, job_id, event_key, job["customer_email"], "customer",
-                   subject, title, message, portal_url, "View order")
+        return notify_one(database, job_id, event_key, job["customer_email"], "customer",
+                          subject, title, message, portal_url, "View order", force=force)
+    return False
