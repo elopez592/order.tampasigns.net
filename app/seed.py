@@ -284,10 +284,11 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                           {'product_id': 8, 'description': 'Acrylic sign face', 'width': '120', 'height': '30.5', 'quantity': 1}]}, actor='Demo setup')
             conn.execute('UPDATE jobs SET price_override_cents=140000,adjustment_note=? WHERE id=?',
                          ('Recorded agreed price. Tax inclusion and unquoted labor must be confirmed; not a verified profit calculation.', job_id))
+            wrap_demo = conn.execute("SELECT id FROM products WHERE name='Vehicle Wraps' AND active=1 ORDER BY id LIMIT 1").fetchone()
             for title, name, product_id, width, height, qty in [
                 ('250 die-cut brand stickers', 'Sample Coffee Co.', 1, 3, 3, 250),
                 ('Grand opening banner', 'Sample Market', 4, 96, 36, 1),
-                ('Delivery van wrap inquiry', 'Sample Fleet', 10, 180, 120, 1)]:
+                ('Delivery van wrap inquiry', 'Sample Fleet', wrap_demo['id'] if wrap_demo else 9, 180, 120, 1)]:
                 create_job(conn, {'title': title, 'customer_name': name, 'customer_email': 'customer@example.test',
                            'items': [{'product_id': product_id, 'width': width, 'height': height, 'quantity': qty}]}, actor='Demo setup')
     return credentials
