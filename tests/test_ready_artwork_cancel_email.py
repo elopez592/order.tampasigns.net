@@ -29,13 +29,13 @@ def test_sticker_minimums_are_50_pieces_and_one_inch(env):
 
     too_small = client.post('/api/calculate', json={'items': [{
         'product_id': sticker['id'], 'width': .9, 'height': 1, 'quantity': 50,
-        'lamination': 'standard_matte'
+        'lamination': 'none'
     }]})
     assert too_small.status_code == 422
 
     valid = client.post('/api/calculate', json={'items': [{
         'product_id': sticker['id'], 'width': 1, 'height': 1, 'quantity': 50,
-        'lamination': 'standard_matte'
+        'lamination': 'none'
     }]})
     assert valid.status_code == 200, valid.text
     assert valid.json()['minimum_order_cents'] == 5000
@@ -55,7 +55,7 @@ def test_transfer_stickers_and_low_quantity_products(env):
     assert transfer['config']['self_approve_artwork'] is True
     too_small = client.post('/api/calculate', json={'items': [{
         'product_id': transfer['id'], 'width': 2.9, 'height': 3, 'quantity': 50,
-        'lamination': 'standard_matte'
+        'lamination': 'none'
     }]})
     assert too_small.status_code == 422
     assert magnet['config']['min_quantity'] == '1'
