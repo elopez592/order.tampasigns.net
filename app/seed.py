@@ -80,7 +80,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             if any(x in lname for x in ('die-cut sticker', 'transfer sticker', 'magnet', 'banner')):
                 cfg['self_approve_artwork'] = True
             if 'die-cut sticker' in lname:
-                cfg['min_quantity'] = '1'
+                cfg['min_quantity'] = '50'
             if 'magnet' in lname and str(cfg.get('min_quantity', '10')) == '10':
                 cfg['min_quantity'] = '1'
             # Public benchmark profile: Sticker Mule-style 3x3 quantity anchors.
@@ -168,7 +168,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
         if not conn.execute('SELECT id FROM products LIMIT 1').fetchone():
             # Demonstration inputs only. Not competitor prices or supplier quotations.
             entries = [
-              ('Die-cut stickers', 'Stickers', 1, 'piece', '24', '4', '0', '8', '50', 1, 3, 3, 24, 48, True, 'Die-cut vinyl stickers with quantity-break pricing benchmarked to current Sticker Mule public pricing.'),
+              ('Die-cut stickers', 'Stickers', 1, 'piece', '24', '4', '0', '8', '50', 50, 3, 3, 24, 48, True, 'Die-cut vinyl stickers with quantity-break pricing benchmarked to current Sticker Mule public pricing.'),
               ('Labels', 'Labels', 1, 'piece', '18', '3', '30', '10', '45', 50, 2, 2, 12, 12, True, 'Example label configuration; confirm roll direction and packaging.'),
               ('Magnets', 'Magnets', 1, 'piece', '18', '5', '20', '8', '50', 1, 3, 3, 24, 48, True, 'Printed magnetic stock. Thickness and suitability require confirmation.'),
               ('Banners', 'Banners', 2, 'sqft', '5', '1.5', '10', '4', '45', 1, 72, 36, 120, 1200, True, 'Single-sided banner, standard hem and grommets.'),
@@ -229,7 +229,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             transfer_cfg = validate_config({
                 'unit':'piece','sell_per_sqft':'24','cost_per_sqft':'4','setup_price':'0','setup_cost':'8',
                 'minimum_price':'50','waste_percent':'15','labor_minutes_per_unit':'0',
-                'min_quantity':1,'max_quantity':100000,'default_width':3,'default_height':3,
+                'min_quantity':50,'max_quantity':100000,'default_width':3,'default_height':3,
                 'min_width':1,'min_height':1,'max_width':24,'max_height':48,'instant':True,
                 'description':'Precision-cut transfer stickers for lettering and graphics without a printed background. Minimum finished size is 1 x 1 inch.',
                 'is_wrap':False,'requires_installation':False,'supports_installation':False,
