@@ -99,7 +99,9 @@ def test_wrap_coverage_storefront_ui_is_present(env):
     assert "Window package" in text
     assert "vehicleType==='car'?'sedan'" in text
     assert "vehicleType==='cargo_van'?'van'" in text
-    assert "vehicleType==='cargo_van'&&option.value==='hood'" in text
+    assert "option.value==='hood'||option.value==='roof'" in text
+    assert "largeDecals?'Large decals'" in text
+    assert "Large individual graphics across the van side panels." in text
     assert "multiple" in text
 
     css = client.get('/static/styles.css').text

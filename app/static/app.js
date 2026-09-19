@@ -145,8 +145,12 @@ function updateCoverageVisuals(){
   const vehicleType=form.elements.vehicle_type?.value||'';
   all('.coverage-card',form).forEach(card=>{
     const option=$('input[name="coverage_option"]',card);
-    card.hidden=vehicleType==='cargo_van'&&option.value==='hood';
-    $('.coverage-visual',card).innerHTML=coverageIcon(option.value,trailer,vehicleType);
+    const van=vehicleType==='cargo_van',largeDecals=van&&option.value==='doors';
+    const original=(product?.config.coverage_options||[]).find(item=>item.id===option.value);
+    card.hidden=van&&(option.value==='hood'||option.value==='roof');
+    $('strong',card).textContent=largeDecals?'Large decals':(original?.label||'');
+    $('small',card).textContent=largeDecals?'Large individual graphics across the van side panels.':(original?.description||'');
+    $('.coverage-visual',card).innerHTML=coverageIcon(largeDecals?'spot':option.value,trailer,vehicleType);
   });
   const selected=form.querySelector('input[name="coverage_option"]:checked');
   if(selected?.closest('.coverage-card').hidden){
