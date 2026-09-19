@@ -27,6 +27,15 @@ def test_vehicle_wraps_are_one_public_product_with_optional_installation(env):
     assert installed.json()['lines'][0]['review_required'] is True
     assert installed.json()['lines'][0]['installation_requested'] is True
 
+    design_quote = client.post('/api/calculate', json={'items': [{
+        'product_id': wrap['id'], 'width': 54, 'height': 120, 'quantity': 1,
+        'installation_requested': False, 'design_requested': True
+    }]})
+    assert design_quote.status_code == 200, design_quote.text
+    assert design_quote.json()['review_required'] is True
+    assert design_quote.json()['lines'][0]['design_requested'] is True
+    assert design_quote.json()['lines'][0]['quote_only'] is True
+
 
 def test_custom_quote_request_creates_private_job(env):
     app, admin, employee = env

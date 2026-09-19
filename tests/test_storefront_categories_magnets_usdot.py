@@ -154,3 +154,28 @@ def test_usdot_quote_preserves_generated_preview_copy(env):
     }]})
     assert response.status_code == 200, response.text
     assert response.json()['lines'][0]['description'] == description
+
+    design = {
+        'company': 'Bay Area Logistics', 'phone': '(813) 555-0123',
+        'number': 'USDOT 1234567', 'licenses': 'MC 7654321',
+        'location': 'Tampa, FL', 'style': 'stencil',
+        'text_color': '#ffffff', 'background_color': '#123456'
+    }
+    generated = client.post('/api/calculate', json={'items':[{
+        'product_id': usdot['id'], 'width': 24, 'height': 12, 'quantity': 2,
+        'usdot_design': design, 'lamination': 'none'
+    }]})
+    assert generated.status_code == 200, generated.text
+    saved = generated.json()['lines'][0]['usdot_design']
+    assert saved['phone'] == '(813) 555-0123'
+    assert saved['licenses'] == 'MC 7654321'
+    assert saved['number'] == '1234567'
+    assert saved['style'] == 'stencil'
+    assert saved['text_color'] == '#ffffff'
+    assert saved['background_color'] == '#123456'
+
+    invalid = client.post('/api/calculate', json={'items':[{
+        'product_id': usdot['id'], 'width': 18, 'height': 12, 'quantity': 1,
+        'usdot_design': design | {'style': 'comic-sans'}, 'lamination': 'none'
+    }]})
+    assert invalid.status_code == 422

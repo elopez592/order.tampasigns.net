@@ -12,6 +12,29 @@ from fastapi import HTTPException
 from .db import settings
 
 D = Decimal
+USDOT_STYLES = {'bold', 'condensed', 'industrial', 'serif', 'rounded', 'highway', 'stencil', 'monospace', 'modern', 'slab'}
+
+
+def usdot_design(value) -> dict:
+    if value in (None, ''):
+        return {}
+    if not isinstance(value, dict):
+        raise HTTPException(422, 'USDOT design details must be an object.')
+    limits = {'company': 80, 'phone': 40, 'number': 20, 'licenses': 100, 'location': 80}
+    result = {key: str(value.get(key, '')).strip()[:limit] for key, limit in limits.items()}
+    if not result['company'] or not result['number']:
+        raise HTTPException(422, 'Company name and USDOT number are required.')
+    result['number'] = re.sub(r'^USDOT\s*', '', result['number'], flags=re.I)
+    style = str(value.get('style', 'bold')).strip().lower()
+    if style not in USDOT_STYLES:
+        raise HTTPException(422, 'Choose a valid USDOT font style.')
+    result['style'] = style
+    for key, default in (('text_color', '#111111'), ('background_color', '#ffffff')):
+        color = str(value.get(key, default)).strip().lower()
+        if not re.fullmatch(r'#[0-9a-f]{6}', color):
+            raise HTTPException(422, 'Choose valid USDOT design colors.')
+        result[key] = color
+    return result
 
 
 def number(value, name='Number', minimum='0', maximum='10000000') -> Decimal:
@@ -335,6 +358,12 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             raise HTTPException(422, 'Installation selection must be true or false.')
         if installation_requested and not cfg.get('supports_installation', False):
             raise HTTPException(422, 'Installation is not available for this product.')
+        design_requested = item.get('design_requested', False)
+        if not isinstance(design_requested, bool):
+            raise HTTPException(422, 'Design quote selection must be true or false.')
+        if design_requested and not cfg.get('supports_installation', False):
+            raise HTTPException(422, 'A design quote is not available for this product.')
+        generated_usdot = usdot_design(item.get('usdot_design')) if cfg.get('usdot_customizer') else {}
         qty = number(item.get('quantity', 1), 'Quantity', cfg['min_quantity'], cfg['max_quantity'])
         if qty != qty.to_integral():
             raise HTTPException(422, 'Quantity must be a whole number.')
@@ -452,7 +481,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             sell = max(discounted, cost)
         if sell > 1_000_000_000:
             raise HTTPException(422, 'This project exceeds the automatic estimating limit. Split the job or request a manual quote.')
-        review = (not cfg['instant'] or cfg.get('requires_installation', False) or installation_requested
+        review = (not cfg['instant'] or cfg.get('requires_installation', False) or installation_requested or design_requested
                   or width > D(cfg['max_width']) or height > D(cfg['max_height']))
         workflow_id = cfg.get('installation_workflow_id') if installation_requested else row['workflow_id']
         if installation_requested and not workflow_id:
@@ -464,7 +493,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             'shirt_color': item.get('shirt_color', '') if garment_price is not None else '',
             'size_quantities': item.get('size_quantities', {}) if garment_price is not None else {},
             'print_locations': item.get('print_locations', []) if garment_price is not None else [],
-            'quote_only': bool(cfg.get('quote_only')),
+            'quote_only': bool(cfg.get('quote_only')) or design_requested,
             'category': row['category'], 'description': str(item.get('description', ''))[:200],
             'width': str(width), 'height': str(height), 'quantity': qty, 'unit': cfg['unit'],
             'net_sqft': str(net_area.quantize(D('0.0001'))),
@@ -473,6 +502,8 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             'retail_sell_cents': retail_sell, 'wholesale_discount_percent': str(wholesale_discount) if wholesale else '',
             'price_per_item_cents': cent_round(D(sell) / qty), 'review_required': review,
             'installation_requested': installation_requested,
+            'design_requested': design_requested,
+            'usdot_design': generated_usdot,
             'self_approve_artwork': bool(cfg.get('self_approve_artwork', False)),
             'installation_estimate_cents': cent_round(installation_hours * labor_sell),
             'lamination': lamination_option['id'] if lamination_option else '',
