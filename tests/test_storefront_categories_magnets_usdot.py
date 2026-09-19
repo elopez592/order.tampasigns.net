@@ -165,6 +165,7 @@ def test_usdot_quote_preserves_generated_preview_copy(env):
         'company': 'Bay Area Logistics', 'phone': '(813) 555-0123',
         'number': 'USDOT 1234567', 'licenses': 'MC 7654321',
         'location': 'Tampa, FL', 'style': 'stencil', 'font_scale': '1.2',
+        'font_sizes': {'company': 64, 'phone': 28, 'number': 80, 'licenses': 26, 'location': 30},
         'text_color': '#ffffff', 'background_color': '#123456'
     }
     generated = client.post('/api/calculate', json={'items':[{
@@ -178,6 +179,7 @@ def test_usdot_quote_preserves_generated_preview_copy(env):
     assert saved['number'] == '1234567'
     assert saved['style'] == 'stencil'
     assert saved['font_scale'] == '1.2'
+    assert saved['font_sizes'] == {'company': '64', 'phone': '28', 'number': '80', 'licenses': '26', 'location': '30'}
     assert saved['text_color'] == '#ffffff'
     assert saved['background_color'] == '#123456'
 
@@ -203,9 +205,16 @@ def test_usdot_quote_preserves_generated_preview_copy(env):
 
     invalid_font_size = client.post('/api/calculate', json={'items':[{
         'product_id': usdot['id'], 'width': 24, 'height': 12, 'quantity': 1,
-        'usdot_design': design | {'font_scale': '1.3'}, 'lamination': 'none'
+        'usdot_design': {k: v for k, v in design.items() if k != 'font_sizes'} | {'font_scale': '1.3'},
+        'lamination': 'none'
     }]})
     assert invalid_font_size.status_code == 422
+
+    invalid_point_size = client.post('/api/calculate', json={'items':[{
+        'product_id': usdot['id'], 'width': 24, 'height': 12, 'quantity': 1,
+        'usdot_design': design | {'font_sizes': design['font_sizes'] | {'number': 301}}, 'lamination': 'none'
+    }]})
+    assert invalid_point_size.status_code == 422
 
 
 def test_usdot_custom_measurements_and_font_size_ui(env):
@@ -214,7 +223,11 @@ def test_usdot_custom_measurements_and_font_size_ui(env):
     js = client.get('/static/app.js').text
     shop = client.get('/static/shop.js').text
     assert 'Custom measurements (up to ' in js
-    assert "select('usdot_font_scale','Font size'" in js
-    assert "['1.4','Extra large (140%)']" in js
-    assert 'font_scale:f.elements.usdot_font_scale' in js
-    assert 'Number(d.font_scale)||1' in shop
+    assert "pointSize('usdot_company_points','Company size (pt)',56)" in js
+    assert "pointSize('usdot_number_points','USDOT size (pt)',72)" in js
+    assert "font_sizes:{company:f.elements.usdot_company_points?.value||'56'" in js
+    assert 'd.font_sizes||' in shop
+    assert 'TRUE-SIZE ARTBOARD' in shop
+    assert 'Shapes & clipart' in shop
+    assert 'data-studio="art.width"' in shop
+    assert 'dimensioned-proof-${width}x${height}in.png' in shop
