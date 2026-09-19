@@ -13,6 +13,7 @@ from .db import settings
 
 D = Decimal
 USDOT_STYLES = {'bold', 'condensed', 'industrial', 'serif', 'rounded', 'highway', 'stencil', 'monospace', 'modern', 'slab'}
+USDOT_FONT_SCALES = {D('0.8'), D('1'), D('1.2'), D('1.4')}
 
 
 def usdot_design(value) -> dict:
@@ -29,6 +30,10 @@ def usdot_design(value) -> dict:
     if style not in USDOT_STYLES:
         raise HTTPException(422, 'Choose a valid USDOT font style.')
     result['style'] = style
+    font_scale = number(value.get('font_scale', 1), 'USDOT font size', '0.8', '1.4')
+    if font_scale not in USDOT_FONT_SCALES:
+        raise HTTPException(422, 'Choose a valid USDOT font size.')
+    result['font_scale'] = str(font_scale)
     for key, default in (('text_color', '#111111'), ('background_color', '#ffffff')):
         color = str(value.get(key, default)).strip().lower()
         if not re.fullmatch(r'#[0-9a-f]{6}', color):

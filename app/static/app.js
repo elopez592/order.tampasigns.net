@@ -1,4 +1,4 @@
-import {createShop} from './shop.js?v=20260919-4';
+import {createShop} from './shop.js?v=20260919-5';
 
 const state = {calcSequence:0, user:null, customer:null, csrf:'', catalog:null, jobs:[], job:null, jobTab:'overview', boardMode:'board',
   products:[], workflows:[], users:[], product:null, quote:null, selectedProduct:1, tasks:[], queueFilter:'available',
@@ -125,9 +125,11 @@ function storefrontProductRank(product,category){
   return 100;
 }
 function sizeSelector(cfg){
-  const fields='<div class="fields">'+input('width','Width',cfg.default_width,'number','min="'+(cfg.min_width||0.1)+'" max="10000" step="0.01" required')+input('height','Height',cfg.default_height,'number','min="'+(cfg.min_height||0.1)+'" max="10000" step="0.01" required')+'</div>';
+  const fieldMax=cfg.usdot_customizer?(cfg.max_long_axis||48):10000,fieldLabel=cfg.usdot_customizer?'Custom width (in)':'Width',heightLabel=cfg.usdot_customizer?'Custom height (in)':'Height';
+  const fields='<div class="fields">'+input('width',fieldLabel,cfg.default_width,'number','min="'+(cfg.min_width||0.1)+'" max="'+fieldMax+'" step="0.01" required')+input('height',heightLabel,cfg.default_height,'number','min="'+(cfg.min_height||0.1)+'" max="'+fieldMax+'" step="0.01" required')+'</div>';
   if(!cfg.size_options?.length)return fields;
-  const options=cfg.size_options.map(o=>[o.width+'|'+o.height,o.label]).concat([['custom','Custom size']]);
+  const customLabel=cfg.usdot_customizer?'Custom measurements (up to '+cfg.max_short_axis+' × '+cfg.max_long_axis+' in)':'Custom size';
+  const options=cfg.size_options.map(o=>[o.width+'|'+o.height,o.label]).concat([['custom',customLabel]]);
   const preset=cfg.default_width+'|'+cfg.default_height;
   const limit=Number(cfg.max_short_axis)<10000?'<p class="field-hint mt-sm">Custom sizes: maximum '+esc(cfg.max_short_axis)+'" on the short axis and '+esc(cfg.max_long_axis)+'" on the long axis, in either orientation.</p>':'';
   return select('size_preset','Standard size',options,preset)+fields+limit;
@@ -143,7 +145,8 @@ function placementSelector(cfg){
 function usdotCustomizer(cfg){
   if(!cfg.usdot_customizer)return '';
   const styles=[['bold','Bold sans'],['condensed','Condensed'],['industrial','Industrial'],['serif','Classic serif'],['rounded','Rounded'],['highway','Highway'],['stencil','Stencil'],['monospace','Monospace'],['modern','Modern'],['slab','Slab serif']];
-  return '<div class="usdot-config"><div class="row mb"><span class="step-number">1</span><h3>Build your USDOT decal</h3></div><div class="fields">'+input('company_name','Company name','','text','required maxlength="80" placeholder="Company name"')+input('phone_line','Phone number (optional)','','tel','maxlength="40" placeholder="(813) 555-0123"')+'</div><div class="fields">'+input('usdot_number','USDOT number','','text','required maxlength="20" placeholder="1234567"')+input('license_line','Other licenses (optional)','','text','maxlength="100" placeholder="MC 123456 · FL 987654"')+'</div>'+input('location_line','City / State or extra line (optional)','','text','maxlength="80" placeholder="Tampa, FL"')+'<div class="fields">'+select('usdot_style','Font / style',styles,'bold')+input('usdot_text_color','Letter / border color','#111111','color')+'</div>'+input('usdot_background_color','Background color','#ffffff','color')+'<div class="usdot-preview" id="usdot-preview"><div class="usdot-preview-company">YOUR COMPANY</div><div class="usdot-preview-phone" hidden></div><div class="usdot-preview-number">USDOT 1234567</div><div class="usdot-preview-licenses" hidden></div><div class="usdot-preview-location">TAMPA, FL</div></div><p class="field-hint">The frame follows your selected finished size. Your generated layout is attached to the project as a high-resolution print-ready PNG for shop review.</p></div><div class="divider"></div>';
+  const fontSizes=[['0.8','Small (80%)'],['1','Standard (100%)'],['1.2','Large (120%)'],['1.4','Extra large (140%)']];
+  return '<div class="usdot-config"><div class="row mb"><span class="step-number">1</span><h3>Build your USDOT decal</h3></div><div class="fields">'+input('company_name','Company name','','text','required maxlength="80" placeholder="Company name"')+input('phone_line','Phone number (optional)','','tel','maxlength="40" placeholder="(813) 555-0123"')+'</div><div class="fields">'+input('usdot_number','USDOT number','','text','required maxlength="20" placeholder="1234567"')+input('license_line','Other licenses (optional)','','text','maxlength="100" placeholder="MC 123456 · FL 987654"')+'</div>'+input('location_line','City / State or extra line (optional)','','text','maxlength="80" placeholder="Tampa, FL"')+'<div class="fields">'+select('usdot_style','Font / style',styles,'bold')+select('usdot_font_scale','Font size',fontSizes,'1')+'</div><div class="fields">'+input('usdot_text_color','Letter / border color','#111111','color')+input('usdot_background_color','Background color','#ffffff','color')+'</div><div class="usdot-preview" id="usdot-preview"><div class="usdot-preview-company">YOUR COMPANY</div><div class="usdot-preview-phone" hidden></div><div class="usdot-preview-number">USDOT 1234567</div><div class="usdot-preview-licenses" hidden></div><div class="usdot-preview-location">TAMPA, FL</div></div><p class="field-hint">The frame and font sizing follow your selected finished measurements. Your generated layout is attached to the project as a high-resolution print-ready PNG for shop review.</p></div><div class="divider"></div>';
 }
 function vehicleDetailsCustomizer(cfg){
   if(!cfg.vehicle_details_required)return '';
@@ -158,9 +161,11 @@ function updateUsdotPreview(){
   const licenses=(form.elements.license_line?.value||'').toUpperCase();
   const location=(form.elements.location_line?.value||'TAMPA, FL').toUpperCase();
   preview.dataset.style=form.elements.usdot_style?.value||'bold';
+  const fontScale=Math.max(.8,Math.min(1.4,Number(form.elements.usdot_font_scale?.value)||1));
   preview.style.color=form.elements.usdot_text_color?.value||'#111111';
   preview.style.borderColor=form.elements.usdot_text_color?.value||'#111111';
   preview.style.backgroundColor=form.elements.usdot_background_color?.value||'#ffffff';
+  [['.usdot-preview-company',24],['.usdot-preview-number',32],['.usdot-preview-phone',14],['.usdot-preview-licenses',14],['.usdot-preview-location',14]].forEach(([selector,size])=>{$(selector,preview).style.fontSize=(size*fontScale)+'px';});
   const width=Math.max(1,Number(form.elements.width?.value)||18),height=Math.max(1,Number(form.elements.height?.value)||12);
   preview.style.aspectRatio=width+' / '+height;
   $('.usdot-preview-company',preview).textContent=company;
@@ -242,8 +247,8 @@ function currentItems(){
   const lamination=f.elements.lamination?.value||'',material=f.elements.material?.value||'',coverageInput=f.querySelector('input[name="coverage_option"]:checked'),coverageSelect=f.elements.window_package,coverage=coverageInput?.value||coverageSelect?.value||'',vehicleType=f.elements.vehicle_type?.value||'',coverageLabel=coverageInput?.closest('.coverage-card')?.querySelector('strong')?.textContent||coverageSelect?.selectedOptions?.[0]?.textContent||'',vehicleLabel=f.elements.vehicle_type?.selectedOptions?.[0]?.textContent||'',approxW=f.elements.approx_width?.value||'',approxH=f.elements.approx_height?.value||'',placementLabel=f.elements.placement?.value==='custom'?'Custom size':(f.elements.placement?.selectedOptions?.[0]?.textContent||'');
   const includeRoof=!!f.elements.include_roof_wrap?.checked;
   const wrapDesc=coverage?('Coverage: '+coverageLabel+(includeRoof?' + roof wrap':'')+(vehicleLabel?' | Type: '+vehicleLabel:'')+(approxW||approxH?' | Approx: '+(approxW||'?')+' x '+(approxH||'?')+' in':'')):'',tintDesc=product?.config.vehicle_details_required?('Vehicle: '+(f.elements.vehicle_year?.value||'')+' '+(f.elements.vehicle_make?.value||'')+' '+(f.elements.vehicle_model?.value||'')+' | Tint package: '+coverageLabel):'';
-  const usdot=product?.config.usdot_customizer?{company:f.elements.company_name?.value||'',phone:f.elements.phone_line?.value||'',number:f.elements.usdot_number?.value||'',licenses:f.elements.license_line?.value||'',location:f.elements.location_line?.value||'',style:f.elements.usdot_style?.value||'bold',text_color:f.elements.usdot_text_color?.value||'#111111',background_color:f.elements.usdot_background_color?.value||'#ffffff'}:null;
-  const usdotDesc=usdot?['Company: '+usdot.company,usdot.phone&&'Phone: '+usdot.phone,'USDOT '+usdot.number,usdot.licenses&&'Licenses: '+usdot.licenses,usdot.location,`Style: ${usdot.style}`,`Colors: ${usdot.text_color} on ${usdot.background_color}`].filter(Boolean).join(' | '):'';
+  const usdot=product?.config.usdot_customizer?{company:f.elements.company_name?.value||'',phone:f.elements.phone_line?.value||'',number:f.elements.usdot_number?.value||'',licenses:f.elements.license_line?.value||'',location:f.elements.location_line?.value||'',style:f.elements.usdot_style?.value||'bold',font_scale:f.elements.usdot_font_scale?.value||'1',text_color:f.elements.usdot_text_color?.value||'#111111',background_color:f.elements.usdot_background_color?.value||'#ffffff'}:null;
+  const usdotDesc=usdot?['Company: '+usdot.company,usdot.phone&&'Phone: '+usdot.phone,'USDOT '+usdot.number,usdot.licenses&&'Licenses: '+usdot.licenses,usdot.location,`Style: ${usdot.style}`,`Font size: ${Math.round(Number(usdot.font_scale)*100)}%`,`Colors: ${usdot.text_color} on ${usdot.background_color}`].filter(Boolean).join(' | '):'';
   const scopeDesc=usdotDesc||tintDesc||wrapDesc||(placementLabel?'Placement: '+placementLabel:'');
   const desc=[scopeDesc,designRequested?'Design quote requested':''].filter(Boolean).join(' | ');
   const base={product_id:state.selectedProduct,description:desc,installation_requested:install,design_requested:designRequested,lamination,material,coverage_option:coverage,include_roof_wrap:includeRoof,vehicle_type:vehicleType,...(usdot?{usdot_design:usdot}:{})};
@@ -599,7 +604,7 @@ document.addEventListener('change',event=>{
   if(event.target.matches('[data-line-product]')){const row=event.target.closest('[data-quote-line]'),p=state.products.find(p=>p.id===Number(event.target.value));const w=$('[data-line-width]',row),h=$('[data-line-height]',row),q=$('[data-line-quantity]',row);w.value=p.config.default_width;w.min=p.config.min_width||0.1;h.value=p.config.default_height;h.min=p.config.min_height||0.1;q.value=p.config.min_quantity;q.min=p.config.min_quantity;}
   if(event.target.name==='size_preset'&&event.target.closest('#calculator')){const form=$('#calculator');if(event.target.value!=='custom'){const parts=event.target.value.split('|');form.elements.width.value=parts[0];form.elements.height.value=parts[1];}form.elements.width.readOnly=event.target.value!=='custom';form.elements.height.readOnly=event.target.value!=='custom';updateUsdotPreview();recalculate();}
   if(event.target.name==='placement'&&event.target.closest('#calculator')){const form=$('#calculator'),product=state.catalog.products.find(p=>p.id===state.selectedProduct),choice=(product?.config.placement_options||[]).find(x=>x.id===event.target.value);if(choice){form.elements.width.value=choice.width;form.elements.height.value=choice.height;}form.elements.width.readOnly=event.target.value!=='custom';form.elements.height.readOnly=event.target.value!=='custom';recalculate();}
-  if(event.target.name==='usdot_style')updateUsdotPreview();
+  if(['usdot_style','usdot_font_scale'].includes(event.target.name))updateUsdotPreview();
 });
 window.addEventListener('hashchange',()=>route().catch(e=>toast(e.message,true)));
 async function boot(){

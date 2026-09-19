@@ -77,12 +77,12 @@ export function createShop(ctx) {
   const usdotFonts={bold:'Arial, sans-serif',condensed:'"Arial Narrow", Arial, sans-serif',industrial:'Impact, "Arial Black", sans-serif',serif:'Georgia, serif',rounded:'"Trebuchet MS", Arial, sans-serif',highway:'"Arial Black", Arial, sans-serif',stencil:'Impact, "Arial Black", sans-serif',monospace:'"Courier New", monospace',modern:'"Century Gothic", Futura, Arial, sans-serif',slab:'Rockwell, "Courier New", serif'};
   function fitUsdotText(context,text,maxWidth,size,font){let px=Math.max(12,Math.round(size));context.font=`900 ${px}px ${font}`;while(px>12&&context.measureText(text).width>maxWidth){px=Math.floor(px*.94);context.font=`900 ${px}px ${font}`;}return px;}
   async function usdotPrintFile(item,index){
-    const d=item.usdot_design,width=Math.max(1,Number(item.width)||18),height=Math.max(1,Number(item.height)||12),dpi=Math.max(72,Math.min(300,4800/Math.max(width,height)));
+    const d=item.usdot_design,width=Math.max(1,Number(item.width)||18),height=Math.max(1,Number(item.height)||12),dpi=Math.max(72,Math.min(300,4800/Math.max(width,height))),fontScale=Math.max(.8,Math.min(1.4,Number(d.font_scale)||1));
     const canvas=document.createElement('canvas');canvas.width=Math.round(width*dpi);canvas.height=Math.round(height*dpi);
     const c=canvas.getContext('2d'),font=usdotFonts[d.style]||usdotFonts.bold,pad=canvas.width*.055;
     c.fillStyle=d.background_color||'#ffffff';c.fillRect(0,0,canvas.width,canvas.height);c.strokeStyle=d.text_color||'#111111';c.lineWidth=Math.max(4,Math.round(Math.min(canvas.width,canvas.height)*.012));c.strokeRect(c.lineWidth/2,c.lineWidth/2,canvas.width-c.lineWidth,canvas.height-c.lineWidth);
     const lines=[{text:String(d.company||'').toUpperCase(),size:.19},{text:String(d.phone||'').toUpperCase(),size:.085},{text:'USDOT '+String(d.number||'').toUpperCase().replace(/^USDOT\s*/,''),size:.23},{text:String(d.licenses||'').toUpperCase(),size:.085},{text:String(d.location||'').toUpperCase(),size:.095}].filter(x=>x.text&&x.text!=='USDOT ');
-    const preferred=lines.map(x=>Math.max(12,canvas.height*x.size)),gap=canvas.height*.025,total=preferred.reduce((a,b)=>a+b,0)+gap*(lines.length-1),scale=Math.min(1,(canvas.height-pad*2)/total);
+    const preferred=lines.map(x=>Math.max(12,canvas.height*x.size*fontScale)),gap=canvas.height*.025,total=preferred.reduce((a,b)=>a+b,0)+gap*(lines.length-1),scale=Math.min(1,(canvas.height-pad*2)/total);
     let y=(canvas.height-(total*scale))/2;c.fillStyle=d.text_color||'#111111';c.textAlign='center';c.textBaseline='top';
     lines.forEach(line=>{const px=fitUsdotText(c,line.text,canvas.width-pad*2,preferred[lines.indexOf(line)]*scale,font);c.fillText(line.text,canvas.width/2,y,canvas.width-pad*2);y+=px+gap*scale;});
     const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));

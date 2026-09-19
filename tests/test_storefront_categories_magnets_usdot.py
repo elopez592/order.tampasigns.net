@@ -164,7 +164,7 @@ def test_usdot_quote_preserves_generated_preview_copy(env):
     design = {
         'company': 'Bay Area Logistics', 'phone': '(813) 555-0123',
         'number': 'USDOT 1234567', 'licenses': 'MC 7654321',
-        'location': 'Tampa, FL', 'style': 'stencil',
+        'location': 'Tampa, FL', 'style': 'stencil', 'font_scale': '1.2',
         'text_color': '#ffffff', 'background_color': '#123456'
     }
     generated = client.post('/api/calculate', json={'items':[{
@@ -177,6 +177,7 @@ def test_usdot_quote_preserves_generated_preview_copy(env):
     assert saved['licenses'] == 'MC 7654321'
     assert saved['number'] == '1234567'
     assert saved['style'] == 'stencil'
+    assert saved['font_scale'] == '1.2'
     assert saved['text_color'] == '#ffffff'
     assert saved['background_color'] == '#123456'
 
@@ -185,3 +186,35 @@ def test_usdot_quote_preserves_generated_preview_copy(env):
         'usdot_design': design | {'style': 'comic-sans'}, 'lamination': 'none'
     }]})
     assert invalid.status_code == 422
+
+    custom = client.post('/api/calculate', json={'items':[{
+        'product_id': usdot['id'], 'width': 37.5, 'height': 18.25, 'quantity': 1,
+        'usdot_design': design | {'font_scale': '1.4'}, 'lamination': 'none'
+    }]})
+    assert custom.status_code == 200, custom.text
+    assert custom.json()['lines'][0]['width'] == '37.5'
+    assert custom.json()['lines'][0]['height'] == '18.25'
+
+    too_large = client.post('/api/calculate', json={'items':[{
+        'product_id': usdot['id'], 'width': 48, 'height': 25, 'quantity': 1,
+        'usdot_design': design, 'lamination': 'none'
+    }]})
+    assert too_large.status_code == 422
+
+    invalid_font_size = client.post('/api/calculate', json={'items':[{
+        'product_id': usdot['id'], 'width': 24, 'height': 12, 'quantity': 1,
+        'usdot_design': design | {'font_scale': '1.3'}, 'lamination': 'none'
+    }]})
+    assert invalid_font_size.status_code == 422
+
+
+def test_usdot_custom_measurements_and_font_size_ui(env):
+    app, admin, employee = env
+    client = anonymous(app)
+    js = client.get('/static/app.js').text
+    shop = client.get('/static/shop.js').text
+    assert 'Custom measurements (up to ' in js
+    assert "select('usdot_font_scale','Font size'" in js
+    assert "['1.4','Extra large (140%)']" in js
+    assert 'font_scale:f.elements.usdot_font_scale' in js
+    assert 'Number(d.font_scale)||1' in shop
