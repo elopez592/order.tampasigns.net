@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import html
 import json
 import os
 import re
@@ -13,7 +14,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -31,6 +32,24 @@ import uuid
 
 COOKIE = 'signshop_session'
 STATIC = Path(__file__).with_name('static')
+
+
+def product_slug(name: str) -> str:
+    value = str(name or '').strip().lower()
+    if value == 'partial vehicle wraps':
+        value = 'vehicle wraps'
+    value = value.replace('&', ' and ')
+    return re.sub(r'[^a-z0-9]+', '-', value).strip('-')
+
+
+def public_product_name(name: str) -> str:
+    value = str(name or '').strip()
+    key = value.lower()
+    if key == 'partial vehicle wraps':
+        return 'Vehicle Wraps'
+    if key == 'trailer / food truck wraps':
+        return 'Trailer / Food Truck Wraps'
+    return value
 
 
 def require_staff(request: Request):
@@ -78,6 +97,42 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     app.state.uploads = uploads
     app.state.initial_credentials = credentials
     app.state.public_url = public_url
+
+    def seo_html(title: str, description: str, canonical: str, product=None) -> str:
+        source = (STATIC / 'index.html').read_text()
+        safe_title = html.escape(title, quote=True)
+        safe_description = html.escape(description, quote=True)
+        safe_canonical = html.escape(canonical, quote=True)
+        schema = {
+            '@context': 'https://schema.org',
+            '@type': 'Product' if product else 'WebSite',
+            'name': public_product_name(product['name']) if product else 'Tampa Signs and Stickers Online Ordering',
+            'description': description,
+            'url': canonical,
+        }
+        if product:
+            schema['brand'] = {'@type': 'Brand', 'name': 'Tampa Signs and Stickers'}
+            schema['category'] = product['category']
+        else:
+            schema['publisher'] = {'@type': 'Organization', 'name': 'Tampa Signs and Stickers'}
+        schema_json = json.dumps(schema, ensure_ascii=False).replace('</', '<\\/')
+        metadata = (f'<meta name="description" content="{safe_description}">\n'
+                    f'  <meta name="robots" content="index,follow,max-image-preview:large">\n'
+                    f'  <link rel="canonical" href="{safe_canonical}">\n'
+                    f'  <meta property="og:type" content="{("product" if product else "website")}">\n'
+                    f'  <meta property="og:title" content="{safe_title}">\n'
+                    f'  <meta property="og:description" content="{safe_description}">\n'
+                    f'  <meta property="og:url" content="{safe_canonical}">\n'
+                    f'  <meta name="twitter:card" content="summary">\n'
+                    f'  <script type="application/ld+json">{schema_json}</script>')
+        source = re.sub(r'<title>.*?</title>', f'<title>{safe_title}</title>\n  {metadata}', source, count=1, flags=re.S)
+        if product:
+            name = html.escape(public_product_name(product['name']))
+            category = html.escape(product['category'])
+            body_description = html.escape(description)
+            fallback = f'<main class="initial-loading seo-product"><p>{category}</p><h1>{name}</h1><p>{body_description}</p></main>'
+            source = source.replace('<div id="app"><div class="initial-loading"><img class="loading-logo" src="/static/brand/tampa-black.png" alt="Tampa Signs and Stickers"><p>Opening Tampa Signs and Stickers...</p></div></div>', f'<div id="app">{fallback}</div>')
+        return source
     app.state.gateway = StripeGateway()
     allowed_hosts = [h.strip() for h in os.getenv('ALLOWED_HOSTS', '').split(',') if h.strip()]
     if not allowed_hosts:
@@ -1281,6 +1336,35 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
 
     app.mount('/static', StaticFiles(directory=STATIC), name='static')
 
+    @app.get('/robots.txt')
+    def robots():
+        body = ('User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /staff\nDisallow: /portal\n'
+                'Disallow: /project\nDisallow: /studio\nDisallow: /account\n'
+                f'Sitemap: {public_url}/sitemap.xml\n')
+        return Response(body, media_type='text/plain')
+
+    @app.get('/sitemap.xml')
+    def sitemap():
+        with transaction(database) as conn:
+            rows = conn.execute('SELECT name,updated_at FROM products WHERE public=1 AND active=1 ORDER BY name').fetchall()
+        pages = [(public_url + '/', None), (public_url + '/products', None)]
+        pages.extend((public_url + '/products/' + product_slug(row['name']), str(row['updated_at'] or '')[:10]) for row in rows)
+        urls = ''.join('<url><loc>' + html.escape(url) + '</loc>' + (f'<lastmod>{html.escape(lastmod)}</lastmod>' if lastmod else '') + '</url>' for url, lastmod in pages)
+        return Response('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + urls + '</urlset>', media_type='application/xml')
+
+    @app.get('/products/{slug}', response_class=HTMLResponse)
+    def product_page(slug: str):
+        with transaction(database) as conn:
+            rows = conn.execute('SELECT * FROM products WHERE public=1 AND active=1 ORDER BY id').fetchall()
+            product = next((row for row in rows if product_slug(row['name']) == slug), None)
+        if not product:
+            raise HTTPException(404, 'Product not found.')
+        cfg = json.loads(product['config'])
+        name = public_product_name(product['name'])
+        description = str(cfg.get('description') or f'Customize and order {name} from Tampa Signs and Stickers in Tampa, Florida.')[:300]
+        canonical = public_url + '/products/' + product_slug(product['name'])
+        return HTMLResponse(seo_html(f'{name} | Tampa Signs and Stickers', description, canonical, product), headers={'Cache-Control': 'no-cache'})
+
     @app.get('/', response_class=HTMLResponse)
     @app.get('/staff', response_class=HTMLResponse)
     @app.get('/portal', response_class=HTMLResponse)
@@ -1288,7 +1372,12 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     @app.get('/project', response_class=HTMLResponse)
     @app.get('/studio', response_class=HTMLResponse)
     @app.get('/account', response_class=HTMLResponse)
-    def frontend():
-        return HTMLResponse((STATIC / 'index.html').read_text(), headers={'Cache-Control': 'no-cache'})
+    def frontend(request: Request):
+        path = request.url.path
+        if path == '/products':
+            return HTMLResponse(seo_html('Custom Signs, Wraps, Decals and Apparel | Tampa Signs', 'Browse custom signs, vehicle wraps, window graphics, decals, banners, apparel and event displays from Tampa Signs and Stickers.', public_url + '/products'), headers={'Cache-Control': 'no-cache'})
+        if path == '/':
+            return HTMLResponse(seo_html('Tampa Signs and Stickers | Custom Signs, Wraps and Printing', 'Order custom signs, stickers, vehicle wraps, window graphics, banners and apparel from Tampa Signs and Stickers.', public_url + '/'), headers={'Cache-Control': 'no-cache'})
+        return HTMLResponse((STATIC / 'index.html').read_text(), headers={'Cache-Control': 'no-cache', 'X-Robots-Tag': 'noindex, nofollow'})
 
     return app
