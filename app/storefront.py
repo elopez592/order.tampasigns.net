@@ -74,6 +74,8 @@ def upgrade_catalog(database):
                     description='One 33 × 80 inch roll-up banner with the printed banner and retractable stand included. Starts at $150.'
                 )
                 cats = ['Storefront', 'Events']
+            if name == 'A-Frame inserts':
+                cats = ['Storefront', 'Events']
             if name in ('1/4 inch foam board', 'Foam boards'):
                 name = 'Foam boards'
                 cfg.update(
