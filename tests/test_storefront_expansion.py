@@ -82,6 +82,15 @@ def test_finished_shirts_validate_options_and_reward_quantity(env):
     assert chest.status_code == 200, chest.text
     assert chest.json()['subtotal_cents'] == 2500
 
+    back_and_chest = client.post('/api/calculate', json={'items': [{
+        'product_id': shirt['id'], 'width': 12, 'height': 12, 'quantity': 1,
+        'shirt_color': 'Navy', 'size_quantities': {'L': 1},
+        'print_locations': ['back', 'left_chest'],
+    }]})
+    assert back_and_chest.status_code == 200, back_and_chest.text
+    assert back_and_chest.json()['subtotal_cents'] == 5500
+    assert back_and_chest.json()['lines'][0]['print_locations'] == ['back', 'left_chest']
+
 
 def test_customer_account_register_login_and_logout(env):
     app, admin, employee = env
@@ -115,7 +124,9 @@ def test_wholesale_discount_does_not_reduce_digitizing_fee(env):
     token = public.post('/api/wholesale/activate', json={
         'username': 'protectedfees', 'password': password,
     }).json()['token']
-    item = {'product_id': hat['id'], 'width': 4, 'height': 2.25, 'quantity': 1}
+    item = {'product_id': hat['id'], 'width': 4, 'height': 2.25, 'quantity': 10,
+            'shirt_color': 'Black', 'size_quantities': {'Adjustable': 10}, 'print_locations': ['front']}
     retail = public.post('/api/calculate', json={'items': [item]}).json()
     wholesale = public.post('/api/calculate', json={'items': [item], 'wholesale_token': token}).json()
     assert wholesale['subtotal_cents'] == retail['subtotal_cents'] == 3500
+    assert retail['lines'][0]['digitizing_fee_cents'] == 3500

@@ -104,6 +104,19 @@ def validate_config(cfg: dict) -> dict:
             raise HTTPException(422, 'Installation workflow ID must be a whole number.')
         result['installation_workflow_id'] = int(workflow_id)
     result['description'] = str(cfg.get('description', ''))[:700]
+    apparel_kind = str(cfg.get('apparel_kind', '')).strip().lower()
+    if apparel_kind not in ('', 'custom_shirt', 'embroidered_hat', 'embroidered_polo'):
+        raise HTTPException(422, 'Choose a valid apparel kind.')
+    result['apparel_kind'] = apparel_kind
+    result['digitizing_fee'] = str(number(cfg.get('digitizing_fee', 0), 'Digitizing fee', '0', '10000'))
+    shirt_colors = cfg.get('shirt_colors', {})
+    if not isinstance(shirt_colors, dict) or len(shirt_colors) > 40 or any(not str(k).strip() or len(str(k)) > 50 or not re.fullmatch(r'#[0-9a-fA-F]{6}', str(v)) for k, v in shirt_colors.items()):
+        raise HTTPException(422, 'Apparel colors must use names and six-digit hex values.')
+    result['shirt_colors'] = {str(k).strip(): str(v).lower() for k, v in shirt_colors.items()}
+    shirt_sizes = cfg.get('shirt_sizes', [])
+    if not isinstance(shirt_sizes, list) or len(shirt_sizes) > 30:
+        raise HTTPException(422, 'Use no more than 30 apparel sizes.')
+    result['shirt_sizes'] = [str(size).strip()[:30] for size in shirt_sizes if str(size).strip()]
     result['unit'] = cfg.get('unit', 'piece')
     if result['unit'] not in ('piece', 'sqft'):
         raise HTTPException(422, 'Unit must be piece or sqft.')
@@ -363,15 +376,19 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             raise HTTPException(422, 'Design quote selection must be true or false.')
         if design_requested and not cfg.get('supports_installation', False):
             raise HTTPException(422, 'A design quote is not available for this product.')
+        include_roof_wrap = item.get('include_roof_wrap', False)
+        if not isinstance(include_roof_wrap, bool):
+            raise HTTPException(422, 'Roof wrap selection must be true or false.')
         generated_usdot = usdot_design(item.get('usdot_design')) if cfg.get('usdot_customizer') else {}
         qty = number(item.get('quantity', 1), 'Quantity', cfg['min_quantity'], cfg['max_quantity'])
         if qty != qty.to_integral():
             raise HTTPException(422, 'Quantity must be a whole number.')
         qty = int(qty)
         garment_price = None
+        garment_fee = 0
         if cfg.get('finished_apparel'):
             from .storefront import garment_selection
-            garment_price, garment_description = garment_selection(item, qty)
+            garment_price, garment_fee, garment_description = garment_selection(item, qty, cfg, row['name'])
             item = dict(item, width=12, height=12, description=garment_description)
         width = number(item.get('width'), 'Width in inches', cfg.get('min_width', '0.1'), '10000')
         height = number(item.get('height'), 'Height in inches', cfg.get('min_height', '0.1'), '10000')
@@ -392,6 +409,9 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             if coverage_id:
                 raise HTTPException(422, 'Wrap coverage selection is not available for this product.')
             coverage_option = None
+
+        if include_roof_wrap and (not cfg.get('is_wrap') or coverage_id != 'full'):
+            raise HTTPException(422, 'Roof coverage can only be added to a full vehicle wrap.')
 
         vehicle_type_options = cfg.get('vehicle_type_options', [])
         vehicle_type_id = str(item.get('vehicle_type', '') or '').strip().lower()
@@ -469,8 +489,11 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
 
         floor = 0 if cfg.get('quantity_price_table') else int((D(cost) / (1 - margin)).quantize(D('1'), rounding=ROUND_CEILING))
         sell = max(cent_round(calculated), cents(cfg['minimum_price']), floor)
+        if include_roof_wrap:
+            sell = cent_round(D(sell) * D('1.20'))
+            cost = cent_round(D(cost) * D('1.20'))
         if garment_price is not None:
-            sell = cent_round(D(garment_price) * 100 * weighted_quantity(qty, cfg['tiers']))
+            sell = cent_round(D(garment_price) * 100 * weighted_quantity(qty, cfg['tiers']) + D(garment_fee) * 100)
         retail_sell = sell
         wholesale_discount = product_discounts.get(row['id'], wholesale_default)
         if wholesale and wholesale_discount > 0:
@@ -493,6 +516,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             'shirt_color': item.get('shirt_color', '') if garment_price is not None else '',
             'size_quantities': item.get('size_quantities', {}) if garment_price is not None else {},
             'print_locations': item.get('print_locations', []) if garment_price is not None else [],
+            'digitizing_fee_cents': garment_fee * 100,
             'quote_only': bool(cfg.get('quote_only')) or design_requested,
             'category': row['category'], 'description': str(item.get('description', ''))[:200],
             'width': str(width), 'height': str(height), 'quantity': qty, 'unit': cfg['unit'],
@@ -514,6 +538,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             'material_cents': cent_round(material_sell),
             'coverage_option': coverage_option['id'] if coverage_option else '',
             'coverage_label': coverage_option['label'] if coverage_option else '',
+            'include_roof_wrap': include_roof_wrap,
             'vehicle_type': vehicle_type_option['id'] if vehicle_type_option else '',
             'vehicle_type_label': vehicle_type_option['label'] if vehicle_type_option else '',
             'workflow_id': workflow_id, 'floor_applied': sell == floor,

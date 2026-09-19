@@ -281,7 +281,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             for row in conn.execute("""SELECT * FROM products WHERE public=1 AND active=1 ORDER BY
                 CASE WHEN name='Die-cut stickers' THEN 1 WHEN name='Transfer stickers' THEN 2 ELSE 100+id END, id"""):
                 cfg = json.loads(row['config'])
-                keys = ('finished_apparel','shirt_colors','shirt_sizes','quote_only','unit','description','min_quantity','max_quantity','max_width','max_height',
+                keys = ('finished_apparel','shirt_colors','shirt_sizes','apparel_kind','digitizing_fee','quote_only','unit','description','min_quantity','max_quantity','max_width','max_height',
                         'default_width','default_height','min_width','min_height','instant','supports_installation',
                         'supports_multiple_dimensions','self_approve_artwork','lamination_options','material_options',
                         'storefront_categories','size_options','placement_options','quantity_presets','coverage_options','vehicle_type_options','quantity_only_note','max_short_axis','max_long_axis','usdot_customizer','quantity_only','vehicle_details_required','tint_package_selector','artwork_upload_disabled')

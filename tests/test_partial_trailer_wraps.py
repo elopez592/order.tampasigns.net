@@ -32,6 +32,11 @@ def test_partial_vehicle_wraps_have_visual_coverage_options(env):
         'coverage_option': 'full', 'vehicle_type': 'car',
         'installation_requested': False, 'lamination': 'cast_gloss'
     }]})
+    full_with_roof = client.post('/api/calculate', json={'items':[{
+        'product_id': partial['id'], 'width': 12, 'height': 12, 'quantity': 1,
+        'coverage_option': 'full', 'include_roof_wrap': True, 'vehicle_type': 'car',
+        'installation_requested': False, 'lamination': 'cast_gloss'
+    }]})
     installed = client.post('/api/calculate', json={'items':[{
         'product_id': partial['id'], 'width': 12, 'height': 12, 'quantity': 1,
         'coverage_option': 'half', 'vehicle_type': 'suv',
@@ -39,8 +44,11 @@ def test_partial_vehicle_wraps_have_visual_coverage_options(env):
     }]})
     assert spot.status_code == 200, spot.text
     assert full.status_code == 200, full.text
+    assert full_with_roof.status_code == 200, full_with_roof.text
     assert installed.status_code == 200, installed.text
     assert spot.json()['subtotal_cents'] < full.json()['subtotal_cents']
+    assert full_with_roof.json()['subtotal_cents'] == full.json()['subtotal_cents'] * 12 // 10
+    assert full_with_roof.json()['lines'][0]['include_roof_wrap'] is True
     assert installed.json()['review_required'] is True
     assert installed.json()['lines'][0]['coverage_label'] == 'Half wrap'
     assert installed.json()['lines'][0]['vehicle_type_label'] == 'SUV / crossover'
@@ -94,6 +102,8 @@ def test_wrap_coverage_storefront_ui_is_present(env):
     assert "hasCoverageWrap" in text
     assert 'input[name="coverage_option"]:checked' in text
     assert "Approximate dimensions" in text
+    assert 'name="include_roof_wrap"' in text
+    assert "Include roof wrap with full wrap" in text
     assert "Trailer / truck type" in text
     assert "Vehicle year" in text
     assert "Tint package" in text

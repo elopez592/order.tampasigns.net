@@ -78,12 +78,15 @@ def test_decals_usdot_and_apparel_listings(env):
     assert hats['storefront_categories'] == ['Apparel']
     assert polos['storefront_categories'] == ['Apparel']
     assert hats['instant'] is False and polos['instant'] is False
+    assert hats['finished_apparel'] is True and polos['finished_apparel'] is True
+    assert hats['shirt_sizes'] == ['Adjustable']
+    assert polos['shirt_sizes'] == ['S', 'M', 'L', 'XL', '2XL', '3XL']
+    assert set(hats['shirt_colors']) == set(polos['shirt_colors']) == {'White', 'Black', 'Navy', 'Royal', 'Red', 'Sport Grey'}
     assert [x['id'] for x in hats['placement_options']] == ['front']
     assert [x['id'] for x in polos['placement_options']] == ['left_chest', 'right_chest']
-    assert '$35 digitizing charge' in hats['description']
-    assert '$35 digitizing charge' in polos['description']
-    assert 'Over-complex artwork' in hats['description']
-    assert 'Over-complex artwork' in polos['description']
+    assert hats['digitizing_fee'] == polos['digitizing_fee'] == '35'
+    assert 'one-time $35 digitizing fee' in hats['description']
+    assert 'one-time $35 digitizing fee' in polos['description']
 
     shirt_product = products['Custom T-shirts']
     shirt_quote = client.post('/api/calculate', json={'items':[{
@@ -97,10 +100,13 @@ def test_decals_usdot_and_apparel_listings(env):
 
     hat_product = products['Embroidered hats']
     hat_quote = client.post('/api/calculate', json={'items':[{
-        'product_id': hat_product['id'], 'width': 4, 'height': 2.25, 'quantity': 1
+        'product_id': hat_product['id'], 'width': 4, 'height': 2.25, 'quantity': 5,
+        'shirt_color': 'Navy', 'size_quantities': {'Adjustable': 5}, 'print_locations': ['front']
     }]})
     assert hat_quote.status_code == 200, hat_quote.text
     assert hat_quote.json()['subtotal_cents'] == 3500
+    assert hat_quote.json()['lines'][0]['digitizing_fee_cents'] == 3500
+    assert hat_quote.json()['lines'][0]['quote_only'] is True
     assert hat_quote.json()['review_required'] is True
 
 

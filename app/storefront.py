@@ -6,6 +6,7 @@ from .db import transaction, now
 COLORS = {'White': '#ffffff', 'Black': '#252525', 'Navy': '#182b49', 'Royal': '#2453a0', 'Red': '#bd2437', 'Sport Grey': '#a8a8a8'}
 SIZES = ['S', 'M', 'L', 'XL', '2XL', '3XL']
 PRINTS = {'front': 'Full front', 'back': 'Full back', 'left_chest': 'Left chest'}
+PRINT_PRICES = {'front': 30, 'back': 30, 'left_chest': 25}
 
 
 def upgrade_catalog(database):
@@ -28,8 +29,25 @@ def upgrade_catalog(database):
                 cats = ['Apparel', 'Events']
             if name == 'Custom T-shirts':
                 cfg.update(finished_apparel=True, shirt_colors=COLORS, shirt_sizes=SIZES,
-                           description='Custom Gildan Heavy Cotton 5000 shirts. Choose a color, sizes and one print location, then upload your design for proofing.')
+                           apparel_kind='custom_shirt', digitizing_fee='0',
+                           description='Custom Gildan Heavy Cotton 5000 shirts. Choose a color, sizes and one or more print locations, then upload your design for proofing.')
                 cats = ['Apparel', 'Events']
+            if name == 'Embroidered hats':
+                cfg.update(
+                    finished_apparel=True, apparel_kind='embroidered_hat', quote_only=True,
+                    shirt_colors=COLORS, shirt_sizes=['Adjustable'], digitizing_fee='35',
+                    setup_price='35', minimum_price='35', instant=False,
+                    description='Choose a hat color and quantity. A one-time $35 digitizing fee is added to the apparel order; garment and stitch-count pricing is reviewed separately before quoting.'
+                )
+                cats = ['Apparel']
+            if name == 'Embroidered polos':
+                cfg.update(
+                    finished_apparel=True, apparel_kind='embroidered_polo', quote_only=True,
+                    shirt_colors=COLORS, shirt_sizes=SIZES, digitizing_fee='35',
+                    setup_price='35', minimum_price='35', instant=False,
+                    description='Choose polo colors, sizes and chest placement. A one-time $35 digitizing fee is added to the apparel order; garment and stitch-count pricing is reviewed separately before quoting.'
+                )
+                cats = ['Apparel']
             if name == 'Window Graphics':
                 cfg.update(
                     storefront_categories=['Storefront'], supports_multiple_dimensions=True,
@@ -177,15 +195,29 @@ def upgrade_catalog(database):
                          (product_name, category, workflow, json.dumps(cfg), now()))
 
 
-def garment_selection(item, qty):
+def garment_selection(item, qty, cfg, product_name):
     color = item.get('shirt_color')
     sizes = item.get('size_quantities')
     placements = item.get('print_locations')
-    if color not in COLORS or not isinstance(sizes, dict) or not sizes or set(sizes) - set(SIZES):
-        raise HTTPException(422, 'Choose a shirt color and size quantities.')
+    colors = cfg.get('shirt_colors') or COLORS
+    allowed_sizes = cfg.get('shirt_sizes') or SIZES
+    if color not in colors or not isinstance(sizes, dict) or not sizes or set(sizes) - set(allowed_sizes):
+        raise HTTPException(422, 'Choose an apparel color and size quantities.')
     if any(type(q) is not int or q < 0 or q > 100000 for q in sizes.values()) or sum(sizes.values()) != qty:
-        raise HTTPException(422, 'Shirt size quantities must add up to the total quantity.')
-    if not isinstance(placements, list) or len(placements) != 1 or any(p not in PRINTS for p in placements):
-        raise HTTPException(422, 'Choose valid print locations.')
-    description = 'Gildan 5000 / ' + color + ' / ' + ', '.join(f'{s}: {q}' for s, q in sizes.items() if q) + ' / ' + ', '.join(PRINTS[p] for p in placements)
-    return 25 if placements[0] == 'left_chest' else 30, description
+        raise HTTPException(422, 'Apparel size quantities must add up to the total quantity.')
+    kind = cfg.get('apparel_kind', 'custom_shirt')
+    if kind == 'custom_shirt':
+        if not isinstance(placements, list) or not 1 <= len(placements) <= len(PRINTS) or len(set(placements)) != len(placements) or any(p not in PRINTS for p in placements):
+            raise HTTPException(422, 'Choose one or more valid print locations.')
+        unit_price = sum(PRINT_PRICES[p] for p in placements)
+        garment = 'Gildan 5000'
+        placement_labels = [PRINTS[p] for p in placements]
+    else:
+        options = {p['id']: p['label'].split(' — ')[0] for p in cfg.get('placement_options', [])}
+        if not isinstance(placements, list) or len(placements) != 1 or placements[0] not in options:
+            raise HTTPException(422, 'Choose a valid embroidery placement.')
+        unit_price = 0
+        garment = 'Embroidered hat' if kind == 'embroidered_hat' else 'Embroidered polo'
+        placement_labels = [options[placements[0]]]
+    description = garment + ' / ' + color + ' / ' + ', '.join(f'{s}: {q}' for s, q in sizes.items() if q) + ' / ' + ', '.join(placement_labels)
+    return unit_price, int(float(cfg.get('digitizing_fee', 0))), description
