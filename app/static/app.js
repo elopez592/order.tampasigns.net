@@ -202,8 +202,9 @@ function updateCoverageVisuals(){
 function coverageCustomizer(cfg){
   if(!cfg.coverage_options?.length||cfg.tint_package_selector)return '';
   const trailer=(cfg.storefront_categories||[]).includes('Trailers / Food Trucks');
-  const cards=cfg.coverage_options.map((o,i)=>'<label class="coverage-card '+(i===0?'selected':'')+'"><input type="radio" name="coverage_option" value="'+esc(o.id)+'" '+(i===0?'checked':'')+'><span class="coverage-visual">'+coverageIcon(o.id,trailer)+'</span><strong>'+esc(o.label)+'</strong><small>'+esc(o.description||'')+'</small></label>').join('');
-  const types=cfg.vehicle_type_options?.length?select('vehicle_type',trailer?'Trailer / truck type':'Vehicle type',cfg.vehicle_type_options.map(o=>[o.id,o.label]),cfg.vehicle_type_options[0].id):'';
+  const defaultType=trailer?(cfg.vehicle_type_options?.[0]?.id||''):(cfg.vehicle_type_options?.find(o=>o.id==='cargo_van')?.id||cfg.vehicle_type_options?.[0]?.id||'');
+  const cards=cfg.coverage_options.map((o,i)=>'<label class="coverage-card '+(i===0?'selected':'')+'"><input type="radio" name="coverage_option" value="'+esc(o.id)+'" '+(i===0?'checked':'')+'><span class="coverage-visual">'+coverageIcon(o.id,trailer,defaultType)+'</span><strong>'+esc(o.label)+'</strong><small>'+esc(o.description||'')+'</small></label>').join('');
+  const types=cfg.vehicle_type_options?.length?select('vehicle_type',trailer?'Trailer / truck type':'Vehicle type',cfg.vehicle_type_options.map(o=>[o.id,o.label]),defaultType):'';
   return '<div class="coverage-config"><div class="row between mb"><div><h3>Choose wrap coverage</h3><p class="field-hint">Pick the closest visual coverage. We review exact panels before production.</p></div></div><div class="coverage-grid">'+cards+'</div><div class="mt">'+types+'</div><div class="row mt mb"><h3>Approximate dimensions <span class="muted tiny">(optional)</span></h3></div><div class="fields">'+input('approx_width',trailer?'Approx side length (in)':'Approx graphic length (in)','','number','min="1" max="1000" step=".1"')+input('approx_height','Approx height (in)','','number','min="1" max="300" step=".1"')+'</div></div><div class="divider"></div>';
 }
 async function calculatorView(){
@@ -226,6 +227,7 @@ async function calculatorView(){
   const preset=$('#calculator select[name="size_preset"]');if(preset){$('#calculator').elements.width.readOnly=preset.value!=='custom';$('#calculator').elements.height.readOnly=preset.value!=='custom';}
   const placement=$('#calculator select[name="placement"]');if(placement){$('#calculator').elements.width.readOnly=placement.value!=='custom';$('#calculator').elements.height.readOnly=placement.value!=='custom';}
   shop?.setupProduct(product);
+  updateCoverageVisuals();
   updateUsdotPreview();
   await recalculate();
 }

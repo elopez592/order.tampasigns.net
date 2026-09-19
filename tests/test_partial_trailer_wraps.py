@@ -99,6 +99,8 @@ def test_wrap_coverage_storefront_ui_is_present(env):
     assert "Tint package" in text
     assert "vehicleType==='car'?'sedan'" in text
     assert "vehicleType==='cargo_van'?'van'" in text
+    assert "find(o=>o.id==='cargo_van')" in text
+    assert 'updateCoverageVisuals();' in text
     assert "option.value==='hood'||option.value==='roof'" in text
     assert "largeDecals?'Large decals'" in text
     assert "Large individual graphics across the van side panels." in text
