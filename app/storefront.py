@@ -73,7 +73,7 @@ def upgrade_catalog(database):
                     size_options=[], material_options=[], lamination_options=[],
                     description='One 33 × 80 inch roll-up banner with the printed banner and retractable stand included. Starts at $150.'
                 )
-                cats = ['Events']
+                cats = ['Storefront', 'Events']
             if name in ('1/4 inch foam board', 'Foam boards'):
                 name = 'Foam boards'
                 cfg.update(
@@ -104,7 +104,7 @@ def upgrade_catalog(database):
         workflow = conn.execute('SELECT id FROM workflows ORDER BY id LIMIT 1').fetchone()['id']
         additions = {
             'Roll-up banners': dict(
-                category='Events', storefront_categories=['Events'], unit='sqft',
+                category='Events', storefront_categories=['Storefront','Events'], unit='sqft',
                 sell_per_sqft='8.181818', cost_per_sqft='0', setup_price='0', setup_cost='0',
                 waste_percent='0', labor_minutes_per_unit='0', minimum_price='150',
                 default_width='33', default_height='80', min_width='33', min_height='80', max_width='33', max_height='80',

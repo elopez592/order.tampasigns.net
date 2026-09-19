@@ -12,7 +12,7 @@ def test_events_tinting_foam_boards_and_rollups_are_public(env):
     assert catalog['Window Graphics']['config']['storefront_categories'] == ['Storefront']
     assert catalog['Fleet Window Tinting']['config']['storefront_categories'] == ['Fleet Services']
     assert catalog['Storefront Window Tinting']['config']['storefront_categories'] == ['Storefront']
-    assert catalog['Roll-up banners']['config']['storefront_categories'] == ['Events']
+    assert catalog['Roll-up banners']['config']['storefront_categories'] == ['Storefront', 'Events']
     assert catalog['Foam boards']['config']['storefront_categories'] == ['Storefront', 'Events']
     assert catalog['A-Frame inserts']['config']['storefront_categories'] == ['Storefront', 'Events']
     assert catalog['Construction signs']['config']['storefront_categories'] == ['Construction signs']
