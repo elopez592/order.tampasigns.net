@@ -119,7 +119,8 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .shirt-sizes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .print-locations{display:grid;gap:10px;padding:14px;border:1px solid var(--line);border-radius:10px}
 .print-locations legend{padding:0 7px;font-size:12px;font-weight:750}
-.product-option{text-decoration:none}.product-page-title{font-size:30px;letter-spacing:-.8px;line-height:1.1}
+.product-option{text-decoration:none}.product-page-title{font-size:30px;letter-spacing:-.8px;line-height:1.1}.hero-title{font-size:56px;font-weight:750;letter-spacing:-2.8px;line-height:1.03;margin:12px 0 18px}.hero-title em{font-style:normal;color:var(--accent)}
+@media(max-width:950px){.hero-title{font-size:45px}}
 @media(max-width:760px){.coverage-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:900px){.all-products-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.project-layout,.studio-layout{grid-template-columns:1fr}}
 @media(max-width:650px){.all-products-grid,.account-grid{grid-template-columns:1fr}.public-header{height:auto;min-height:88px;padding-block:13px}.public-header .nav-links{max-height:68px;overflow:auto}.shirt-sizes{grid-template-columns:repeat(2,minmax(0,1fr))}}
