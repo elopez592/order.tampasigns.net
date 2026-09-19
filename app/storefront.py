@@ -17,6 +17,8 @@ def upgrade_catalog(database):
             cats = cfg.get('storefront_categories', [])
             name = row['name']
             active, public = row['active'], row['public']
+            if name in ('Die-cut stickers', 'Decals'):
+                cfg['contour_customizer'] = True
             if 'banner' in name.lower() or name == 'Custom T-shirts':
                 cats = list(dict.fromkeys(cats + ['Events']))
             if name == 'DTF transfers':

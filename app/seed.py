@@ -70,6 +70,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             cfg.setdefault('max_short_axis', '10000')
             cfg.setdefault('max_long_axis', '10000')
             cfg.setdefault('usdot_customizer', False)
+            cfg.setdefault('contour_customizer', False)
             cfg.setdefault('quantity_only', False)
             cfg.setdefault('coverage_options', [])
             cfg.setdefault('vehicle_type_options', [])
@@ -128,6 +129,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 cfg['self_approve_artwork'] = True
             if 'die-cut sticker' in lname:
                 cfg['min_quantity'] = '50'
+                cfg['contour_customizer'] = True
             if 'magnet' in lname:
                 if str(cfg.get('min_quantity', '10')) == '10':
                     cfg['min_quantity'] = '1'
@@ -202,6 +204,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 cfg['description'] = 'Fleet window tinting starting at a retail single-vehicle baseline. Final pricing is reviewed by vehicle, glass coverage, film choice and access. Larger fleets receive progressively better volume pricing.'
             if old['name'].lower() == 'decals':
                 cfg['storefront_categories'] = ['Vehicles','Fleet Services','Stickers']
+                cfg['contour_customizer'] = True
                 cfg['quantity_presets'] = [1,2,5,10,25,50,100]
                 cfg['tiers'] = [
                     {'from':1,'multiplier':'1'},

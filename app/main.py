@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import hmac
 import html
+import csv
+import io
 import json
 import os
 import re
@@ -339,11 +341,11 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 keys = ('finished_apparel','shirt_colors','shirt_sizes','apparel_kind','digitizing_fee','quote_only','unit','description','min_quantity','max_quantity','max_width','max_height',
                         'default_width','default_height','min_width','min_height','instant','supports_installation',
                         'supports_multiple_dimensions','self_approve_artwork','lamination_options','material_options',
-                        'storefront_categories','size_options','placement_options','quantity_presets','coverage_options','vehicle_type_options','quantity_only_note','max_short_axis','max_long_axis','usdot_customizer','quantity_only','vehicle_details_required','tint_package_selector','artwork_upload_disabled')
+                        'storefront_categories','size_options','placement_options','quantity_presets','coverage_options','vehicle_type_options','quantity_only_note','max_short_axis','max_long_axis','usdot_customizer','contour_customizer','quantity_only','vehicle_details_required','tint_package_selector','artwork_upload_disabled')
                 defaults = {'supports_installation': False, 'supports_multiple_dimensions': False,
                             'self_approve_artwork': False, 'lamination_options': [], 'material_options': [],
                             'storefront_categories': [], 'size_options': [], 'placement_options': [], 'quantity_presets': [], 'coverage_options': [], 'vehicle_type_options': [], 'quantity_only_note': '', 'max_short_axis': '10000',
-                            'max_long_axis': '10000', 'usdot_customizer': False, 'quantity_only': False,
+                            'max_long_axis': '10000', 'usdot_customizer': False, 'contour_customizer': False, 'quantity_only': False,
                             'vehicle_details_required': False, 'tint_package_selector': False,
                             'artwork_upload_disabled': False}
                 products.append({k: row[k] for k in ('id','name','category','version')} | {
@@ -660,6 +662,82 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             rows = conn.execute('SELECT * FROM jobs WHERE archived=0 ORDER BY id DESC LIMIT 500').fetchall()
             return {'jobs': [serialize_job(conn, row, user['role'], detail=False) for row in rows],
                     'limit': 500, 'shop': settings(conn)['shop_name']}
+
+    def report_data(conn, start_value: str = '', end_value: str = ''):
+        try:
+            start = date.fromisoformat(start_value).isoformat() if start_value else ''
+            end = date.fromisoformat(end_value).isoformat() if end_value else ''
+        except (TypeError, ValueError):
+            raise HTTPException(422, 'Report dates must use YYYY-MM-DD.')
+        where, params = ['archived=0'], []
+        if start:
+            where.append('created_at>=?')
+            params.append(start + 'T00:00:00')
+        if end:
+            where.append('created_at<?')
+            params.append(end + 'T23:59:59.999999')
+        jobs = conn.execute('SELECT * FROM jobs WHERE ' + ' AND '.join(where) + ' ORDER BY created_at DESC', params).fetchall()
+        rows, services = [], {}
+        totals_out = {'order_count': 0, 'booked_order_count': 0, 'quoted_revenue_cents': 0,
+                      'revenue_cents': 0, 'collected_cents': 0, 'outstanding_cents': 0,
+                      'cost_cents': 0, 'profit_cents': 0, 'tax_cents': 0}
+        for job in jobs:
+            quote, money = json.loads(job['quote_snapshot']), totals(conn, job)
+            booked = bool(job['accepted_version'] == job['quote_version'] or money['paid_cents'] > 0)
+            totals_out['order_count'] += 1
+            totals_out['quoted_revenue_cents'] += money['merchandise_cents']
+            totals_out['collected_cents'] += money['paid_cents']
+            totals_out['tax_cents'] += money['tax_cents']
+            if booked:
+                gross_profit = money['merchandise_cents'] - money['cost_cents']
+                totals_out['booked_order_count'] += 1
+                totals_out['revenue_cents'] += money['merchandise_cents']
+                totals_out['outstanding_cents'] += money['balance_cents']
+                totals_out['cost_cents'] += money['cost_cents']
+                totals_out['profit_cents'] += gross_profit
+            else:
+                gross_profit = money['merchandise_cents'] - money['cost_cents']
+            rows.append({'number': job['number'], 'created_at': job['created_at'], 'customer': job['customer_name'],
+                         'title': job['title'], 'booked': booked, 'revenue_cents': money['merchandise_cents'],
+                         'cost_cents': money['cost_cents'], 'profit_cents': gross_profit,
+                         'paid_cents': money['paid_cents'], 'balance_cents': money['balance_cents']})
+            if booked:
+                for line in quote.get('lines', []):
+                    name = str(line.get('name') or 'Other')
+                    service = services.setdefault(name, {'name': name, 'orders': set(), 'quantity': 0,
+                                                          'revenue_cents': 0, 'cost_cents': 0, 'profit_cents': 0})
+                    service['orders'].add(job['id'])
+                    service['quantity'] += int(line.get('quantity') or 0)
+                    service['revenue_cents'] += int(line.get('sell_cents') or 0)
+                    service['cost_cents'] += int(line.get('cost_cents') or 0)
+                    service['profit_cents'] += int(line.get('sell_cents') or 0) - int(line.get('cost_cents') or 0)
+        totals_out['margin_percent'] = round(totals_out['profit_cents'] / totals_out['revenue_cents'] * 100, 1) if totals_out['revenue_cents'] else 0
+        service_rows = []
+        for service in services.values():
+            service['orders'] = len(service['orders'])
+            service['margin_percent'] = round(service['profit_cents'] / service['revenue_cents'] * 100, 1) if service['revenue_cents'] else 0
+            service_rows.append(service)
+        service_rows.sort(key=lambda item: item['revenue_cents'], reverse=True)
+        return {'period': {'start': start, 'end': end}, 'totals': totals_out, 'services': service_rows, 'orders': rows}
+
+    @app.get('/api/admin/reports')
+    def owner_reports(request: Request, start: str = '', end: str = '', user=Depends(require_admin)):
+        with transaction(database) as conn:
+            return report_data(conn, start, end)
+
+    @app.get('/api/admin/reports.csv')
+    def export_owner_report(request: Request, start: str = '', end: str = '', user=Depends(require_admin)):
+        with transaction(database) as conn:
+            report = report_data(conn, start, end)
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(['Order', 'Date', 'Customer', 'Project', 'Booked', 'Revenue', 'Estimated cost', 'Estimated profit', 'Collected', 'Balance'])
+        for row in report['orders']:
+            writer.writerow([row['number'], row['created_at'], row['customer'], row['title'], 'Yes' if row['booked'] else 'No',
+                             f"{row['revenue_cents']/100:.2f}", f"{row['cost_cents']/100:.2f}", f"{row['profit_cents']/100:.2f}",
+                             f"{row['paid_cents']/100:.2f}", f"{row['balance_cents']/100:.2f}"])
+        return Response(output.getvalue(), media_type='text/csv; charset=utf-8',
+                        headers={'Content-Disposition': 'attachment; filename="tampa-signs-owner-report.csv"', 'Cache-Control': 'no-store'})
 
     @app.get('/api/staff/task-queue')
     def task_queue(request: Request, user=Depends(require_staff)):
@@ -1371,6 +1449,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     @app.get('/products', response_class=HTMLResponse)
     @app.get('/project', response_class=HTMLResponse)
     @app.get('/studio', response_class=HTMLResponse)
+    @app.get('/contour', response_class=HTMLResponse)
     @app.get('/account', response_class=HTMLResponse)
     def frontend(request: Request):
         path = request.url.path
