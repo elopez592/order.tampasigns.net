@@ -66,7 +66,7 @@ def validate_config(cfg: dict) -> dict:
     if not isinstance(cfg.get('instant', True), bool):
         raise HTTPException(422, 'instant must be true or false.')
     result['instant'] = cfg.get('instant', True)
-    for flag in ('requires_installation', 'is_wrap', 'supports_installation', 'supports_multiple_dimensions', 'self_approve_artwork', 'usdot_customizer', 'quantity_only', 'finished_apparel', 'quote_only', 'vehicle_details_required'):
+    for flag in ('requires_installation', 'is_wrap', 'supports_installation', 'supports_multiple_dimensions', 'self_approve_artwork', 'usdot_customizer', 'quantity_only', 'finished_apparel', 'quote_only', 'vehicle_details_required', 'tint_package_selector', 'artwork_upload_disabled'):
         if not isinstance(cfg.get(flag, False), bool):
             raise HTTPException(422, f'{flag} must be true or false.')
         result[flag] = cfg.get(flag, False)
@@ -179,7 +179,7 @@ def validate_config(cfg: dict) -> dict:
     categories = cfg.get('storefront_categories', [])
     if not isinstance(categories, list) or len(categories) > 8:
         raise HTTPException(422, 'Use no more than 8 storefront categories.')
-    allowed_categories = {'Storefront','Vehicles','Fleet Services','Trailers / Food Trucks','Stickers','Signs','Apparel','Events'}
+    allowed_categories = {'Storefront','Vehicles','Fleet Services','Trailers / Food Trucks','Construction signs','Stickers','Signs','Apparel','Events'}
     checked_categories = []
     for category in categories:
         label = str(category).strip()
@@ -460,6 +460,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
         lines.append({
             'product_id': row['id'], 'product_version': row['version'], 'name': row['name'],
             'finished_apparel': bool(cfg.get('finished_apparel')),
+            'artwork_upload_disabled': bool(cfg.get('artwork_upload_disabled')),
             'shirt_color': item.get('shirt_color', '') if garment_price is not None else '',
             'size_quantities': item.get('size_quantities', {}) if garment_price is not None else {},
             'print_locations': item.get('print_locations', []) if garment_price is not None else [],

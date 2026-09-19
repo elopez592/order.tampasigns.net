@@ -12,13 +12,13 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from fastapi import HTTPException
 from .db import now
 
-Image.MAX_IMAGE_PIXELS = 20_000_000
-MAX_UPLOAD = 10 * 1024 * 1024
+Image.MAX_IMAGE_PIXELS = 50_000_000
+MAX_UPLOAD = 50 * 1024 * 1024
 
 
 def sanitize(raw: bytes, filename: str):
     if not raw or len(raw) > MAX_UPLOAD:
-        raise HTTPException(413, 'Files must be non-empty and no larger than 10 MB.')
+        raise HTTPException(413, 'Files must be non-empty and no larger than 50 MB.')
     name = Path(filename.replace('\\', '/')).name[:180] or 'artwork'
     suffix = Path(name).suffix.lower()
     if suffix == '.pdf' and raw.startswith(b'%PDF-'):
@@ -35,7 +35,7 @@ def sanitize(raw: bytes, filename: str):
             clean.save(out, format='PNG')
             return out.getvalue(), Path(name).stem + '.png', 'image/png', '.png'
     except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as exc:
-        raise HTTPException(422, 'The image is invalid or exceeds the 20-megapixel limit.') from exc
+        raise HTTPException(422, 'The image is invalid or exceeds the 50-megapixel limit.') from exc
 
 
 def save_asset(conn, directory: Path, job_id: int, raw: bytes, name: str, mime: str, suffix: str, kind: str, actor: str):

@@ -96,7 +96,7 @@ def test_wrap_coverage_storefront_ui_is_present(env):
     assert "Approximate dimensions" in text
     assert "Trailer / truck type" in text
     assert "Vehicle year" in text
-    assert "Window package" in text
+    assert "Tint package" in text
     assert "vehicleType==='car'?'sedan'" in text
     assert "vehicleType==='cargo_van'?'van'" in text
     assert "option.value==='hood'||option.value==='roof'" in text

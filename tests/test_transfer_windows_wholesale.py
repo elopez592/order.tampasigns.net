@@ -32,7 +32,7 @@ def test_storefront_windows_accept_multiple_panels(env):
     assert windows['config']['supports_multiple_dimensions'] is True
     assert windows['config']['lamination_options'] == []
     assert [x['label'] for x in windows['config']['material_options']] == [
-        'Perforated window vinyl', 'Standard opaque vinyl'
+        'Standard opaque vinyl', 'Perforated window vinyl'
     ]
 
     r = client.post('/api/calculate', json={'items':[
@@ -49,6 +49,12 @@ def test_storefront_windows_accept_multiple_panels(env):
     ]})
     assert opaque.status_code == 200, opaque.text
     assert opaque.json()['lines'][0]['material_label'] == 'Standard opaque vinyl'
+
+    perforated = client.post('/api/calculate', json={'items':[
+        {'product_id': windows['id'], 'width': 24, 'height': 36, 'quantity': 1, 'material': 'perforated'}
+    ]})
+    assert perforated.status_code == 200, perforated.text
+    assert perforated.json()['subtotal_cents'] > opaque.json()['subtotal_cents']
 
 
 def test_wholesale_profile_can_apply_default_and_product_discount(env):

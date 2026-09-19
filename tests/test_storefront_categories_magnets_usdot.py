@@ -124,6 +124,18 @@ def test_fleet_window_tint_is_fleet_only_and_retail_first(env):
     assert single.json()['subtotal_cents'] == 60000
     assert single.json()['review_required'] is True
 
+    windshield = client.post('/api/calculate', json={'items':[{
+        'product_id': tint['id'], 'width': 12, 'height': 12, 'quantity': 1,
+        'coverage_option': 'windshield'
+    }]})
+    fronts = client.post('/api/calculate', json={'items':[{
+        'product_id': tint['id'], 'width': 12, 'height': 12, 'quantity': 1,
+        'coverage_option': 'windshield_fronts'
+    }]})
+    assert windshield.json()['subtotal_cents'] == 20000
+    assert fronts.json()['subtotal_cents'] == 30000
+    assert cfg['artwork_upload_disabled'] is True
+
     bulk = client.post('/api/calculate', json={'items':[{
         'product_id': tint['id'], 'width': 12, 'height': 12, 'quantity': 10
     }]})

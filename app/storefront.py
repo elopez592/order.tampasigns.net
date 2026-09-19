@@ -15,6 +15,7 @@ def upgrade_catalog(database):
             cfg = json.loads(row['config'])
             cats = cfg.get('storefront_categories', [])
             name = row['name']
+            active, public = row['active'], row['public']
             if 'banner' in name.lower() or name == 'Custom T-shirts':
                 cats = list(dict.fromkeys(cats + ['Events']))
             if name == 'DTF transfers':
@@ -22,36 +23,156 @@ def upgrade_catalog(database):
                 cfg.update(finished_apparel=True, sell_per_sqft='30', setup_price='0', setup_cost='0', cost_per_sqft='0',
                            minimum_price='0', default_width='12', default_height='12', max_width='12', max_height='12',
                            placement_options=[], quantity_only=True, self_approve_artwork=False,
-                           description='Finished Gildan Heavy Cotton 5000 shirts, including your printed artwork. One shirt with a full front OR back print is $30. Quantity savings apply. Color availability is confirmed before production.',
+                           description='Custom Gildan Heavy Cotton 5000 shirts. Choose a color, sizes and one print location, then upload your design for proofing.',
                            tiers=[{'from': 1, 'multiplier': '1'}, {'from': 6, 'multiplier': '.9'}, {'from': 12, 'multiplier': '.85'}, {'from': 24, 'multiplier': '.8'}, {'from': 48, 'multiplier': '.75'}])
                 cats = ['Apparel', 'Events']
             if name == 'Custom T-shirts':
-                cfg.update(finished_apparel=True, shirt_colors=COLORS, shirt_sizes=SIZES)
+                cfg.update(finished_apparel=True, shirt_colors=COLORS, shirt_sizes=SIZES,
+                           description='Custom Gildan Heavy Cotton 5000 shirts. Choose a color, sizes and one print location, then upload your design for proofing.')
+                cats = ['Apparel', 'Events']
+            if name == 'Window Graphics':
+                cfg.update(
+                    storefront_categories=['Storefront'], supports_multiple_dimensions=True,
+                    material_options=[
+                        {'id':'opaque','label':'Standard opaque vinyl','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','default':True},
+                        {'id':'perforated','label':'Perforated window vinyl','sell_per_sqft_adjustment':'3','cost_per_sqft_adjustment':'1.5','default':False},
+                    ],
+                    description='Window graphics priced by material. Standard opaque vinyl is the base rate; perforated window vinyl costs more. Add each window or panel separately.'
+                )
+                cats = ['Storefront']
             if name == 'Fleet Window Tinting':
                 cfg.update(
-                    sell_per_sqft='600', minimum_price='600', instant=False,
+                    sell_per_sqft='200', minimum_price='200', instant=False, quote_only=False,
                     quantity_only=True, requires_installation=True, vehicle_details_required=True,
-                    description='Full ceramic window tint for a standard vehicle starts at $600 and includes four side windows plus the front and rear windshields. Larger glass or additional windows cost extra after review. Fleet quantity savings apply.',
-                    quantity_only_note='$600 standard-vehicle package: four side windows plus front and rear windshields. Larger glass or additional windows are extra and confirmed after review.'
+                    tint_package_selector=True, artwork_upload_disabled=True, material_options=[],
+                    coverage_options=[
+                        {'id':'full_ceramic','label':'Full ceramic — 4 side windows + front and rear windshields','description':'Standard vehicle package. Larger or additional windows cost extra.','multiplier':'3'},
+                        {'id':'windshield','label':'Windshield only','description':'Ceramic tint for the front windshield.','multiplier':'1'},
+                        {'id':'windshield_fronts','label':'Windshield + 2 front windows','description':'Ceramic tint for the windshield and two front side windows.','multiplier':'1.5'},
+                    ],
+                    description='Ceramic vehicle tint packages: windshield only $200, windshield plus two front windows $300, or full standard-vehicle tint $600. Larger or additional windows cost extra after review.',
+                    quantity_only_note='Choose a ceramic tint package. Vehicle year, make and model are required; larger glass or additional windows are confirmed after review.'
                 )
+                cats = ['Fleet Services']
+            if name == 'Storefront Window Tinting':
+                cfg.update(
+                    unit='sqft', sell_per_sqft='10.5', cost_per_sqft='4.25', minimum_price='75',
+                    default_width='44', default_height='92', min_width='1', min_height='1',
+                    max_width='54', max_height='1200', instant=False, quote_only=False,
+                    supports_multiple_dimensions=True, requires_installation=True,
+                    artwork_upload_disabled=True, material_options=[], lamination_options=[],
+                    description='Storefront window tinting priced by measured glass area. Add each window or panel separately; installation and film selection are confirmed after review.'
+                )
+                cats = ['Storefront']
+            if name == 'Roll-up banners':
+                cfg.update(
+                    unit='sqft', sell_per_sqft='8.181818', cost_per_sqft='0', minimum_price='150',
+                    default_width='33', default_height='80', min_width='33', min_height='80',
+                    max_width='33', max_height='80', instant=True, quote_only=False, quantity_only=True,
+                    quantity_only_note='$150 each, including the 33 × 80 inch printed banner and roll-up stand.',
+                    size_options=[], material_options=[], lamination_options=[],
+                    description='One 33 × 80 inch roll-up banner with the printed banner and retractable stand included. Starts at $150.'
+                )
+                cats = ['Events']
+            if name in ('1/4 inch foam board', 'Foam boards'):
+                name = 'Foam boards'
+                cfg.update(
+                    unit='sqft', sell_per_sqft='4', cost_per_sqft='2', minimum_price='25',
+                    default_width='24', default_height='36', min_width='1', min_height='1',
+                    max_width='48', max_height='96', max_short_axis='48', max_long_axis='96',
+                    instant=True, quote_only=False, quantity_only=False,
+                    material_options=[
+                        {'id':'quarter','label':'1/4 inch foam board — $4/sq ft','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','default':True},
+                        {'id':'half','label':'1/2 inch foam board — $6/sq ft','sell_per_sqft_adjustment':'2','cost_per_sqft_adjustment':'1','default':False},
+                    ],
+                    size_options=[
+                        {'label':'18 × 24 in','width':'18','height':'24'},
+                        {'label':'24 × 36 in','width':'24','height':'36'},
+                        {'label':'36 × 48 in','width':'36','height':'48'},
+                        {'label':'48 × 96 in','width':'48','height':'96'},
+                    ],
+                    description='Printed foam board in 1/4-inch or 1/2-inch thickness. Maximum finished sheet size is 4 × 8 feet.'
+                )
+                cats = ['Storefront', 'Events']
+            if name == '1/2 inch foam board':
+                active, public = 0, 0
             cfg['storefront_categories'] = cats
-            if cfg != json.loads(row['config']) or name != row['name']:
-                conn.execute('UPDATE products SET name=?,config=?,version=version+1,updated_at=? WHERE id=?', (name, json.dumps(cfg), now(), row['id']))
+            if (cfg != json.loads(row['config']) or name != row['name']
+                    or active != row['active'] or public != row['public']):
+                conn.execute('UPDATE products SET name=?,active=?,public=?,config=?,version=version+1,updated_at=? WHERE id=?',
+                             (name, active, public, json.dumps(cfg), now(), row['id']))
         workflow = conn.execute('SELECT id FROM workflows ORDER BY id LIMIT 1').fetchone()['id']
-        additions = [
-            ('Roll-up banners', ['Events'], 'Retractable banner with stand. Choose your size; hardware and final pricing are confirmed in your quote.', 33, 80),
-            ('1/4 inch foam board', ['Storefront', 'Events'], 'Printed quarter-inch foam board for indoor displays and events. Pricing confirmed by the shop.', 24, 36),
-            ('1/2 inch foam board', ['Storefront', 'Events'], 'Printed half-inch foam board for indoor displays and events. Pricing confirmed by the shop.', 24, 36),
-            ('Storefront Window Tinting', ['Storefront'], 'Architectural window tinting for storefronts. Film choice, measurements and installation are quoted after review.', 36, 48),
-        ]
-        for name, cats, description, width, height in additions:
-            if conn.execute('SELECT id FROM products WHERE name=?', (name,)).fetchone():
+        additions = {
+            'Roll-up banners': dict(
+                category='Events', storefront_categories=['Events'], unit='sqft',
+                sell_per_sqft='8.181818', cost_per_sqft='0', setup_price='0', setup_cost='0',
+                waste_percent='0', labor_minutes_per_unit='0', minimum_price='150',
+                default_width='33', default_height='80', min_width='33', min_height='80', max_width='33', max_height='80',
+                instant=True, quantity_only=True,
+                quantity_only_note='$150 each, including the 33 × 80 inch printed banner and roll-up stand.',
+                description='One 33 × 80 inch roll-up banner with the printed banner and retractable stand included. Starts at $150.'
+            ),
+            'Foam boards': dict(
+                category='Storefront', storefront_categories=['Storefront','Events'], unit='sqft',
+                sell_per_sqft='4', cost_per_sqft='2', setup_price='0', setup_cost='0',
+                waste_percent='0', labor_minutes_per_unit='0', minimum_price='25',
+                default_width='24', default_height='36', min_width='1', min_height='1', max_width='48', max_height='96',
+                max_short_axis='48', max_long_axis='96', instant=True,
+                material_options=[
+                    {'id':'quarter','label':'1/4 inch foam board — $4/sq ft','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','default':True},
+                    {'id':'half','label':'1/2 inch foam board — $6/sq ft','sell_per_sqft_adjustment':'2','cost_per_sqft_adjustment':'1','default':False},
+                ],
+                size_options=[
+                    {'label':'18 × 24 in','width':'18','height':'24'},
+                    {'label':'24 × 36 in','width':'24','height':'36'},
+                    {'label':'36 × 48 in','width':'36','height':'48'},
+                    {'label':'48 × 96 in','width':'48','height':'96'},
+                ],
+                description='Printed foam board in 1/4-inch or 1/2-inch thickness. Maximum finished sheet size is 4 × 8 feet.'
+            ),
+            'Storefront Window Tinting': dict(
+                category='Storefront', storefront_categories=['Storefront'], unit='sqft',
+                sell_per_sqft='10.5', cost_per_sqft='4.25', setup_price='0', setup_cost='0',
+                waste_percent='0', labor_minutes_per_unit='0', minimum_price='75',
+                default_width='44', default_height='92', min_width='1', min_height='1', max_width='54', max_height='1200',
+                instant=False, supports_multiple_dimensions=True, requires_installation=True,
+                artwork_upload_disabled=True,
+                description='Storefront window tinting priced by measured glass area. Add each window or panel separately; installation and film selection are confirmed after review.'
+            ),
+            'A-Frame inserts': dict(
+                category='Storefront', storefront_categories=['Storefront','Events'], unit='sqft',
+                sell_per_sqft='8.166667', cost_per_sqft='0', setup_price='0', setup_cost='0',
+                waste_percent='0', labor_minutes_per_unit='0', minimum_price='49',
+                default_width='24', default_height='36', min_width='24', min_height='36', max_width='24', max_height='36',
+                instant=True, quantity_only=True, quantity_only_note='Standard 24 × 36 inch insert. Choose replacement inserts or a complete A-frame with printed inserts.',
+                material_options=[
+                    {'id':'inserts','label':'Printed replacement inserts — $49','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','default':True},
+                    {'id':'with_frame','label':'With A-frame — $99','sell_per_sqft_adjustment':'8.333333','cost_per_sqft_adjustment':'0','default':False},
+                ],
+                description='Standard 24 × 36 inch printed A-frame inserts, with an option to order the complete A-frame for $99.'
+            ),
+            'Construction signs': dict(
+                category='Construction signs', storefront_categories=['Construction signs'], unit='sqft',
+                sell_per_sqft='14', cost_per_sqft='5', setup_price='0', setup_cost='0',
+                waste_percent='15', labor_minutes_per_unit='0', minimum_price='65',
+                default_width='24', default_height='48', min_width='24', min_height='48', max_width='60', max_height='120',
+                max_short_axis='60', max_long_axis='120', instant=True,
+                size_options=[
+                    {'label':'2 × 4 ft','width':'24','height':'48'},
+                    {'label':'3 × 6 ft','width':'36','height':'72'},
+                    {'label':'4 × 8 ft','width':'48','height':'96'},
+                    {'label':'5 × 10 ft','width':'60','height':'120'},
+                ],
+                description='Construction signs printed on durable 3mm aluminum composite panels. Choose 2 × 4, 3 × 6, 4 × 8 or 5 × 10 feet.'
+            ),
+        }
+        for product_name, values in additions.items():
+            if conn.execute('SELECT id FROM products WHERE name=?', (product_name,)).fetchone():
                 continue
-            cfg = validate_config(dict(storefront_categories=cats, description=description, default_width=width, default_height=height,
-                                       sell_per_sqft=0, cost_per_sqft=0, setup_price=0, setup_cost=0, minimum_price=0, instant=False))
-            cfg['quote_only'] = True
+            category = values.pop('category')
+            cfg = validate_config(values)
             conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,1,1,?,?,?)',
-                         (name, cats[0], workflow, json.dumps(cfg), now()))
+                         (product_name, category, workflow, json.dumps(cfg), now()))
 
 
 def garment_selection(item, qty):
@@ -62,10 +183,7 @@ def garment_selection(item, qty):
         raise HTTPException(422, 'Choose a shirt color and size quantities.')
     if any(type(q) is not int or q < 0 or q > 100000 for q in sizes.values()) or sum(sizes.values()) != qty:
         raise HTTPException(422, 'Shirt size quantities must add up to the total quantity.')
-    if not isinstance(placements, list) or not placements or any(p not in PRINTS for p in placements) or len(set(placements)) != len(placements):
+    if not isinstance(placements, list) or len(placements) != 1 or any(p not in PRINTS for p in placements):
         raise HTTPException(422, 'Choose valid print locations.')
-    if 'front' in placements and 'left_chest' in placements:
-        raise HTTPException(422, 'Choose full front or left chest, plus an optional back print.')
     description = 'Gildan 5000 / ' + color + ' / ' + ', '.join(f'{s}: {q}' for s, q in sizes.items() if q) + ' / ' + ', '.join(PRINTS[p] for p in placements)
-    # Base garment + one print = $30; additional location uses the same $15 decoration allowance.
-    return 15 + 15 * len(placements), description
+    return 25 if placements[0] == 'left_chest' else 30, description
