@@ -231,3 +231,7 @@ def test_usdot_custom_measurements_and_font_size_ui(env):
     assert 'Shapes & clipart' in shop
     assert 'data-studio="art.width"' in shop
     assert 'dimensioned-proof-${width}x${height}in.png' in shop
+    assert "c.rect(view.x,view.y,view.width,view.height);c.clip()" in shop
+    assert "c.imageSmoothingQuality='high'" in shop
+    assert 'ratio>=1?1600' in shop
+    assert '4096/Math.max(image.width,image.height)' in shop

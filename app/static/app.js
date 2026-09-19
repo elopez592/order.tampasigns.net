@@ -1,4 +1,4 @@
-import {createShop} from './shop.js?v=20260919-8';
+import {createShop} from './shop.js?v=20260919-9';
 
 const state = {calcSequence:0, user:null, customer:null, csrf:'', catalog:null, jobs:[], job:null, jobTab:'overview', boardMode:'board',
   products:[], workflows:[], users:[], product:null, quote:null, selectedProduct:1, tasks:[], queueFilter:'available',
