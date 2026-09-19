@@ -103,9 +103,10 @@ def test_wrap_coverage_storefront_ui_is_present(env):
     assert 'updateCoverageVisuals();' in text
     assert "option.value==='hood'||option.value==='roof'" in text
     assert "largeDecals?'Large decals'" in text
+    assert "coverageIcon(option.value,trailer,vehicleType)" in text
     assert "Large individual graphics across the van side panels." in text
     assert "multiple" in text
 
     css = client.get('/static/styles.css').text
     assert 'sedan-coverage-blue.webp' in css
-    assert 'van-coverage-blue.webp' in css
+    assert 'van-coverage-blue-v2.webp' in css

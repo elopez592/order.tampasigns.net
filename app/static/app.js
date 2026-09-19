@@ -189,7 +189,7 @@ function updateCoverageVisuals(){
     card.hidden=van&&(option.value==='hood'||option.value==='roof');
     $('strong',card).textContent=largeDecals?'Large decals':(original?.label||'');
     $('small',card).textContent=largeDecals?'Large individual graphics across the van side panels.':(original?.description||'');
-    $('.coverage-visual',card).innerHTML=coverageIcon(largeDecals?'spot':option.value,trailer,vehicleType);
+    $('.coverage-visual',card).innerHTML=coverageIcon(option.value,trailer,vehicleType);
   });
   const selected=form.querySelector('input[name="coverage_option"]:checked');
   if(selected?.closest('.coverage-card').hidden){
