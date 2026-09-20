@@ -42,11 +42,10 @@ def usdot_design(value) -> dict:
         key: str(number(font_sizes.get(key, default), f'{key.title()} point size', '8', '300'))
         for key, default in USDOT_FONT_DEFAULTS.items()
     }
-    for key, default in (('text_color', '#111111'), ('background_color', '#ffffff')):
-        color = str(value.get(key, default)).strip().lower()
-        if not re.fullmatch(r'#[0-9a-f]{6}', color):
-            raise HTTPException(422, 'Choose valid USDOT design colors.')
-        result[key] = color
+    color = str(value.get('text_color', '#111111')).strip().lower()
+    if not re.fullmatch(r'#[0-9a-f]{6}', color):
+        raise HTTPException(422, 'Choose a valid USDOT lettering color.')
+    result['text_color'] = color
     return result
 
 

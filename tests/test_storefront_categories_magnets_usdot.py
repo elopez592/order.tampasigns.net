@@ -181,7 +181,7 @@ def test_usdot_quote_preserves_generated_preview_copy(env):
     assert saved['font_scale'] == '1.2'
     assert saved['font_sizes'] == {'company': '64', 'phone': '28', 'number': '80', 'licenses': '26', 'location': '30'}
     assert saved['text_color'] == '#ffffff'
-    assert saved['background_color'] == '#123456'
+    assert 'background_color' not in saved
 
     invalid = client.post('/api/calculate', json={'items':[{
         'product_id': usdot['id'], 'width': 18, 'height': 12, 'quantity': 1,
@@ -235,3 +235,9 @@ def test_usdot_custom_measurements_and_font_size_ui(env):
     assert "c.imageSmoothingQuality='high'" in shop
     assert 'ratio>=1?1600' in shop
     assert '4096/Math.max(image.width,image.height)' in shop
+    assert "input('usdot_text_color','Letter color'" in js
+    assert 'usdot_background_color' not in js
+    assert 'background_color' not in shop
+    assert 'strokeRect' not in shop[shop.index('async function usdotPrintFile'):shop.index('async function designFiles')]
+    assert 'const location=(form.elements.location_line?.value||\'\')' in js
+    assert "$('.usdot-preview-location',preview).hidden=!location" in js
