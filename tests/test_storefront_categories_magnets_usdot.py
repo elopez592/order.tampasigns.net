@@ -85,6 +85,7 @@ def test_decals_usdot_and_apparel_listings(env):
     assert [x['id'] for x in hats['placement_options']] == ['front']
     assert [x['id'] for x in polos['placement_options']] == ['left_chest', 'right_chest']
     assert hats['digitizing_fee'] == polos['digitizing_fee'] == '35'
+    assert hats['apparel_unit_price'] == polos['apparel_unit_price'] == '35'
     assert 'one-time $35 digitizing fee' in hats['description']
     assert 'one-time $35 digitizing fee' in polos['description']
 
@@ -104,7 +105,7 @@ def test_decals_usdot_and_apparel_listings(env):
         'shirt_color': 'Navy', 'size_quantities': {'Adjustable': 5}, 'print_locations': ['front']
     }]})
     assert hat_quote.status_code == 200, hat_quote.text
-    assert hat_quote.json()['subtotal_cents'] == 3500
+    assert hat_quote.json()['subtotal_cents'] == 21000
     assert hat_quote.json()['lines'][0]['digitizing_fee_cents'] == 3500
     assert hat_quote.json()['lines'][0]['quote_only'] is True
     assert hat_quote.json()['review_required'] is True

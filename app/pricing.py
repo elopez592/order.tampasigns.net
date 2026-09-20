@@ -120,6 +120,7 @@ def validate_config(cfg: dict) -> dict:
     if apparel_kind not in ('', 'custom_shirt', 'embroidered_hat', 'embroidered_polo'):
         raise HTTPException(422, 'Choose a valid apparel kind.')
     result['apparel_kind'] = apparel_kind
+    result['apparel_unit_price'] = str(number(cfg.get('apparel_unit_price', 0), 'Apparel unit price', '0', '10000'))
     result['digitizing_fee'] = str(number(cfg.get('digitizing_fee', 0), 'Digitizing fee', '0', '10000'))
     shirt_colors = cfg.get('shirt_colors', {})
     if not isinstance(shirt_colors, dict) or len(shirt_colors) > 40 or any(not str(k).strip() or len(str(k)) > 50 or not re.fullmatch(r'#[0-9a-fA-F]{6}', str(v)) for k, v in shirt_colors.items()):
@@ -509,7 +510,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
         retail_sell = sell
         wholesale_discount = product_discounts.get(row['id'], wholesale_default)
         if wholesale and wholesale_discount > 0:
-            protected_fee = min(sell, cents(cfg['setup_price']))
+            protected_fee = min(sell, cents(cfg.get('digitizing_fee', 0) if cfg.get('finished_apparel') else cfg['setup_price']))
             if row['category'] == 'Custom' or any(word in row['name'].lower() for word in ('design', 'digitiz')):
                 protected_fee = sell
             discounted = protected_fee + cent_round(D(sell - protected_fee) * (D(1) - wholesale_discount / 100))

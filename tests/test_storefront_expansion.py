@@ -128,5 +128,7 @@ def test_wholesale_discount_does_not_reduce_digitizing_fee(env):
             'shirt_color': 'Black', 'size_quantities': {'Adjustable': 10}, 'print_locations': ['front']}
     retail = public.post('/api/calculate', json={'items': [item]}).json()
     wholesale = public.post('/api/calculate', json={'items': [item], 'wholesale_token': token}).json()
-    assert wholesale['subtotal_cents'] == retail['subtotal_cents'] == 3500
+    assert retail['subtotal_cents'] == 38500
+    assert wholesale['subtotal_cents'] == 21000
     assert retail['lines'][0]['digitizing_fee_cents'] == 3500
+    assert wholesale['lines'][0]['digitizing_fee_cents'] == 3500

@@ -244,8 +244,10 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 cfg['description'] = 'Ready-to-press DTF transfers priced by print area. Choose a standard apparel placement size or use Custom size. Garments and pressing are not included.'
             if old['name'].lower() == 'embroidered polos':
                 cfg['storefront_categories'] = ['Apparel']
-                cfg['setup_price'] = '35'
-                cfg['minimum_price'] = '35'
+                cfg['apparel_unit_price'] = cfg.get('apparel_unit_price', cfg.get('setup_price', '35'))
+                cfg['setup_price'] = '0'
+                cfg['minimum_price'] = '0'
+                cfg['digitizing_fee'] = '35'
                 cfg['instant'] = False
                 cfg['default_width'] = '3.5'
                 cfg['default_height'] = '3.5'
@@ -254,11 +256,13 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     {'id':'right_chest','label':'Right chest — 3.5 x 3.5 in','width':'3.5','height':'3.5'}
                 ]
                 cfg['size_options'] = []
-                cfg['description'] = '$35 digitizing charge for every embroidery order. Choose left chest or right chest. Garment and stitch-count pricing is reviewed before quoting. Over-complex artwork may be rejected or simplified for an additional design fee.'
+                cfg['description'] = 'Choose polo colors, sizes and chest placement. Product pricing is calculated first, then a one-time $35 digitizing fee is added to the embroidery order.'
             if old['name'].lower() == 'embroidered hats':
                 cfg['storefront_categories'] = ['Apparel']
-                cfg['setup_price'] = '35'
-                cfg['minimum_price'] = '35'
+                cfg['apparel_unit_price'] = cfg.get('apparel_unit_price', cfg.get('setup_price', '35'))
+                cfg['setup_price'] = '0'
+                cfg['minimum_price'] = '0'
+                cfg['digitizing_fee'] = '35'
                 cfg['instant'] = False
                 cfg['default_width'] = '4'
                 cfg['default_height'] = '2.25'
@@ -266,7 +270,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     {'id':'front','label':'Front — up to 4 x 2.25 in','width':'4','height':'2.25'}
                 ]
                 cfg['size_options'] = []
-                cfg['description'] = '$35 digitizing charge for every embroidery order. Hat embroidery is front placement only. Garment and stitch-count pricing is reviewed before quoting. Over-complex artwork may be rejected or simplified for an additional design fee.'
+                cfg['description'] = 'Choose a hat color and quantity. Product pricing is calculated first, then a one-time $35 digitizing fee is added to the embroidery order.'
 
             # Public benchmark profile: Sticker Mule-style 3x3 quantity anchors.
             if 'die-cut sticker' in lname and len(cfg.get('quantity_price_table', [])) == 5 and [r.get('quantity') for r in cfg.get('quantity_price_table', [])] == [50,100,200,500,1000]:
@@ -647,17 +651,17 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 ]
             },
             'Embroidered hats': {
-                'sell_per_sqft':'0','setup_price':'35','minimum_price':'35','instant':False,
+                'sell_per_sqft':'0','setup_price':'0','minimum_price':'0','apparel_unit_price':'35','digitizing_fee':'35','instant':False,
                 'default_width':4,'default_height':2.25,'min_width':1,'min_height':1,'max_width':5,'max_height':3,
                 'self_approve_artwork':False,
-                'description':'$35 digitizing charge for every embroidery order. Hat embroidery is front placement only. Garment and stitch-count pricing is reviewed before quoting. Over-complex artwork may be rejected or simplified for an additional design fee.',
+                'description':'Choose a hat color and quantity. Product pricing is calculated first, then a one-time $35 digitizing fee is added to the embroidery order.',
                 'placement_options':[{'id':'front','label':'Front — up to 4 x 2.25 in','width':'4','height':'2.25'}]
             },
             'Embroidered polos': {
-                'sell_per_sqft':'0','setup_price':'35','minimum_price':'35','instant':False,
+                'sell_per_sqft':'0','setup_price':'0','minimum_price':'0','apparel_unit_price':'35','digitizing_fee':'35','instant':False,
                 'default_width':3.5,'default_height':3.5,'min_width':1,'min_height':1,'max_width':4.5,'max_height':4.5,
                 'self_approve_artwork':False,
-                'description':'$35 digitizing charge for every embroidery order. Choose left chest or right chest. Garment and stitch-count pricing is reviewed before quoting. Over-complex artwork may be rejected or simplified for an additional design fee.',
+                'description':'Choose polo colors, sizes and chest placement. Product pricing is calculated first, then a one-time $35 digitizing fee is added to the embroidery order.',
                 'placement_options':[
                     {'id':'left_chest','label':'Left chest — 3.5 x 3.5 in','width':'3.5','height':'3.5'},
                     {'id':'right_chest','label':'Right chest — 3.5 x 3.5 in','width':'3.5','height':'3.5'}

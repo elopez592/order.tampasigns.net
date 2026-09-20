@@ -38,16 +38,18 @@ def upgrade_catalog(database):
                 cfg.update(
                     finished_apparel=True, apparel_kind='embroidered_hat', quote_only=True,
                     shirt_colors=COLORS, shirt_sizes=['Adjustable'], digitizing_fee='35',
-                    setup_price='35', minimum_price='35', instant=False,
-                    description='Choose a hat color and quantity. A one-time $35 digitizing fee is added to the apparel order; garment and stitch-count pricing is reviewed separately before quoting.'
+                    apparel_unit_price=cfg.get('apparel_unit_price', cfg.get('setup_price', '35')),
+                    setup_price='0', minimum_price='0', instant=False,
+                    description='Choose a hat color and quantity. Product pricing is calculated first, then a one-time $35 digitizing fee is added to the embroidery order.'
                 )
                 cats = ['Apparel']
             if name == 'Embroidered polos':
                 cfg.update(
                     finished_apparel=True, apparel_kind='embroidered_polo', quote_only=True,
                     shirt_colors=COLORS, shirt_sizes=SIZES, digitizing_fee='35',
-                    setup_price='35', minimum_price='35', instant=False,
-                    description='Choose polo colors, sizes and chest placement. A one-time $35 digitizing fee is added to the apparel order; garment and stitch-count pricing is reviewed separately before quoting.'
+                    apparel_unit_price=cfg.get('apparel_unit_price', cfg.get('setup_price', '35')),
+                    setup_price='0', minimum_price='0', instant=False,
+                    description='Choose polo colors, sizes and chest placement. Product pricing is calculated first, then a one-time $35 digitizing fee is added to the embroidery order.'
                 )
                 cats = ['Apparel']
             if name == 'Window Graphics':
@@ -218,7 +220,7 @@ def garment_selection(item, qty, cfg, product_name):
         options = {p['id']: p['label'].split(' — ')[0] for p in cfg.get('placement_options', [])}
         if not isinstance(placements, list) or len(placements) != 1 or placements[0] not in options:
             raise HTTPException(422, 'Choose a valid embroidery placement.')
-        unit_price = 0
+        unit_price = float(cfg.get('apparel_unit_price') or cfg.get('setup_price') or 0)
         garment = 'Embroidered hat' if kind == 'embroidered_hat' else 'Embroidered polo'
         placement_labels = [options[placements[0]]]
     description = garment + ' / ' + color + ' / ' + ', '.join(f'{s}: {q}' for s, q in sizes.items() if q) + ' / ' + ', '.join(placement_labels)
