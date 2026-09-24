@@ -1,3 +1,5 @@
+import {createWindowUploads} from './window-upload.js?v=20260924-1';
+
 // Customer project cart and artwork attachments.
 export function createShop(ctx) {
   const {state,app,api,esc,money,input,select,formFooter,showModal,closeModal,toast,publicHeader,publicProductName,productPath,setPublicSeo,storefrontProductsFor,productIcon,calculatorView,recalculate,currentItems,orderModal,actions,forms}=ctx;
@@ -12,11 +14,12 @@ export function createShop(ctx) {
   const canvaGuide=(width,height,label='this product')=>`<div class="notice info mt"><strong>Want more design freedom?</strong><br>Design in Canva opens a custom-size artboard at <strong>${esc(width)} × ${esc(height)} in</strong> for ${esc(label)} when Canva is connected. Download a PDF Print or high-resolution PNG and upload it back to this project.</div>`;
   const canvaButton=(width,height,label,extraClass='')=>`<button type="button" class="btn light ${extraClass}" data-action="canva-open" data-width="${esc(width)}" data-height="${esc(height)}" data-label="${esc(label)}">Design in Canva</button>`;
   const multiPanelArtwork=p=>!!p?.config?.supports_multiple_dimensions;
-  const multiPanelNote='<div class="notice info mt"><strong>Multi-pane artwork needs shop layout.</strong><br>Upload a concept, sketch or reference files when you submit, or request design help so we can split the artwork cleanly across each pane.</div>';
+  const multiPanelNote='<div class="notice info mt"><strong>Have a design for your windows?</strong><br>Upload finished artwork, a multi-page PDF, or separate files for each pane. You can also upload a storefront concept or request design help. We will review the layout and alignment before production.</div>';
   const db=new Promise((resolve,reject)=>{const r=indexedDB.open('tampa_designs',1);r.onupgradeneeded=()=>r.result.createObjectStore('designs',{keyPath:'id'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(new Error('Design storage is unavailable in this browser.'));});
   async function storage(mode,operation){const database=await db;return new Promise((resolve,reject)=>{const tx=database.transaction('designs',mode),r=operation(tx.objectStore('designs'));tx.oncomplete=()=>resolve(r.result);tx.onerror=()=>reject(new Error('Unable to save artwork. Your browser storage may be full.'));});}
   const saveDesign=d=>storage('readwrite',s=>s.put(d));
   const getDesign=id=>storage('readonly',s=>s.get(id));
+  const windowUploads=createWindowUploads({esc,showModal,toast,getDesign,saveDesign,product,getProject:()=>project,persist});
   const designs=()=>storage('readonly',s=>s.getAll());
   const imageFor=color=>'/static/shirts/'+String(color||'White').toLowerCase().replaceAll(' ','-')+'.jpg';
   const shirtItem=()=>{const f=$('#calculator'),sizes=Object.fromEntries($$('[data-shirt-size]').map(e=>[e.dataset.shirtSize,Number(e.value)]));return {product_id:state.selectedProduct,width:12,height:12,quantity:Object.values(sizes).reduce((a,b)=>a+b,0),shirt_color:f.elements.shirt_color.value,size_quantities:sizes,print_locations:$$('input[name="print_locations"]:checked').map(e=>e.value)};};
@@ -33,14 +36,17 @@ export function createShop(ctx) {
     }
     if(p.config.contour_customizer)f.insertAdjacentHTML('afterend','<p class="field-hint mt">Upload your PNG or JPEG artwork when submitting the project. We will generate an approximate contour outline preview for review; the final cut path may differ slightly after production setup.</p>');
     if(!p.config.artwork_upload_disabled&&!p.config.contour_customizer){
-      if(multiPanelArtwork(p))f.insertAdjacentHTML('afterend',`${multiPanelNote}<div class="row wrap mt"><button type="button" class="btn light" data-action="design-quote">Request design help</button></div>`);
+      if(multiPanelArtwork(p))f.insertAdjacentHTML('afterend',`${multiPanelNote}<div class="row wrap mt">${windowUploads.button({product_id:p.id})}<button type="button" class="btn light" data-action="design-quote">Request design help</button></div>`);
       else f.insertAdjacentHTML('afterend',`<div class="row wrap mt"><button type="button" class="btn light" data-action="product-canva">Design in Canva</button></div><p class="field-hint mt-sm">Canva opens in a new tab. Use the selected product size, then upload the exported PDF/PNG when submitting your project.</p>`);
     }
+    windowUploads.refresh().catch(e=>toast(e.message,true));
   }
   async function add(){
     await recalculate();if(!state.quote)throw new Error('Complete your product options first.');
     if(project.length+state.currentQuoteItems.length>30)throw new Error('A project supports up to 30 product lines.');
-    project.push(...state.currentQuoteItems.map(item=>({...item,key:crypto.randomUUID()})));persist();
+    const items=await windowUploads.prepareItems(state.currentQuoteItems.map(item=>({...item,key:crypto.randomUUID()})));
+    project.push(...items);persist();
+    await windowUploads.clearDrafts(items).catch(e=>toast(e.message,true));
     showModal('Added to your project',`<p>Your project now has ${project.length} item${project.length===1?'':'s'}.</p><div class="row mt"><button class="btn light" data-action="close">Keep shopping</button><a class="btn primary" href="/project">View project</a></div>`);
     const count=$('[data-project-count]');if(count)count.textContent=project.length;
   }
@@ -48,11 +54,11 @@ export function createShop(ctx) {
     const q=await api('/api/calculate','POST',{items:project,wholesale_token:state.wholesaleToken});
     state.quote=q;state.currentQuoteItems=structuredClone(project);state.canBuy=!q.review_required&&q.meets_minimum_order&&state.catalog.checkout?.available;return q;
   }
-  function projectArtworkAction(line){
+  function projectArtworkAction(line,index){
     const p=product(line.product_id);
     if(line.artwork_upload_disabled)return '';
     if(p?.config.contour_customizer)return '<span class="badge blue">Upload artwork at checkout</span>';
-    if(multiPanelArtwork(p))return '<span class="badge blue">Upload concept at checkout</span><button class="btn light" data-action="design-quote">Request design help</button>';
+    if(multiPanelArtwork(p))return `${windowUploads.button(project[index])}<button class="btn light" data-action="design-quote">Request design help</button>`;
     return canvaButton(line.width,line.height,publicProductName(p));
   }
   function projectArtworkHint(line){
@@ -66,7 +72,8 @@ export function createShop(ctx) {
     page('Your project',project.length?'<p>Updating your prices…</p>':'<section class="panel"><h2>Make something great.</h2><p class="mt">Add products, artwork and quantities here, then submit everything together.</p><a class="btn primary mt" href="/products">Find a product</a></section>');
     if(!project.length)return;
     let q;try{q=await quoteProject();}catch(e){page('Your project',`<div class="notice mb">${esc(e.message)} Remove the affected item and add it again with current options.</div>${project.map((item,i)=>`<div class="panel mb">${esc(product(item.product_id)?.name||'Unavailable product')} <button class="btn light" data-action="project-remove" data-index="${i}">Remove</button></div>`).join('')}`);return;}
-    page('Your project',`<div class="project-layout"><section class="stack">${q.lines.map((line,i)=>`<article class="panel"><div class="row between wrap"><h2>${esc(publicProductName(product(line.product_id)))}</h2><strong>${line.quote_only?'Quote required':money(line.sell_cents)}</strong></div><p class="muted mt-sm">${esc(line.description||`${line.width} × ${line.height} in`)}</p><div class="row wrap mt"><label class="field"><span>${line.finished_apparel?'Total shirts':'Quantity'}</span><input type="number" min="1" max="100000" step="1" data-project-quantity="${i}" value="${line.quantity}" ${line.finished_apparel?'readonly':''}></label>${projectArtworkAction(line)}<button class="btn ghost" data-action="project-remove" data-index="${i}">Remove</button></div>${projectArtworkHint(line)}${line.finished_apparel?`<div class="shirt-sizes mt">${Object.entries(line.size_quantities).map(([s,n])=>`<label class="field"><span>${esc(s)}</span><input type="number" min="0" step="1" max="100000" data-project-size="${esc(s)}" data-index="${i}" value="${n}"></label>`).join('')}</div>`:''}</article>`).join('')}</section><aside class="panel estimate-card"><div class="eyebrow">PROJECT ESTIMATE</div><div class="metric large">${money(q.subtotal_cents)}</div>${q.lines.some(l=>l.quote_only)?'<p class="notice mt">Quote-only items are not included in this total. We will confirm their prices.</p>':''}<p class="muted mt">${q.lines.length} product lines. Tax and delivery confirmed at checkout or in your quote.</p>${!q.meets_minimum_order?`<p class="notice mt">Your project minimum is ${money(q.minimum_order_cents)}. Add more items or request a reviewed quote.</p>`:''}<button class="btn primary wide mt" data-action="project-checkout">${state.canBuy?'Review project & checkout':'Submit project for a quote'}</button><a class="btn light wide mt" href="/products">Add more products</a><p class="field-hint mt">Your project is saved in this browser. Submitted projects appear in your signed-in customer account.</p></aside></div>`);
+    page('Your project',`<div class="project-layout"><section class="stack">${q.lines.map((line,i)=>`<article class="panel"><div class="row between wrap"><h2>${esc(publicProductName(product(line.product_id)))}</h2><strong>${line.quote_only?'Quote required':money(line.sell_cents)}</strong></div><p class="muted mt-sm">${esc(line.description||`${line.width} × ${line.height} in`)}</p><div class="row wrap mt"><label class="field"><span>${line.finished_apparel?'Total shirts':'Quantity'}</span><input type="number" min="1" max="100000" step="1" data-project-quantity="${i}" value="${line.quantity}" ${line.finished_apparel?'readonly':''}></label>${projectArtworkAction(line,i)}<button class="btn ghost" data-action="project-remove" data-index="${i}">Remove</button></div>${projectArtworkHint(line)}${line.finished_apparel?`<div class="shirt-sizes mt">${Object.entries(line.size_quantities).map(([s,n])=>`<label class="field"><span>${esc(s)}</span><input type="number" min="0" step="1" max="100000" data-project-size="${esc(s)}" data-index="${i}" value="${n}"></label>`).join('')}</div>`:''}</article>`).join('')}</section><aside class="panel estimate-card"><div class="eyebrow">PROJECT ESTIMATE</div><div class="metric large">${money(q.subtotal_cents)}</div>${q.lines.some(l=>l.quote_only)?'<p class="notice mt">Quote-only items are not included in this total. We will confirm their prices.</p>':''}<p class="muted mt">${q.lines.length} product lines. Tax and delivery confirmed at checkout or in your quote.</p>${!q.meets_minimum_order?`<p class="notice mt">Your project minimum is ${money(q.minimum_order_cents)}. Add more items or request a reviewed quote.</p>`:''}<button class="btn primary wide mt" data-action="project-checkout">${state.canBuy?'Review project & checkout':'Submit project for a quote'}</button><a class="btn light wide mt" href="/products">Add more products</a><p class="field-hint mt">Your project is saved in this browser. Submitted projects appear in your signed-in customer account.</p></aside></div>`);
+    await windowUploads.refresh();
     $$('[data-project-quantity], [data-project-size]').forEach(e=>e.addEventListener('change',async()=>{const n=Number(e.value);if(!Number.isInteger(n)||n< (e.dataset.projectSize?0:1)||n>100000){toast('Enter a valid whole quantity.',true);return;}const index=Number(e.dataset.index??e.dataset.projectQuantity);if(e.dataset.projectSize){project[index].size_quantities[e.dataset.projectSize]=n;project[index].quantity=Object.values(project[index].size_quantities).reduce((a,b)=>a+b,0);}else project[index].quantity=n;persist();await projectView();}));
   }
   async function openCanvaDesign(width,height,label,options={}){
@@ -243,7 +250,7 @@ export function createShop(ctx) {
     return new File([blob],`item-${index+1}-usdot-print-ready-${width}x${height}in.png`,{type:'image/png'});
   }
   async function designFiles(uploadedFiles=[]){
-    const files=[],imageUploads=uploadedFiles.filter(file=>['image/png','image/jpeg'].includes(file.type));let contourUploadIndex=0;
+    const files=await windowUploads.filesFor(project),imageUploads=uploadedFiles.filter(file=>['image/png','image/jpeg'].includes(file.type));let contourUploadIndex=0;
     for(let i=0;i<project.length;i++){
       if(project[i].usdot_design)files.push(await usdotPrintFile(project[i],i));
       if(product(project[i].product_id)?.config.contour_customizer){const source=imageUploads[Math.min(contourUploadIndex,imageUploads.length-1)];contourUploadIndex+=1;if(source)files.push(...await contourPreviewFromFile(source,project[i],i));}
@@ -267,12 +274,12 @@ export function createShop(ctx) {
     }
     return files;
   }
-  Object.assign(actions,{
+  Object.assign(actions,windowUploads.actions,{
     'request-order':add,
     'canva-open':async b=>openCanvaDesign(b.dataset.width,b.dataset.height,b.dataset.label),
     'product-canva':async()=>{await recalculate();const item=state.currentQuoteItems?.[0];if(!item)throw new Error('Complete your options before designing in Canva.');const p=product(item.product_id);if(multiPanelArtwork(p)){toast('For multiple panes or full storefronts, upload a concept or request design help so the shop can split and align the artwork.',true);return;}await openCanvaDesign(item.width,item.height,publicProductName(p));},
     'project-remove':async b=>{project.splice(Number(b.dataset.index),1);persist();await projectView();},
-    'project-checkout':async()=>{await quoteProject();state.projectCheckout=true;orderModal();},
+    'project-checkout':async()=>{await quoteProject();state.projectCheckout=true;orderModal();await windowUploads.checkoutHint(project);},
     'browse-product':async b=>{state.selectedProduct=Number(b.dataset.id);state.selectedCategory=product(b.dataset.id).config.storefront_categories[0];sessionStorage.setItem('storefront_category',state.selectedCategory);history.pushState(null,'',productPath(product(b.dataset.id)));await calculatorView();},
     'studio-load':async b=>studioView({id:b.dataset.id}),
     'studio-select-layer':async b=>{const side=draft.sides[draft.side];studioSelection=b.dataset.layer==='shapes'?(side.shapes.length?`shape:${side.shapes.length-1}`:'artwork'):b.dataset.layer;await saveDesign(draft);await studioView({id:draft.id,projectKey:draft.projectKey});},
