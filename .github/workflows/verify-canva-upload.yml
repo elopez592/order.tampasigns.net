@@ -1,0 +1,111 @@
+name: Verify Canva and Upload File choices
+on:
+  push:
+    branches: [canva-upload-file-20260924, verify-canva-upload-live-20260924]
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply guarded artwork-only changes
+        if: github.ref_name == 'canva-upload-file-20260924'
+        run: python scripts/apply_canva_upload.py
+      - name: Verify syntax and upload lifecycles
+        run: |
+          node --check app/static/app.js
+          node --check app/static/shop.js
+          node --check app/static/window-upload.js
+          node tests/window_upload.test.mjs
+          node tests/wrap_upload.test.mjs
+          node tests/canva_upload.test.mjs
+      - name: Install isolated test dependencies
+        run: |
+          pip install -r requirements-dev.txt playwright
+          python -m playwright install --with-deps chromium
+      - name: Compare the complete suite with unchanged production
+        if: github.ref_name == 'canva-upload-file-20260924'
+        run: |
+          python - <<'PY'
+          import concurrent.futures, subprocess, tempfile, xml.etree.ElementTree as ET
+          from pathlib import Path
+          root=Path.cwd();base=Path(tempfile.mkdtemp())/'base'
+          subprocess.run(['git','worktree','add','--detach',str(base),'18f5be65bcc0c903279d18046059d7b7ec9bba3d'],check=True)
+          def test(folder):
+              report=folder/'regression-results.xml'
+              result=subprocess.run(['python','-m','pytest','-q','--junitxml='+str(report)],cwd=folder,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=300)
+              if result.returncode not in (0,1) or not report.exists():raise RuntimeError(result.stdout)
+              nodes=ET.parse(report).getroot().findall('.//testcase')
+              failures={n.get('classname','')+'::'+n.get('name','') for n in nodes if n.find('failure') is not None or n.find('error') is not None}
+              return len(nodes),failures,result.stdout
+          with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+              old=pool.submit(test,base);new=pool.submit(test,root)
+              old_count,old_failures,_=old.result();count,failures,output=new.result()
+          print('Baseline:',old_count,'tests; failures:',sorted(old_failures))
+          print('Candidate:',count,'tests; failures:',sorted(failures))
+          if failures-old_failures or count<old_count:
+              print(output);raise RuntimeError('New failures or missing tests')
+          print('PASS: no new regressions relative to production.')
+          PY
+      - name: Exercise all products and private attachments on isolated local orders
+        if: github.ref_name == 'canva-upload-file-20260924'
+        env:
+          DATA_DIR: /tmp/canva-upload-verification
+          PUBLIC_URL: http://localhost:8000
+          APP_ENV: development
+          DEMO_SEED: '0'
+        run: |
+          python -m uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 > "$RUNNER_TEMP/canva-upload-app.log" 2>&1 &
+          APP_PID=$!
+          trap 'kill "$APP_PID" || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://localhost:8000/health && break || sleep 1; done
+          python scripts/verify_canva_upload_browser.py
+          python scripts/verify_window_upload_browser.py
+          python scripts/verify_wrap_upload_browser.py
+      - name: Verify the live ordering site without submitting any orders
+        if: github.ref_name == 'verify-canva-upload-live-20260924'
+        env:
+          VERIFY_BASE_URL: https://orders.tampasigns.net
+        run: |
+          python scripts/verify_canva_upload_browser.py --live
+          python - <<'PY'
+          import urllib.request
+          for url in ['https://www.tampasigns.net/','https://tampasigns.net/','https://www.tampasignsandstickers.com/','https://tampasignsandstickers.com/','https://orders.tampasigns.net/health']:
+              with urllib.request.urlopen(url,timeout=20) as response:
+                  assert response.status==200
+                  print('PASS HTTPS:',url,'->',response.url)
+          PY
+      - name: Save browser verification and patched source
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canva-upload-verification
+          path: |
+            canva-upload-*.png
+            canva-upload-verification.json
+            window-upload-*.png
+            wrap-upload-*.png
+            app/static/window-upload.js
+            app/static/shop.js
+            app/static/app.js
+            app/static/index.html
+            tests/*upload*.mjs
+          if-no-files-found: error
+      - name: Commit the tested changes on the feature branch only
+        if: github.ref_name == 'canva-upload-file-20260924'
+        run: |
+          git add app/static/window-upload.js app/static/shop.js app/static/app.js app/static/index.html tests/window_upload.test.mjs tests/wrap_upload.test.mjs
+          git config user.name 'Artwork upload maintenance'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Add Upload File alongside Design in Canva on all eligible products and cart items'
+          git push origin HEAD:canva-upload-file-20260924
