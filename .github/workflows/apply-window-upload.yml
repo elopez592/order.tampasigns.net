@@ -1,0 +1,61 @@
+name: Apply and verify window artwork upload
+on:
+  push:
+    branches: [window-artwork-upload-20260924]
+permissions:
+  contents: write
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATA_DIR: ${{ runner.temp }}/window-upload-verification
+      PUBLIC_URL: http://localhost:8000
+      APP_ENV: development
+      DEMO_SEED: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: window-artwork-upload-20260924
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply guarded integration
+        run: python scripts/apply_window_upload.py
+      - name: Verify JavaScript and artwork lifecycle
+        run: |
+          node --check app/static/app.js
+          node --check app/static/shop.js
+          node --check app/static/window-upload.js
+          node tests/window_upload.test.mjs
+      - name: Run application regression tests
+        run: |
+          pip install -r requirements-dev.txt
+          python -m compileall -q app
+          pytest -q
+      - name: Verify browser upload through private order attachment
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+          python -m uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 > "$RUNNER_TEMP/window-upload-app.log" 2>&1 &
+          APP_PID=$!
+          trap 'kill "$APP_PID" || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://localhost:8000/health && break || sleep 1; done
+          python scripts/verify_window_upload_browser.py
+      - name: Save visual verification
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: window-upload-browser-verification
+          path: window-upload-*.png
+          if-no-files-found: ignore
+      - name: Commit verified source
+        run: |
+          git add app/static/shop.js app/static/app.js app/static/index.html
+          git config user.name 'Window upload maintenance'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Enable window design uploads on product pages, cart and order submission'
+          git push origin HEAD:window-artwork-upload-20260924
