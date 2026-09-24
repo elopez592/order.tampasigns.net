@@ -30,7 +30,7 @@ from .images import sanitize, save_asset, panel_sheet, MAX_UPLOAD
 from .checkout import (StripeGateway, availability, eligible_quote, checkout_policy,
                        start_checkout, process_event, order_for_job)
 from .mailer import public_status as email_status, notify_customer, notify_staff, send_test_email
-from . import canva
+from . import canva, marketing
 import uuid
 
 COOKIE = 'signshop_session'
@@ -100,6 +100,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     app.state.uploads = uploads
     app.state.initial_credentials = credentials
     app.state.public_url = public_url
+    marketing.install(app, database, public_url, production, require_admin)
 
     def seo_html(title: str, description: str, canonical: str, product=None) -> str:
         source = (STATIC / 'index.html').read_text()
@@ -253,7 +254,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                         user = conn.execute('SELECT id,name,email,role FROM users WHERE id=? AND active=1', (row['user_id'],)).fetchone()
                         if user:
                             request.state.user = dict(user)
-        if request.url.path.startswith('/api/') and request.url.path != '/api/payments/stripe/webhook' and request.method not in ('GET', 'HEAD', 'OPTIONS'):
+        if request.url.path.startswith('/api/') and request.url.path not in ('/api/payments/stripe/webhook','/api/marketing/event') and request.method not in ('GET', 'HEAD', 'OPTIONS'):
             sess = request.state.session
             csrf = request.headers.get('x-csrf-token', '')
             if not sess or not hmac.compare_digest(sess['csrf'], csrf):
@@ -461,6 +462,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 if wholesale:
                     order_payload['_wholesale_client_id'] = wholesale['id']
                 job_id = create_job(conn,order_payload,source='checkout',actor='Online customer')
+                marketing.capture_conversion(conn, request, job_id)
                 from .customers import link_order
                 link_order(conn, request, job_id)
                 tax = 0
@@ -516,6 +518,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             if wholesale:
                 request_payload['_wholesale_client_id'] = wholesale['id']
             job_id = create_job(conn, request_payload, source='customer', actor='Public estimate request')
+            marketing.capture_conversion(conn, request, job_id)
             from .customers import link_order
             link_order(conn, request, job_id)
             link = issue_portal(conn, job_id)
@@ -585,6 +588,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 'notes': details,
                 'items': items
             }, source='custom', actor='Custom quote request')
+            marketing.capture_conversion(conn, request, job_id)
             link = issue_portal(conn, job_id)
         notify_customer(database, job_id, 'order_received', f'JOB-{job_id:04d} received | Tampa Signs and Stickers',
                         'Custom quote request received', 'We received your custom project request. Our team will review it and follow up with a tailored quote.', link)

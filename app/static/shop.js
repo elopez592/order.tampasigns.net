@@ -1,4 +1,4 @@
-import {createWindowUploads, usesDirectArtwork} from './window-upload.js?v=20260924-all-uploads';
+import {createWindowUploads, usesDirectArtwork} from './window-upload.js?v=20260924-marketing';
 
 // Customer project cart and artwork attachments.
 export function createShop(ctx) {
@@ -46,7 +46,7 @@ export function createShop(ctx) {
     await recalculate();if(!state.quote)throw new Error('Complete your product options first.');
     if(project.length+state.currentQuoteItems.length>30)throw new Error('A project supports up to 30 product lines.');
     const items=await windowUploads.prepareItems(state.currentQuoteItems.map(item=>({...item,key:crypto.randomUUID()})));
-    project.push(...items);persist();
+    project.push(...items);persist();window.TampaAnalytics?.track('add_to_cart');
     await windowUploads.clearDrafts(items).catch(e=>toast(e.message,true));
     showModal('Added to your project',`<p>Your project now has ${project.length} item${project.length===1?'':'s'}.</p><div class="row mt"><button class="btn light" data-action="close">Keep shopping</button><a class="btn primary" href="/project">View project</a></div>`);
     const count=$('[data-project-count]');if(count)count.textContent=project.length;
@@ -281,7 +281,7 @@ export function createShop(ctx) {
     'canva-open':async b=>openCanvaDesign(b.dataset.width,b.dataset.height,b.dataset.label),
     'product-canva':async()=>{await recalculate();const item=state.currentQuoteItems?.[0];if(!item)throw new Error('Complete your options before designing in Canva.');const p=product(item.product_id);if(usesDirectArtwork(p)){toast('For wraps or multiple panes, use Upload Design or Request design help.',true);return;}await openCanvaDesign(item.width,item.height,publicProductName(p));},
     'project-remove':async b=>{project.splice(Number(b.dataset.index),1);persist();await projectView();},
-    'project-checkout':async()=>{await quoteProject();state.projectCheckout=true;orderModal();await windowUploads.checkoutHint(project);},
+    'project-checkout':async()=>{await quoteProject();state.projectCheckout=true;orderModal();window.TampaAnalytics?.track('begin_checkout');await windowUploads.checkoutHint(project);},
     'browse-product':async b=>{state.selectedProduct=Number(b.dataset.id);state.selectedCategory=product(b.dataset.id).config.storefront_categories[0];sessionStorage.setItem('storefront_category',state.selectedCategory);history.pushState(null,'',productPath(product(b.dataset.id)));await calculatorView();},
     'studio-load':async b=>studioView({id:b.dataset.id}),
     'studio-select-layer':async b=>{const side=draft.sides[draft.side];studioSelection=b.dataset.layer==='shapes'?(side.shapes.length?`shape:${side.shapes.length-1}`:'artwork'):b.dataset.layer;await saveDesign(draft);await studioView({id:draft.id,projectKey:draft.projectKey});},

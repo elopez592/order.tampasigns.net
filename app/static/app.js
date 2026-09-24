@@ -1,4 +1,5 @@
-import {createShop} from './shop.js?v=20260924-all-uploads';
+import {createMarketingDashboard} from './marketing-admin.js?v=20260924-1';
+import {createShop} from './shop.js?v=20260924-marketing';
 
 const state = {calcSequence:0, user:null, customer:null, csrf:'', catalog:null, jobs:[], job:null, jobTab:'overview', boardMode:'board',
   products:[], workflows:[], users:[], product:null, quote:null, selectedProduct:1, tasks:[], queueFilter:'available',
@@ -97,6 +98,7 @@ async function route(){
     if(hash==='team')return loadTeam();
     if(hash==='settings')return loadSettings();
     if(hash==='reports')return loadReports();
+    if(hash==='conversions')return marketingDashboard.render();
     if(hash==='tasks')return loadQueue();
     if(hash==='new')return newJobView();
     if(hash==='audit')return loadAudit();
@@ -111,7 +113,7 @@ function loginView(){
   app.innerHTML=`<div class="login-wrap"><section class="login-art">${brand()}<div><div class="eyebrow" style="color:#99b6c2">ONE CONNECTED WORKSPACE</div><h1 class="mt">From first quote<br>to final install.</h1><p>Keep the estimate, proof, payment and every production task moving together.</p></div><small class="muted">Signs / Stickers / Wraps</small></section><section class="login-content"><div class="login-box"><div class="eyebrow mb">STAFF WORKSPACE</div><h1>Welcome back.</h1><p class="muted">Sign in to keep the shop moving.</p><form data-form="login" class="stack">${input('email','Email','','email','required autocomplete="username"')}${input('password','Password','','password','required autocomplete="current-password"')}<div class="form-error"></div><button class="btn primary wide">Sign in ${icon('arrow')}</button></form><p class="muted tiny mt">New local installation? Your generated owner credentials appear in the server terminal on first startup.</p><a href="/" class="link tiny" style="display:block;margin-top:24px">Back to customer pricing</a></div></section></div>`;
 }
 function staffShell(content,active='dashboard',heading='Shop workspace'){
-  const items=[['dashboard','grid','Job board'],['tasks','tasks','My task queue'],...(owner()?[['reports','chart','Revenue & reports'],['products','box','Products & rates'],['workflows','flow','Workflows'],['team','users','Team'],['settings','settings','Shop settings'],['audit','clock','Activity log']]:[])];
+  const items=[['dashboard','grid','Job board'],['tasks','tasks','My task queue'],...(owner()?[['reports','chart','Revenue & reports'],['conversions','chart','Traffic & conversions'],['products','box','Products & rates'],['workflows','flow','Workflows'],['team','users','Team'],['settings','settings','Shop settings'],['audit','clock','Activity log']]:[])];
   app.innerHTML=`<div class="workspace"><aside class="sidebar">${brand()}<div class="eyebrow">WORKSPACE</div>${items.map(([id,ic,label])=>`<a class="side-link ${active===id?'active':''}" href="/staff#${id}" title="${label}">${icon(ic)}<span>${label}</span></a>`).join('')}<div class="eyebrow" style="margin-top:28px">CUSTOMER EXPERIENCE</div><a class="side-link" href="/" target="_blank" rel="noopener" title="Customer calculator">${icon('arrow')}<span>Price calculator</span></a><div class="sidebar-footer"><div class="row"><div class="avatar">${esc(initials(state.user.name))}</div><div class="profile-text grow"><strong style="color:white;font-size:11px">${esc(state.user.name)}</strong><div class="tiny">${owner()?'Owner / Admin':'Employee'}</div></div></div><div class="row mt-sm wrap"><button class="side-link" data-action="password" title="Change password">${icon('lock')}<span>Change password</span></button><button class="side-link" data-action="logout" title="Sign out">${icon('logout')}<span>Sign out</span></button></div></div></aside><div class="work-main"><header class="topbar"><div class="topbar-label">Your shop <span style="margin:0 8px;color:#c2cdd2">/</span><strong style="color:var(--ink)">${esc(heading)}</strong></div><div class="row">${badge('SHOP WORKSPACE','blue')}<button class="btn light small" data-action="refresh">${icon('refresh','icon-sm')} Refresh</button></div></header><main class="work-content">${content}</main></div></div>`;
 }
 function pricingNotice(){return `<div class="notice">Example rates are loaded for testing. Replace material costs, labor allowances and selling prices before using this with real customers. Existing job prices are saved as snapshots.</div>`;}
@@ -594,6 +596,7 @@ const forms = {
  'payment-notice':async(f,d)=>{const r=await api('/api/portal/payment-notice','POST',d);closeModal();toast(r.message);await loadPortal();},
 };
 
+const marketingDashboard=createMarketingDashboard({api,staffShell,esc,money,forms,toast});
 shop=createShop({state,app,api,esc,money,input,select,formFooter,showModal,closeModal,toast,publicHeader,publicProductName,productPath,setPublicSeo,storefrontProductsFor,productIcon,calculatorView,recalculate,currentItems,orderModal,actions,forms});
 
 document.addEventListener('click',async event=>{
@@ -629,7 +632,7 @@ document.addEventListener('change',event=>{
 window.addEventListener('hashchange',()=>route().catch(e=>toast(e.message,true)));
 window.addEventListener('popstate',()=>route().catch(e=>toast(e.message,true)));
 async function boot(){
-  try{const s=await api('/api/session');state.csrf=s.csrf;state.user=s.user;state.catalog=await api('/api/catalog');const customer=await api('/api/customer');state.customer=customer.customer;await route();}
+  try{const s=await api('/api/session');state.csrf=s.csrf;state.user=s.user;if(s.user)window.TampaAnalytics?.excludeStaff();state.catalog=await api('/api/catalog');const customer=await api('/api/customer');state.customer=customer.customer;await route();}
   catch(error){app.innerHTML=`<div class="initial-loading"><h1>Unable to open the workspace</h1><p class="muted">${esc(error.message)}</p><a class="btn primary" href="/">Try again</a></div>`;}
 }
 boot();

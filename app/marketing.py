@@ -84,7 +84,7 @@ def capture_conversion(conn, request, job_id):
         session = conn.execute('SELECT * FROM marketing_sessions WHERE sid=? AND last_seen>?',
                                (sid, time.time() - 1800)).fetchone() if sid and opted_in and not excluded else None
         if session:
-            conn.execute('INSERT OR IGNORE INTO marketing_conversions VALUES (?,?,?,?,?,?,?,?,?)',
+            conn.execute('INSERT OR IGNORE INTO marketing_conversions VALUES (?,?,?,?,?,?,?,?)',
                          (job_id, now(), sid, session['entry_site'], session['landing_path'],
                           session['source'], session['medium'], session['campaign'],))
         else:

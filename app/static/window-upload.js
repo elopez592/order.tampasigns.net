@@ -115,6 +115,7 @@ export function createWindowUploads(ctx) {
         }
         if (selected.length) {
           await save(files);
+          globalThis.window?.TampaAnalytics?.track('upload_file');
           toast(`${files.length} design file${files.length === 1 ? '' : 's'} saved${key ? ' to your project' : ' for this product'}.`);
         }
       } catch (e) {
