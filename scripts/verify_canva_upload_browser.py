@@ -4,6 +4,7 @@ import json
 import os
 import sqlite3
 import sys
+import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
 from PIL import Image
@@ -16,6 +17,7 @@ if not live and root != 'http://localhost:8000':
 image = io.BytesIO()
 Image.new('RGB', (24, 24), 'white').save(image, format='PNG')
 pdf_bytes = b'%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 72 72]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n'
+fixture_dir = Path(tempfile.mkdtemp(prefix='canva-upload-fixtures-'))
 errors, blocked, checked, added = [], [], [], []
 with sync_playwright() as pw:
     browser = pw.chromium.launch()
@@ -61,8 +63,10 @@ with sync_playwright() as pw:
             expect(page.locator('#modal-content h2')).to_have_text('Upload File')
             expect(page.locator('#modal-content')).not_to_contain_text('Left Window')
             expect(page.locator('#modal-content')).not_to_contain_text('Driver Side')
-            front = {'name':f'product-{entry["id"]}-Front.pdf','mimeType':'application/pdf','buffer':pdf_bytes}
-            back = {'name':f'product-{entry["id"]}-Back.png','mimeType':'image/png','buffer':image.getvalue()}
+            front = fixture_dir / f'product-{entry["id"]}-Front.pdf'
+            back = fixture_dir / f'product-{entry["id"]}-Back.png'
+            front.write_bytes(pdf_bytes)
+            back.write_bytes(image.getvalue())
             page.locator('#window-upload-input').set_input_files([front, back])
             expect(page.locator('#window-upload-files [data-action="window-upload-remove"]')).to_have_count(2)
             if len(ordinary) == 1:
@@ -98,7 +102,8 @@ with sync_playwright() as pw:
         page.locator('[data-action="window-upload"]').first.click()
         page.locator('[data-action="window-upload-remove"]').first.click()
         expect(page.locator('#window-upload-files [data-action="window-upload-remove"]')).to_have_count(1)
-        replacement = {'name':'replacement-Front.pdf','mimeType':'application/pdf','buffer':pdf_bytes}
+        replacement = fixture_dir / 'replacement-Front.pdf'
+        replacement.write_bytes(pdf_bytes)
         page.locator('#window-upload-input').set_input_files(replacement)
         expect(page.locator('#window-upload-files [data-action="window-upload-remove"]')).to_have_count(2)
         page.get_by_role('button',name='Done',exact=True).click()
