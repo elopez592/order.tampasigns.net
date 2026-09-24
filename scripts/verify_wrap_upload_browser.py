@@ -49,9 +49,14 @@ with sync_playwright() as pw:
             expect(page.locator('[data-action="product-canva"], [data-action="canva-open"]')).to_have_count(0)
             expect(page.locator('.public-grid [data-action="design-quote"]')).to_have_count(1)
             expect(page.locator('.public-grid')).not_to_contain_text('Design in Canva')
-            for radio in page.locator('input[name="coverage_option"]').all():
-                radio.check()
-                expect(page.locator('[data-action="product-canva"], [data-action="canva-open"]')).to_have_count(0)
+            # The artwork cards intentionally cover the native radio controls.
+            # Exercise each visible card as a customer would, for each vehicle type.
+            for vehicle_type in item['config'].get('vehicle_type_options',[]):
+                page.locator('select[name="vehicle_type"]').select_option(vehicle_type['id'])
+                for card in page.locator('.coverage-card:visible').all():
+                    card.click()
+                    expect(card.locator('input[name="coverage_option"]')).to_be_checked()
+                    expect(page.locator('[data-action="product-canva"], [data-action="canva-open"]')).to_have_count(0)
             page.locator('.public-grid [data-action="design-quote"]').click()
             expect(page.locator('form[data-form="design-quote"]')).to_be_visible()
             page.locator('#modal-content .close-btn').click()
