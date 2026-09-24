@@ -84,12 +84,21 @@ export function createShop(ctx) {
   }
   async function resumeCanva(){
     const params=new URLSearchParams(location.search);
-    if(params.get('canva')!=='connected')return;
-    const raw=sessionStorage.getItem('pending_canva_design');
-    if(!raw)return;
-    sessionStorage.removeItem('pending_canva_design');
-    const pending=JSON.parse(raw);
-    await openCanvaDesign(pending.width,pending.height,pending.label,{redirect:true});
+    const status=params.get('canva');
+    if(!status)return;
+    params.delete('canva');
+    const clean=location.pathname+(params.size?'?'+params.toString():'')+location.hash;
+    history.replaceState(null,'',clean);
+    if(status==='connected'){
+      const raw=sessionStorage.getItem('pending_canva_design');
+      if(!raw){toast('Canva is connected. Choose Design in Canva again to open your artboard.');return;}
+      sessionStorage.removeItem('pending_canva_design');
+      const pending=JSON.parse(raw);
+      await openCanvaDesign(pending.width,pending.height,pending.label,{redirect:true});
+      return;
+    }
+    if(status==='denied')toast('Canva connection was cancelled. Choose Design in Canva again when you are ready.',true);
+    else toast('Canva could not finish connecting. Please try Design in Canva again.',true);
   }
   function allProducts(){setPublicSeo();const products=state.catalog.products.filter(p=>!(p.name.toLowerCase()==='vehicle wraps'&&state.catalog.products.some(x=>x.name.toLowerCase()==='partial vehicle wraps')));page('All products',`<p class="muted mb">Everything we make, in one place.</p><div class="all-products-grid">${products.map(p=>`<article class="panel product-catalog-card"><div class="catalog-icon">${productIcon(p)}</div><div class="eyebrow">${esc((p.config.storefront_categories||[]).join(' / '))}</div><h2 class="mt"><a href="${productPath(p)}">${esc(publicProductName(p))}</a></h2><p class="muted mt">${esc(p.config.description)}</p><a class="btn primary mt" href="${productPath(p)}" data-action="browse-product" data-id="${p.id}">Customize & add to project</a></article>`).join('')}</div>`);}
   async function accountView(){const r=await api('/api/customer');state.customer=r.customer;page(state.customer?'Your account':'Sign in',state.customer?`<section class="panel"><h2>${esc(state.customer.name)}</h2><p>${esc(state.customer.email)}</p><button class="btn light mt" data-action="customer-logout">Sign out</button></section><h2 class="mt mb">Your submitted projects</h2>${r.orders.length?r.orders.map(o=>`<article class="panel mb"><div class="row between wrap"><div><strong>JOB-${String(o.id).padStart(4,'0')} · ${esc(o.title)}</strong><p class="muted">${esc(o.stage.replaceAll('_',' '))}</p></div><button class="btn primary" data-action="customer-order" data-id="${o.id}">View project</button></div></article>`).join(''):'<p>Projects submitted while signed in will appear here.</p>'}`:`<div class="account-grid"><section class="panel"><h2>Customer sign in</h2><form data-form="customer-login" class="stack mt">${input('email','Email','','email','required autocomplete="email"')}${input('password','Password','','password','required autocomplete="current-password" maxlength="128"')}${formFooter('Sign in')}</form><p class="field-hint">For help accessing your account, contact the shop.</p></section><section class="panel"><h2>Create a customer account</h2><form data-form="customer-register" class="stack mt">${input('name','Name','','text','required maxlength="120" autocomplete="name"')}${input('email','Email','','email','required autocomplete="email"')}${input('password','Password (12+ characters)','','password','required minlength="12" maxlength="128" autocomplete="new-password"')}${formFooter('Create account')}</form></section></div>`);app.querySelector('main').insertAdjacentHTML('beforeend',`<section class="panel mt"><h2>Wholesale account</h2><p class="muted mt">${state.wholesaleToken?'Signed in as '+esc(state.wholesaleName):'Sign in with your approved wholesale username and password.'}</p><button class="btn light mt" data-action="${state.wholesaleToken?'wholesale-clear':'wholesale-login'}">${state.wholesaleToken?'Sign out of wholesale':'Wholesale sign in'}</button></section>`);}
