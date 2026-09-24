@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      DATA_DIR: ${{ runner.temp }}/window-upload-verification
+      DATA_DIR: /tmp/window-upload-verification
       PUBLIC_URL: http://localhost:8000
       APP_ENV: development
       DEMO_SEED: '0'
