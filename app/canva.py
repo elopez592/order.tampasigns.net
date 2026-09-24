@@ -138,6 +138,34 @@ def _token_request(public_url: str, data: dict) -> dict:
     return token
 
 
+def _canva_error(response) -> str:
+    try:
+        data = response.json()
+    except ValueError:
+        data = {}
+    candidates = []
+    if isinstance(data, dict):
+        candidates.extend([
+            data.get('message'),
+            data.get('error_description'),
+            data.get('error'),
+            data.get('code'),
+        ])
+        errors = data.get('errors')
+        if isinstance(errors, list):
+            for item in errors[:3]:
+                if isinstance(item, dict):
+                    candidates.extend([item.get('message'), item.get('code')])
+                else:
+                    candidates.append(str(item))
+    detail = next((str(item).strip() for item in candidates if item), '')
+    if not detail:
+        detail = response.text.strip()[:220]
+    if not detail:
+        detail = f'Canva returned HTTP {response.status_code}.'
+    return detail[:220]
+
+
 def access_token(conn, token_hash: str, public_url: str) -> str | None:
     row = conn.execute('SELECT * FROM canva_tokens WHERE token_hash=?', (token_hash,)).fetchone()
     if not row:
@@ -195,7 +223,7 @@ def create_design(conn, token_hash: str, public_url: str, title: str, width_in: 
         conn.execute('DELETE FROM canva_tokens WHERE token_hash=?', (token_hash,))
         raise HTTPException(401, 'Connect Canva again.')
     if response.status_code >= 400:
-        raise HTTPException(502, 'Canva could not create this design.')
+        raise HTTPException(502, f'Canva could not create this design: {_canva_error(response)}')
     design = response.json().get('design') or {}
     urls = design.get('urls') or {}
     design_id = design.get('id')
