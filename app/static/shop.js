@@ -1,4 +1,4 @@
-import {createWindowUploads, usesDirectArtwork} from './window-upload.js?v=20260924-wrap-artwork';
+import {createWindowUploads, usesDirectArtwork} from './window-upload.js?v=20260924-all-uploads';
 
 // Customer project cart and artwork attachments.
 export function createShop(ctx) {
@@ -38,7 +38,7 @@ export function createShop(ctx) {
     if(p.config.contour_customizer)f.insertAdjacentHTML('afterend','<p class="field-hint mt">Upload your PNG or JPEG artwork when submitting the project. We will generate an approximate contour outline preview for review; the final cut path may differ slightly after production setup.</p>');
     if(!p.config.artwork_upload_disabled&&!p.config.contour_customizer){
       if(usesDirectArtwork(p))f.insertAdjacentHTML('afterend',`${p.config.is_wrap?wrapArtworkNote:multiPanelNote}<div class="row wrap mt">${windowUploads.button({product_id:p.id})}<button type="button" class="btn light" data-action="design-quote">Request design help</button></div>`);
-      else f.insertAdjacentHTML('afterend',`<div class="row wrap mt"><button type="button" class="btn light" data-action="product-canva">Design in Canva</button></div><p class="field-hint mt-sm">Canva opens in a new tab. Use the selected product size, then upload the exported PDF/PNG when submitting your project.</p>`);
+      else f.insertAdjacentHTML('afterend',`<div class="row wrap mt"><button type="button" class="btn light" data-action="product-canva">Design in Canva</button>${windowUploads.button({product_id:p.id})}</div><p class="field-hint mt-sm">Already have artwork? Use Upload File. Or design in Canva, export PDF Print or a high-resolution PNG, and attach it here.</p>`);
     }
     windowUploads.refresh().catch(e=>toast(e.message,true));
   }
@@ -60,7 +60,7 @@ export function createShop(ctx) {
     if(line.artwork_upload_disabled)return '';
     if(p?.config.contour_customizer)return '<span class="badge blue">Upload artwork at checkout</span>';
     if(usesDirectArtwork(p))return `${windowUploads.button(project[index])}<button class="btn light" data-action="design-quote">Request design help</button>`;
-    return canvaButton(line.width,line.height,publicProductName(p));
+    return `${canvaButton(line.width,line.height,publicProductName(p))}${windowUploads.button(project[index])}`;
   }
   function projectArtworkHint(line){
     const p=product(line.product_id);
@@ -68,7 +68,7 @@ export function createShop(ctx) {
     if(p?.config.contour_customizer)return '<p class="field-hint mt">Upload PNG/JPEG artwork at checkout and we will attach an approximate contour outline preview. Final cut paths may differ slightly after shop review.</p>';
     if(p?.config.is_wrap)return '<p class="field-hint mt">Upload your wrap artwork, logo or references. Label separate files by side or panel; we will review fit and placement before production.</p>';
     if(multiPanelArtwork(p))return '<p class="field-hint mt">For multiple panes or full storefront coverage, upload your overall concept, logo, measurements or references. We will split and align the artwork for production.</p>';
-    return '<p class="field-hint mt">For Canva artwork, download a PDF Print or high-resolution PNG and attach it when you submit this project.</p>';
+    return '<p class="field-hint mt">Use Upload File to attach finished artwork. For Canva designs, export PDF Print or a high-resolution PNG first. Attached files are included when you submit this project.</p>';
   }
   async function projectView(){
     page('Your project',project.length?'<p>Updating your prices…</p>':'<section class="panel"><h2>Make something great.</h2><p class="mt">Add products, artwork and quantities here, then submit everything together.</p><a class="btn primary mt" href="/products">Find a product</a></section>');

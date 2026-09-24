@@ -46,7 +46,7 @@ await reloaded.actions['window-upload']({dataset:{projectKey:'wrap-11',productId
 await reloaded.actions['window-upload-remove']({dataset:{index:'0'}});
 assert.equal((await reloaded.filesFor(project)).length,2);
 await assert.rejects(()=>reloaded.actions['window-upload']({dataset:{productId:'13'}}),/not available/);
-await assert.rejects(()=>reloaded.actions['window-upload']({dataset:{productId:'14'}}),/not available/);
+await assert.doesNotReject(()=>reloaded.actions['window-upload']({dataset:{productId:'14'}})); // Ordinary quantity-based products now accept uploads.
 await reloaded.actions['window-upload']({dataset:{productId:'1'}});
 assert.match(html,/Left Window/);
 console.log('PASS: vehicle, trailer and legacy wraps use direct uploads; window compatibility, original files, reload, removal and disabled-product rules preserved.');

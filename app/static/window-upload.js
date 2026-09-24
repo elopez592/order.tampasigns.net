@@ -1,4 +1,4 @@
-// Keep window and wrap artwork in this browser until the project is submitted through
+// Keep customer artwork in this browser until the project is submitted through
 // the existing private order upload pipeline. No Canva connection is required.
 export const MAX_WINDOW_FILE_BYTES = 50 * 1024 * 1024;
 
@@ -19,10 +19,16 @@ export function usesDirectArtwork(p) {
   return !!(config && (config.is_wrap || config.supports_multiple_dimensions) && !config.artwork_upload_disabled);
 }
 
+// Standard products offer uploads alongside Canva; specialized contour artwork
+// keeps its existing preview flow, and no-artwork products never accept files.
+export function supportsArtworkUpload(p) {
+  return !!p?.config && !p.config.artwork_upload_disabled && !p.config.contour_customizer;
+}
+
 export function createWindowUploads(ctx) {
   const {esc, showModal, toast, getDesign, saveDesign, product, getProject, persist} = ctx;
   const draftId = id => `window-upload-draft-${Number(id)}`;
-  const supported = id => usesDirectArtwork(product(id));
+  const supported = id => supportsArtworkUpload(product(id));
   const read = async id => {
     const record = await getDesign(id);
     if (record && record.kind !== 'window-upload') throw new Error('This artwork cannot be opened here.');
@@ -31,8 +37,10 @@ export function createWindowUploads(ctx) {
   let active = null, busy = false;
 
   function button(item) {
+    if (!supported(item.product_id)) return '';
+    const label = usesDirectArtwork(product(item.product_id)) ? 'Upload Design' : 'Upload File';
     const id = item.key ? item.window_artwork_id : draftId(item.product_id);
-    return `<button type="button" class="btn light" data-action="window-upload" data-product-id="${Number(item.product_id)}" ${item.key ? `data-project-key="${esc(item.key)}"` : ''}>Upload Design</button><span class="field-hint" data-window-upload-summary="${esc(id || '')}" aria-live="polite">${id ? 'Checking saved artwork...' : 'No artwork attached yet'}</span>`;
+    return `<button type="button" class="btn light" data-action="window-upload" data-product-id="${Number(item.product_id)}" ${item.key ? `data-project-key="${esc(item.key)}"` : ''}>${esc(label)}</button><span class="field-hint" data-window-upload-summary="${esc(id || '')}" aria-live="polite">${id ? 'Checking saved artwork...' : 'No artwork attached yet'}</span>`;
   }
 
   async function refresh() {
@@ -91,9 +99,10 @@ export function createWindowUploads(ctx) {
     active = {id, key, productId, files: [...(record?.files || [])]};
     const shared = key ? getProject().filter(line => line.window_artwork_id === id).length : 0;
     const wrap = !!product(productId)?.config?.is_wrap;
-    const intro = wrap ? 'Upload your finished wrap artwork, logo, concept or reference photos.' : 'Upload finished artwork, a storefront concept, a sketch or reference photos.';
-    const instructions = wrap ? 'Attach one PDF or separate files named for each side or panel, such as Driver Side, Passenger Side and Rear. We will review fit, placement and production layout.' : 'For multiple panes, attach a multi-page PDF or separate files named for each pane, such as Left Window, Door and Right Window. We will review the layout before production.';
-    showModal('Upload Design', `<div class="stack"><p>${esc(intro)}</p><p class="field-hint">${esc(instructions)}</p>${shared > 1 ? `<div class="notice info">These files are shared by ${shared} ${wrap ? 'items' : 'panes'} in this project. Changes here apply to the whole group.</div>` : ''}<label class="field"><span>Choose design files</span><input id="window-upload-input" type="file" accept=".png,.jpg,.jpeg,.pdf" multiple></label><p class="field-hint">PDF, PNG or JPG. Up to 50 MB per file. You can select several files or add more afterward.</p><div id="window-upload-error" class="form-error" role="alert"></div><div id="window-upload-files" aria-live="polite"></div><div class="notice info">Files are saved in this browser${key ? ' and attached to your project' : '. After choosing your options, click Add to project'}. They will be sent to Tampa Signs when you submit your project.${wrap ? '' : ' No Canva account is needed.'}</div><div class="row mt"><button type="button" class="btn primary" data-action="close">Done</button></div></div>`);
+    const panes = !wrap && !!product(productId)?.config?.supports_multiple_dimensions;
+    const intro = wrap ? 'Upload your finished wrap artwork, logo, concept or reference photos.' : panes ? 'Upload finished artwork, a storefront concept, a sketch or reference photos.' : 'Upload your ready-to-print artwork, logo or reference files for this product.';
+    const instructions = wrap ? 'Attach one PDF or separate files named for each side or panel, such as Driver Side, Passenger Side and Rear. We will review fit, placement and production layout.' : panes ? 'For multiple panes, attach a multi-page PDF or separate files named for each pane, such as Left Window, Door and Right Window. We will review the layout before production.' : 'Attach one file or separate files for each printed side, such as Front and Back. We will review your artwork before production.';
+    showModal(wrap || panes ? 'Upload Design' : 'Upload File', `<div class="stack"><p>${esc(intro)}</p><p class="field-hint">${esc(instructions)}</p>${shared > 1 ? `<div class="notice info">These files are shared by ${shared} ${panes ? 'panes' : 'items'} in this project. Changes here apply to the whole group.</div>` : ''}<label class="field"><span>Choose design files</span><input id="window-upload-input" type="file" accept=".png,.jpg,.jpeg,.pdf" multiple></label><p class="field-hint">PDF, PNG or JPG. Up to 50 MB per file. You can select several files or add more afterward.</p><div id="window-upload-error" class="form-error" role="alert"></div><div id="window-upload-files" aria-live="polite"></div><div class="notice info">Files are saved in this browser${key ? ' and attached to your project' : '. After choosing your options, click Add to project'}. They will be sent to Tampa Signs when you submit your project.${wrap ? '' : ' No Canva account is needed.'}</div><div class="row mt"><button type="button" class="btn primary" data-action="close">Done</button></div></div>`);
     renderFiles();
     document.querySelector('#window-upload-input').onchange = async event => {
       const selected = [...event.target.files], error = document.querySelector('#window-upload-error');
@@ -160,9 +169,10 @@ export function createWindowUploads(ctx) {
   }
 
   async function checkoutHint(items) {
-    const ids = new Set(items.map(item => item.window_artwork_id).filter(Boolean));
+    const attached = items.filter(item => item.window_artwork_id && supported(item.product_id));
+    const ids = new Set(attached.map(item => item.window_artwork_id));
     let count = 0;
-    const artworkLabel = items.some(item => item.window_artwork_id && product(item.product_id)?.config?.is_wrap) ? 'design' : 'window design';
+    const artworkLabel = attached.length && attached.every(item => product(item.product_id)?.config?.supports_multiple_dimensions && !product(item.product_id)?.config?.is_wrap) ? 'window design' : 'design';
     for (const id of ids) count += (await read(id))?.files?.length || 0;
     const input = document.querySelector('form[data-form="public-order"] input[name="artwork"]');
     if (count && input && !document.querySelector('#window-upload-checkout-notice')) {

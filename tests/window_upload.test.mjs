@@ -67,7 +67,7 @@ assert.notEqual(project[2].window_artwork_id, attachedId);
 assert.equal((await reloaded.filesFor(project)).length, 2);
 assert.deepEqual(await reloaded.filesFor([{product_id:2,window_artwork_id:attachedId}]), []);
 await assert.rejects(() => reloaded.actions['window-upload']({dataset:{productId:'2'}}), /not available/);
-await assert.rejects(() => reloaded.actions['window-upload']({dataset:{productId:'3'}}), /not available/);
+await assert.doesNotReject(() => reloaded.actions['window-upload']({dataset:{productId:'3'}})); // Ordinary products now support direct upload too.
 await assert.rejects(() => reloaded.filesFor([{product_id:1,window_artwork_id:'missing'}]), /missing/);
 const fail = createWindowUploads({...ctx, saveDesign:async () => {throw new Error('Storage full');}});
 await fail.actions['window-upload']({dataset:{productId:'1'}});
