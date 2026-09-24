@@ -16,7 +16,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -30,6 +30,7 @@ from .images import sanitize, save_asset, panel_sheet, MAX_UPLOAD
 from .checkout import (StripeGateway, availability, eligible_quote, checkout_policy,
                        start_checkout, process_event, order_for_job)
 from .mailer import public_status as email_status, notify_customer, notify_staff, send_test_email
+from . import canva
 import uuid
 
 COOKIE = 'signshop_session'
@@ -292,6 +293,44 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         with transaction(database, True) as conn:
             token, csrf = new_session(conn)
         return session_response({'csrf': csrf, 'user': None, 'portal_available': False}, token)
+
+    @app.get('/api/canva/status')
+    def canva_status(request: Request):
+        configured = canva.config(public_url)['configured']
+        connected = False
+        if request.state.session:
+            with transaction(database) as conn:
+                connected = bool(conn.execute('SELECT 1 FROM canva_tokens WHERE token_hash=?', (request.state.session['token_hash'],)).fetchone())
+        return {'configured': configured, 'connected': connected, 'scope': canva.SCOPE}
+
+    @app.post('/api/canva/connect')
+    def canva_connect(request: Request, payload: dict = Body(default={})):
+        return_path = str(payload.get('return_path') or '/studio')
+        with transaction(database, True) as conn:
+            authorize_url = canva.begin_oauth(conn, request.state.session['token_hash'], public_url, return_path)
+        return {'authorize_url': authorize_url}
+
+    @app.get('/api/canva/callback')
+    def canva_callback(request: Request, code: str = '', state: str = '', error: str = ''):
+        if error:
+            return RedirectResponse('/studio?canva=denied', status_code=303)
+        if not code or not state:
+            return RedirectResponse('/studio?canva=missing', status_code=303)
+        with transaction(database, True) as conn:
+            return_path = canva.exchange_code(conn, state, code, public_url)
+        glue = '&' if '?' in return_path else '?'
+        return RedirectResponse(f'{return_path}{glue}canva=connected', status_code=303)
+
+    @app.post('/api/canva/design')
+    def canva_design(request: Request, payload: dict = Body(...)):
+        title = text(payload.get('title') or 'Tampa Signs artwork', 'Design title', 180, True)
+        width = number(payload.get('width'), 'Width', '0.1', '10000')
+        height = number(payload.get('height'), 'Height', '0.1', '10000')
+        with transaction(database, True) as conn:
+            result = canva.create_design(conn, request.state.session['token_hash'], public_url, title, float(width), float(height))
+        if not result.get('edit_url'):
+            raise HTTPException(502, 'Canva created the design but did not return an edit link.')
+        return result
 
     @app.post('/api/auth/login')
     def login(request: Request, payload: dict = Body(...)):

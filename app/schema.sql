@@ -164,3 +164,22 @@ CREATE TABLE IF NOT EXISTS wholesale_sessions (
 CREATE INDEX IF NOT EXISTS wholesale_sessions_expiry ON wholesale_sessions(expires_at);
 
 -- Version 5: wholesale username/password profiles; code_hash now stores the password hash.
+
+-- Version 6: Canva OAuth credentials for correct-size customer design handoff.
+CREATE TABLE IF NOT EXISTS canva_oauth_states (
+ state TEXT PRIMARY KEY,
+ token_hash TEXT NOT NULL REFERENCES sessions(token_hash) ON DELETE CASCADE,
+ code_verifier TEXT NOT NULL,
+ return_path TEXT NOT NULL DEFAULT '/',
+ expires_at REAL NOT NULL,
+ created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS canva_tokens (
+ token_hash TEXT PRIMARY KEY REFERENCES sessions(token_hash) ON DELETE CASCADE,
+ access_token TEXT NOT NULL,
+ refresh_token TEXT NOT NULL,
+ scope TEXT NOT NULL,
+ expires_at REAL NOT NULL,
+ updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS canva_oauth_expiry ON canva_oauth_states(expires_at);

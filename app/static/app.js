@@ -1,4 +1,4 @@
-import {createShop} from './shop.js?v=20260920-2';
+import {createShop} from './shop.js?v=20260924-1';
 
 const state = {calcSequence:0, user:null, customer:null, csrf:'', catalog:null, jobs:[], job:null, jobTab:'overview', boardMode:'board',
   products:[], workflows:[], users:[], product:null, quote:null, selectedProduct:1, tasks:[], queueFilter:'available',
@@ -64,7 +64,6 @@ const productIconName = p => { const n=(String(p?.name||'')+' '+String(p?.catego
 const productIcon = p => `<span class="product-symbol">${icon(productIconName(p),'product-icon')}</span>`;
 const badge = (text_,type='') => `<span class="badge ${type}">${esc(text_)}</span>`;
 const brand = () => `<a class="brand" href="/" aria-label="Tampa Signs and Stickers home"><img class="brand-logo" src="/static/brand/tampa-white.png" alt="Tampa Signs and Stickers"></a>`;
-const instagramLink = () => `<a class="instagram-link" href="https://www.instagram.com/tampasigns" target="_blank" rel="noopener noreferrer" aria-label="Follow Tampa Signs and Stickers on Instagram" title="Instagram" style="display:inline-flex;align-items:center;justify-content:center"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"></rect><circle cx="12" cy="12" r="4.25"></circle><circle cx="17.4" cy="6.7" r="1" fill="currentColor" stroke="none"></circle></svg></a>`;
 const customerStages = {received:'Order received',production:'In production',finished:'Finished'};
 const input = (name,label,value='',type='text',attrs='') => `<label class="field"><span>${esc(label)}</span><input name="${esc(name)}" type="${type}" value="${esc(value)}" ${attrs}></label>`;
 const select = (name,label,options,value) => `<label class="field"><span>${esc(label)}</span><select name="${name}">${options.map(o=>`<option value="${esc(o[0])}" ${String(o[0])===String(value)?'selected':''}>${esc(o[1])}</option>`).join('')}</select></label>`;
@@ -85,7 +84,7 @@ async function api(path,method='GET',body){
 function toast(message,error=false){const box=$('#toast');box.textContent=message;box.className='visible'+(error?' error':'');clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>box.className='',4500);}
 function showModal(title,body,wide=false){modal.classList.toggle('wide',wide);$('#modal-content').innerHTML=`<div class="modal-head"><h2>${esc(title)}</h2><button class="close-btn" data-action="close" aria-label="Close dialog">&times;</button></div><div class="modal-body">${body}</div>`;if(!modal.open)modal.showModal();}
 function closeModal(){modal.close();}
-function publicHeader(){const count=shop?.count?.()||0;return `<div class="public-masthead"><header class="public-header">${brand()}<nav class="nav-links" aria-label="Customer navigation"><a href="/">Shop</a><a href="/products">All products</a><a href="/studio">Design studio</a><a href="/project">Project <span class="nav-count" data-project-count>${count}</span></a>${state.customer?'<a href="/account">My account</a><button class="nav-button" data-action="customer-logout">Sign out</button>':'<a href="/account">Customer sign in</a>'}${instagramLink()}</nav></header></div>`;}
+function publicHeader(){const count=shop?.count?.()||0;return `<div class="public-masthead"><header class="public-header">${brand()}<nav class="nav-links" aria-label="Customer navigation"><a href="/">Shop</a><a href="/products">All products</a><a href="/studio">Design studio</a><a href="/project">Project <span class="nav-count" data-project-count>${count}</span></a>${state.customer?'<a href="/account">My account</a><button class="nav-button" data-action="customer-logout">Sign out</button>':'<a href="/account">Customer sign in</a>'}</nav></header></div>`;}
 function loading(){app.innerHTML='<div class="initial-loading"><img src="/static/brand/tampa-black.png" class="loading-logo" alt="Tampa Signs and Stickers"><p class="muted">Loading...</p></div>';}
 async function route(){
   const path=location.pathname;
