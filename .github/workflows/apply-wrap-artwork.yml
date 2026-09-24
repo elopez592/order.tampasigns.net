@@ -23,8 +23,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Apply frontend-only wrap artwork changes
-        run: python scripts/apply_wrap_artwork.py
+      - name: Apply wrap artwork choices and expose product classification
+        run: |
+          python scripts/apply_wrap_artwork.py
+          python scripts/expose_wrap_artwork_flag.py
       - name: Verify JavaScript and both upload lifecycles
         run: |
           node --check app/static/app.js
@@ -58,7 +60,7 @@ jobs:
           if-no-files-found: ignore
       - name: Commit only verified application changes
         run: |
-          git add app/static/shop.js app/static/window-upload.js app/static/app.js app/static/index.html
+          git add app/main.py app/static/shop.js app/static/window-upload.js app/static/app.js app/static/index.html
           git config user.name 'Artwork options maintenance'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'Use Upload Design and Request design help for vehicle and trailer wraps'
