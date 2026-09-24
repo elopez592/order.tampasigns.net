@@ -104,8 +104,8 @@ async function route(){
   }
   if(path==='/portal')return loadPortal();
   if(path.startsWith('/products/')){const slug=decodeURIComponent(path.slice('/products/'.length));const product=state.catalog?.products?.find(p=>productSlug(p)===slug);if(product){state.selectedProduct=product.id;state.selectedCategory=product.config.storefront_categories?.[0]||state.selectedCategory;sessionStorage.setItem('storefront_category',state.selectedCategory);return calculatorView();}}
-  if(shop?.handles(path))return shop.route(path);
-  return calculatorView();
+  if(shop?.handles(path)){await shop.route(path);return shop.resumeCanva?.();}
+  await calculatorView();return shop?.resumeCanva?.();
 }
 function loginView(){
   app.innerHTML=`<div class="login-wrap"><section class="login-art">${brand()}<div><div class="eyebrow" style="color:#99b6c2">ONE CONNECTED WORKSPACE</div><h1 class="mt">From first quote<br>to final install.</h1><p>Keep the estimate, proof, payment and every production task moving together.</p></div><small class="muted">Signs / Stickers / Wraps</small></section><section class="login-content"><div class="login-box"><div class="eyebrow mb">STAFF WORKSPACE</div><h1>Welcome back.</h1><p class="muted">Sign in to keep the shop moving.</p><form data-form="login" class="stack">${input('email','Email','','email','required autocomplete="username"')}${input('password','Password','','password','required autocomplete="current-password"')}<div class="form-error"></div><button class="btn primary wide">Sign in ${icon('arrow')}</button></form><p class="muted tiny mt">New local installation? Your generated owner credentials appear in the server terminal on first startup.</p><a href="/" class="link tiny" style="display:block;margin-top:24px">Back to customer pricing</a></div></section></div>`;
