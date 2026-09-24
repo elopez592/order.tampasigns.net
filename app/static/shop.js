@@ -1,4 +1,4 @@
-import {createWindowUploads} from './window-upload.js?v=20260924-1';
+import {createWindowUploads, usesDirectArtwork} from './window-upload.js?v=20260924-wrap-artwork';
 
 // Customer project cart and artwork attachments.
 export function createShop(ctx) {
@@ -14,6 +14,7 @@ export function createShop(ctx) {
   const canvaGuide=(width,height,label='this product')=>`<div class="notice info mt"><strong>Want more design freedom?</strong><br>Design in Canva opens a custom-size artboard at <strong>${esc(width)} × ${esc(height)} in</strong> for ${esc(label)} when Canva is connected. Download a PDF Print or high-resolution PNG and upload it back to this project.</div>`;
   const canvaButton=(width,height,label,extraClass='')=>`<button type="button" class="btn light ${extraClass}" data-action="canva-open" data-width="${esc(width)}" data-height="${esc(height)}" data-label="${esc(label)}">Design in Canva</button>`;
   const multiPanelArtwork=p=>!!p?.config?.supports_multiple_dimensions;
+  const wrapArtworkNote='<div class="notice info mt"><strong>Have a design for your wrap?</strong><br>Upload your finished artwork, logo, concept or reference photos. Name separate files for each side or panel. Need artwork created? Request design help and we will review the scope with you.</div>';
   const multiPanelNote='<div class="notice info mt"><strong>Have a design for your windows?</strong><br>Upload finished artwork, a multi-page PDF, or separate files for each pane. You can also upload a storefront concept or request design help. We will review the layout and alignment before production.</div>';
   const db=new Promise((resolve,reject)=>{const r=indexedDB.open('tampa_designs',1);r.onupgradeneeded=()=>r.result.createObjectStore('designs',{keyPath:'id'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(new Error('Design storage is unavailable in this browser.'));});
   async function storage(mode,operation){const database=await db;return new Promise((resolve,reject)=>{const tx=database.transaction('designs',mode),r=operation(tx.objectStore('designs'));tx.oncomplete=()=>resolve(r.result);tx.onerror=()=>reject(new Error('Unable to save artwork. Your browser storage may be full.'));});}
@@ -36,7 +37,7 @@ export function createShop(ctx) {
     }
     if(p.config.contour_customizer)f.insertAdjacentHTML('afterend','<p class="field-hint mt">Upload your PNG or JPEG artwork when submitting the project. We will generate an approximate contour outline preview for review; the final cut path may differ slightly after production setup.</p>');
     if(!p.config.artwork_upload_disabled&&!p.config.contour_customizer){
-      if(multiPanelArtwork(p))f.insertAdjacentHTML('afterend',`${multiPanelNote}<div class="row wrap mt">${windowUploads.button({product_id:p.id})}<button type="button" class="btn light" data-action="design-quote">Request design help</button></div>`);
+      if(usesDirectArtwork(p))f.insertAdjacentHTML('afterend',`${p.config.is_wrap?wrapArtworkNote:multiPanelNote}<div class="row wrap mt">${windowUploads.button({product_id:p.id})}<button type="button" class="btn light" data-action="design-quote">Request design help</button></div>`);
       else f.insertAdjacentHTML('afterend',`<div class="row wrap mt"><button type="button" class="btn light" data-action="product-canva">Design in Canva</button></div><p class="field-hint mt-sm">Canva opens in a new tab. Use the selected product size, then upload the exported PDF/PNG when submitting your project.</p>`);
     }
     windowUploads.refresh().catch(e=>toast(e.message,true));
@@ -58,13 +59,14 @@ export function createShop(ctx) {
     const p=product(line.product_id);
     if(line.artwork_upload_disabled)return '';
     if(p?.config.contour_customizer)return '<span class="badge blue">Upload artwork at checkout</span>';
-    if(multiPanelArtwork(p))return `${windowUploads.button(project[index])}<button class="btn light" data-action="design-quote">Request design help</button>`;
+    if(usesDirectArtwork(p))return `${windowUploads.button(project[index])}<button class="btn light" data-action="design-quote">Request design help</button>`;
     return canvaButton(line.width,line.height,publicProductName(p));
   }
   function projectArtworkHint(line){
     const p=product(line.product_id);
     if(line.artwork_upload_disabled)return '';
     if(p?.config.contour_customizer)return '<p class="field-hint mt">Upload PNG/JPEG artwork at checkout and we will attach an approximate contour outline preview. Final cut paths may differ slightly after shop review.</p>';
+    if(p?.config.is_wrap)return '<p class="field-hint mt">Upload your wrap artwork, logo or references. Label separate files by side or panel; we will review fit and placement before production.</p>';
     if(multiPanelArtwork(p))return '<p class="field-hint mt">For multiple panes or full storefront coverage, upload your overall concept, logo, measurements or references. We will split and align the artwork for production.</p>';
     return '<p class="field-hint mt">For Canva artwork, download a PDF Print or high-resolution PNG and attach it when you submit this project.</p>';
   }
@@ -277,7 +279,7 @@ export function createShop(ctx) {
   Object.assign(actions,windowUploads.actions,{
     'request-order':add,
     'canva-open':async b=>openCanvaDesign(b.dataset.width,b.dataset.height,b.dataset.label),
-    'product-canva':async()=>{await recalculate();const item=state.currentQuoteItems?.[0];if(!item)throw new Error('Complete your options before designing in Canva.');const p=product(item.product_id);if(multiPanelArtwork(p)){toast('For multiple panes or full storefronts, upload a concept or request design help so the shop can split and align the artwork.',true);return;}await openCanvaDesign(item.width,item.height,publicProductName(p));},
+    'product-canva':async()=>{await recalculate();const item=state.currentQuoteItems?.[0];if(!item)throw new Error('Complete your options before designing in Canva.');const p=product(item.product_id);if(usesDirectArtwork(p)){toast('For wraps or multiple panes, use Upload Design or Request design help.',true);return;}await openCanvaDesign(item.width,item.height,publicProductName(p));},
     'project-remove':async b=>{project.splice(Number(b.dataset.index),1);persist();await projectView();},
     'project-checkout':async()=>{await quoteProject();state.projectCheckout=true;orderModal();await windowUploads.checkoutHint(project);},
     'browse-product':async b=>{state.selectedProduct=Number(b.dataset.id);state.selectedCategory=product(b.dataset.id).config.storefront_categories[0];sessionStorage.setItem('storefront_category',state.selectedCategory);history.pushState(null,'',productPath(product(b.dataset.id)));await calculatorView();},

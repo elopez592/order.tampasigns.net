@@ -1,4 +1,4 @@
-// Keep window artwork in this browser until the project is submitted through
+// Keep window and wrap artwork in this browser until the project is submitted through
 // the existing private order upload pipeline. No Canva connection is required.
 export const MAX_WINDOW_FILE_BYTES = 50 * 1024 * 1024;
 
@@ -13,13 +13,16 @@ export function validateWindowFiles(files) {
   }
 }
 
+// Retain storage keys and record kinds so existing window attachments stay valid.
+export function usesDirectArtwork(p) {
+  const config = p?.config;
+  return !!(config && (config.is_wrap || config.supports_multiple_dimensions) && !config.artwork_upload_disabled);
+}
+
 export function createWindowUploads(ctx) {
   const {esc, showModal, toast, getDesign, saveDesign, product, getProject, persist} = ctx;
   const draftId = id => `window-upload-draft-${Number(id)}`;
-  const supported = id => {
-    const config = product(id)?.config;
-    return !!config?.supports_multiple_dimensions && !config.artwork_upload_disabled;
-  };
+  const supported = id => usesDirectArtwork(product(id));
   const read = async id => {
     const record = await getDesign(id);
     if (record && record.kind !== 'window-upload') throw new Error('This artwork cannot be opened here.');
@@ -87,7 +90,10 @@ export function createWindowUploads(ctx) {
     if (item?.window_artwork_id && !record) throw new Error('Saved artwork is missing. Remove and re-add this item to attach it again.');
     active = {id, key, productId, files: [...(record?.files || [])]};
     const shared = key ? getProject().filter(line => line.window_artwork_id === id).length : 0;
-    showModal('Upload Design', `<div class="stack"><p>Upload finished artwork, a storefront concept, a sketch or reference photos.</p><p class="field-hint">For multiple panes, attach a multi-page PDF or separate files named for each pane, such as Left Window, Door and Right Window. We will review the layout before production.</p>${shared > 1 ? `<div class="notice info">These files are shared by ${shared} panes in this project. Changes here apply to the whole group.</div>` : ''}<label class="field"><span>Choose design files</span><input id="window-upload-input" type="file" accept=".png,.jpg,.jpeg,.pdf" multiple></label><p class="field-hint">PDF, PNG or JPG. Up to 50 MB per file. You can select several files or add more afterward.</p><div id="window-upload-error" class="form-error" role="alert"></div><div id="window-upload-files" aria-live="polite"></div><div class="notice info">Files are saved in this browser${key ? ' and attached to your project' : '. After choosing your options, click Add to project'}. They will be sent to Tampa Signs when you submit your project. No Canva account is needed.</div><div class="row mt"><button type="button" class="btn primary" data-action="close">Done</button></div></div>`);
+    const wrap = !!product(productId)?.config?.is_wrap;
+    const intro = wrap ? 'Upload your finished wrap artwork, logo, concept or reference photos.' : 'Upload finished artwork, a storefront concept, a sketch or reference photos.';
+    const instructions = wrap ? 'Attach one PDF or separate files named for each side or panel, such as Driver Side, Passenger Side and Rear. We will review fit, placement and production layout.' : 'For multiple panes, attach a multi-page PDF or separate files named for each pane, such as Left Window, Door and Right Window. We will review the layout before production.';
+    showModal('Upload Design', `<div class="stack"><p>${esc(intro)}</p><p class="field-hint">${esc(instructions)}</p>${shared > 1 ? `<div class="notice info">These files are shared by ${shared} ${wrap ? 'items' : 'panes'} in this project. Changes here apply to the whole group.</div>` : ''}<label class="field"><span>Choose design files</span><input id="window-upload-input" type="file" accept=".png,.jpg,.jpeg,.pdf" multiple></label><p class="field-hint">PDF, PNG or JPG. Up to 50 MB per file. You can select several files or add more afterward.</p><div id="window-upload-error" class="form-error" role="alert"></div><div id="window-upload-files" aria-live="polite"></div><div class="notice info">Files are saved in this browser${key ? ' and attached to your project' : '. After choosing your options, click Add to project'}. They will be sent to Tampa Signs when you submit your project.${wrap ? '' : ' No Canva account is needed.'}</div><div class="row mt"><button type="button" class="btn primary" data-action="close">Done</button></div></div>`);
     renderFiles();
     document.querySelector('#window-upload-input').onchange = async event => {
       const selected = [...event.target.files], error = document.querySelector('#window-upload-error');
@@ -139,7 +145,7 @@ export function createWindowUploads(ctx) {
       if (!id || seen.has(id) || !supported(item.product_id)) continue;
       seen.add(id);
       const record = await read(id);
-      if (!record) throw new Error('Saved window artwork is missing. Reattach it before submitting your project.');
+      if (!record) throw new Error('Saved artwork is missing. Reattach it before submitting your project.');
       validateWindowFiles(record.files || []);
       const lines = items.map((line, index) => line.window_artwork_id === id ? index + 1 : null).filter(Boolean);
       for (const file of record.files || []) {
@@ -156,10 +162,11 @@ export function createWindowUploads(ctx) {
   async function checkoutHint(items) {
     const ids = new Set(items.map(item => item.window_artwork_id).filter(Boolean));
     let count = 0;
+    const artworkLabel = items.some(item => item.window_artwork_id && product(item.product_id)?.config?.is_wrap) ? 'design' : 'window design';
     for (const id of ids) count += (await read(id))?.files?.length || 0;
     const input = document.querySelector('form[data-form="public-order"] input[name="artwork"]');
     if (count && input && !document.querySelector('#window-upload-checkout-notice')) {
-      input.closest('label').insertAdjacentHTML('beforebegin', `<div id="window-upload-checkout-notice" class="notice good">${count} window design file${count === 1 ? '' : 's'} already attached. These will be included automatically when you submit. Use the field below only for additional artwork.</div>`);
+      input.closest('label').insertAdjacentHTML('beforebegin', `<div id="window-upload-checkout-notice" class="notice good">${count} ${artworkLabel} file${count === 1 ? '' : 's'} already attached. These will be included automatically when you submit. Use the field below only for additional artwork.</div>`);
     }
   }
 
