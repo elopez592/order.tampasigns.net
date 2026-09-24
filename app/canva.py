@@ -19,7 +19,7 @@ DESIGNS_URL = 'https://api.canva.com/rest/v1/designs'
 SCOPE = 'design:content:write'
 MAX_DIMENSION = 8000
 MAX_AREA = 25_000_000
-TARGET_DPI = 150
+TARGET_DPI = 96
 
 
 def config(public_url: str) -> dict:
@@ -185,14 +185,20 @@ def canva_pixels(width_in: float, height_in: float) -> dict:
     raw_w = max(40, round(width * TARGET_DPI))
     raw_h = max(40, round(height * TARGET_DPI))
     scale = min(1.0, MAX_DIMENSION / raw_w, MAX_DIMENSION / raw_h, math.sqrt(MAX_AREA / max(1, raw_w * raw_h)))
-    px_w = max(40, min(MAX_DIMENSION, round(raw_w * scale)))
-    px_h = max(40, min(MAX_DIMENSION, round(raw_h * scale)))
+    px_w = max(40, min(MAX_DIMENSION, int(math.floor(raw_w * scale))))
+    px_h = max(40, min(MAX_DIMENSION, int(math.floor(raw_h * scale))))
+    while px_w * px_h > MAX_AREA:
+        if px_w >= px_h:
+            px_w -= 1
+        else:
+            px_h -= 1
+    actual_scale = min(px_w / raw_w, px_h / raw_h)
     return {
         'width_px': px_w,
         'height_px': px_h,
         'dpi': TARGET_DPI,
-        'scale': scale,
-        'scale_label': 'full size' if scale > 0.995 else f'1:{round(1 / scale, 1):g} scale',
+        'scale': actual_scale,
+        'scale_label': 'full size' if actual_scale > 0.995 else f'1:{round(1 / actual_scale, 1):g} scale',
     }
 
 
