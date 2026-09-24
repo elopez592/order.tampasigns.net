@@ -103,7 +103,7 @@ async function route(){
     return loadDashboard();
   }
   if(path==='/portal')return loadPortal();
-  if(path.startsWith('/products/')){const slug=decodeURIComponent(path.slice('/products/'.length));const product=state.catalog?.products?.find(p=>productSlug(p)===slug);if(product){state.selectedProduct=product.id;state.selectedCategory=product.config.storefront_categories?.[0]||state.selectedCategory;sessionStorage.setItem('storefront_category',state.selectedCategory);return calculatorView();}}
+  if(path.startsWith('/products/')){const slug=decodeURIComponent(path.slice('/products/'.length));const product=state.catalog?.products?.find(p=>productSlug(p)===slug);if(product){state.selectedProduct=product.id;state.selectedCategory=product.config.storefront_categories?.[0]||state.selectedCategory;sessionStorage.setItem('storefront_category',state.selectedCategory);await calculatorView();return shop?.resumeCanva?.();}}
   if(shop?.handles(path)){await shop.route(path);return shop.resumeCanva?.();}
   await calculatorView();return shop?.resumeCanva?.();
 }
