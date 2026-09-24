@@ -198,9 +198,12 @@ def create_design(conn, token_hash: str, public_url: str, title: str, width_in: 
         raise HTTPException(502, 'Canva could not create this design.')
     design = response.json().get('design') or {}
     urls = design.get('urls') or {}
+    design_id = design.get('id')
+    direct_edit_url = f'https://www.canva.com/design/{design_id}/edit' if design_id else None
     return {
-        'design_id': design.get('id'),
-        'edit_url': urls.get('edit_url'),
+        'design_id': design_id,
+        'edit_url': direct_edit_url or urls.get('edit_url'),
+        'canva_edit_url': urls.get('edit_url'),
         'view_url': urls.get('view_url'),
         'width_px': size['width_px'],
         'height_px': size['height_px'],
