@@ -96,6 +96,12 @@ def exchange_code(conn, state: str, code: str, public_url: str) -> str:
     return row['return_path'] or '/'
 
 
+def finish_oauth_error(conn, state: str) -> str:
+    row = conn.execute('SELECT return_path FROM canva_oauth_states WHERE state=?', (state,)).fetchone()
+    conn.execute('DELETE FROM canva_oauth_states WHERE state=? OR expires_at<?', (state, time.time()))
+    return row['return_path'] if row and row['return_path'] else '/'
+
+
 def store_token(conn, token_hash: str, token: dict) -> None:
     expires_in = max(60, int(token.get('expires_in') or 3600))
     expires_at = time.time() + expires_in - 60
