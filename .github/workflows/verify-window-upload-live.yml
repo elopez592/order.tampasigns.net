@@ -1,0 +1,46 @@
+name: Verify live Window Graphics upload release
+on:
+  push:
+    branches: [verify-window-upload-live-20260924]
+permissions:
+  contents: read
+jobs:
+  verify-public-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check live public pages and upload integration without creating orders
+        run: |
+          python3 - <<'PY'
+          import json
+          from urllib.request import Request, urlopen
+          root = 'https://orders.tampasigns.net'
+          def get(path):
+              request = Request(root + path, headers={'User-Agent':'Tampa-Signs-release-verification/1.0','Cache-Control':'no-cache'})
+              with urlopen(request, timeout=30) as response:
+                  assert response.status == 200, (path, response.status)
+                  return response.read().decode('utf-8')
+          health = get('/health')
+          page = get('/products/window-graphics')
+          assert '/static/app.js?v=20260924-window-upload' in page, 'New application script is not served yet.'
+          app = get('/static/app.js?v=20260924-window-upload')
+          assert './shop.js?v=20260924-window-upload' in app
+          shop = get('/static/shop.js?v=20260924-window-upload')
+          assert "import {createWindowUploads} from './window-upload.js?v=20260924-1'" in shop
+          assert 'windowUploads.button({product_id:p.id})' in shop
+          assert 'windowUploads.button(project[index])' in shop
+          assert 'await windowUploads.filesFor(project)' in shop
+          assert 'await windowUploads.checkoutHint(project)' in shop
+          upload = get('/static/window-upload.js?v=20260924-1')
+          assert '>Upload Design</button>' in upload
+          assert '50 * 1024 * 1024' in upload
+          catalog = json.loads(get('/api/catalog'))
+          windows = next(product for product in catalog['products'] if product['name'] == 'Window Graphics')
+          assert windows['config']['supports_multiple_dimensions'] is True
+          assert not windows['config'].get('artwork_upload_disabled')
+          print('PASS: live health endpoint:', health)
+          print('PASS: Window Graphics page serves the new versioned application and upload module.')
+          print('PASS: Product upload button, project upload button, saved-file order handoff and checkout confirmation are present in the live release.')
+          print('PASS: Live Window Graphics catalog allows artwork upload and multiple panes.')
+          print('Verification used public GET requests only; no customer accounts, orders, files or payments were created.')
+          PY
