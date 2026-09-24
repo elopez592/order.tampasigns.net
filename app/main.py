@@ -13,7 +13,7 @@ import sqlite3
 import time
 from datetime import date
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, quote
 
 from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -305,21 +305,26 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
 
     @app.post('/api/canva/connect')
     def canva_connect(request: Request, payload: dict = Body(default={})):
-        return_path = str(payload.get('return_path') or '/project')
+        return_path = str(payload.get('return_path') or request.headers.get('referer') or '/')
         with transaction(database, True) as conn:
             authorize_url = canva.begin_oauth(conn, request.state.session['token_hash'], public_url, return_path)
         return {'authorize_url': authorize_url}
 
     @app.get('/api/canva/callback')
     def canva_callback(request: Request, code: str = '', state: str = '', error: str = ''):
+        def return_with_status(return_path='/', status='error'):
+            glue = '&' if '?' in return_path else '?'
+            return RedirectResponse(f'{return_path}{glue}canva={quote(status)}', status_code=303)
+
         if error:
-            return RedirectResponse('/project?canva=denied', status_code=303)
+            with transaction(database, True) as conn:
+                return_path = canva.finish_oauth_error(conn, state) if state else '/'
+            return return_with_status(return_path, 'denied')
         if not code or not state:
-            return RedirectResponse('/project?canva=missing', status_code=303)
+            return return_with_status('/', 'missing')
         with transaction(database, True) as conn:
             return_path = canva.exchange_code(conn, state, code, public_url)
-        glue = '&' if '?' in return_path else '?'
-        return RedirectResponse(f'{return_path}{glue}canva=connected', status_code=303)
+        return return_with_status(return_path, 'connected')
 
     @app.post('/api/canva/design')
     def canva_design(request: Request, payload: dict = Body(...)):
