@@ -1,0 +1,137 @@
+name: Verify tinting paragraph removal
+on:
+  push:
+    branches: [tint-note-cleanup-20260924, verify-tint-note-cleanup-20260924]
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref_name == 'verify-tint-note-cleanup-20260924' && 'main' || github.ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Remove only the irrelevant paragraph and refresh the browser cache version
+        if: github.ref_name == 'tint-note-cleanup-20260924'
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/static/app.js')
+          source = p.read_text()
+          old = '''<p class="field-hint mt">${cfg.is_wrap?'Attach wrap artwork, logos or reference files using Upload Design.':cfg.supports_multiple_dimensions?'Multiple window designs are welcome. Attach separate pane files or a multi-page PDF.':'One design per order.'} Wraps, installation and sizes outside the listed limits need a custom quote.</p>'''
+          new = "${cfg.artwork_upload_disabled?'':`" + old + "`}"
+          assert source.count(old) == 1, 'Unexpected source; refusing an unverified patch'
+          p.write_text(source.replace(old, new, 1))
+          p = Path('app/static/index.html')
+          source = p.read_text()
+          old_version = '/static/app.js?v=20260924-all-uploads'
+          assert source.count(old_version) == 1
+          p.write_text(source.replace(old_version, '/static/app.js?v=20260924-tint-note-cleanup', 1))
+          print('Only the disclaimer visibility and app cache version changed.')
+          PY
+      - name: Check JavaScript syntax
+        run: node --check app/static/app.js
+      - name: Install browser verification
+        run: |
+          pip install --quiet playwright
+          python -m playwright install --with-deps chromium > "$RUNNER_TEMP/tint-browser-install.log" 2>&1
+      - name: Verify both tinting pages and unaffected artwork products
+        env:
+          VERIFY_LIVE: ${{ github.ref_name == 'verify-tint-note-cleanup-20260924' && '1' || '0' }}
+        run: |
+          python - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          from urllib.parse import urlparse
+          from playwright.sync_api import sync_playwright, expect
+          root = 'https://orders.tampasigns.net'
+          live = os.environ.get('VERIFY_LIVE') == '1'
+          patched = Path('app/static/app.js').read_text()
+          title_note = 'Multiple window designs are welcome. Attach separate pane files or a multi-page PDF.'
+          quote_note = 'Wraps, installation and sizes outside the listed limits need a custom quote.'
+          checks = []
+          errors, blocked = [], []
+          with sync_playwright() as pw:
+              browser = pw.chromium.launch()
+              page = browser.new_page(viewport={'width':1365,'height':1000})
+              page.on('pageerror', lambda error: errors.append(str(error)))
+              def route_request(route):
+                  req = route.request
+                  path = urlparse(req.url).path
+                  if req.method not in ('GET','HEAD','OPTIONS') and path != '/api/calculate':
+                      blocked.append(req.method + ' ' + path)
+                      route.abort()
+                  elif not live and path == '/static/app.js':
+                      route.fulfill(status=200, content_type='text/javascript', body=patched)
+                  else:
+                      route.continue_()
+              page.route('**/*', route_request)
+              try:
+                  for width in [1365,390]:
+                      page.set_viewport_size({'width':width,'height':1000 if width>400 else 844})
+                      for path in ['/products/storefront-window-tinting','/products/fleet-window-tinting']:
+                          page.goto(root+path)
+                          expect(page.locator('h1.product-page-title')).to_contain_text(re.compile('tinting', re.I))
+                          expect(page.locator('.public-grid')).not_to_contain_text(title_note)
+                          expect(page.locator('.public-grid')).not_to_contain_text(quote_note)
+                          expect(page.locator('[data-action="window-upload"], [data-action="product-canva"]')).to_have_count(0)
+                          expect(page.locator('#calculator')).to_be_visible()
+                          page.screenshot(path=f'tint-note-{path.split("/")[-1]}-{width}.png',full_page=True)
+                          checks.append({'page':path,'width':width,'paragraph_removed':True,'calculator_present':True})
+                  page.goto(root+'/products/window-graphics')
+                  expect(page.locator('h1.product-page-title')).to_contain_text(re.compile('window graphics', re.I))
+                  expect(page.locator('.public-grid')).to_contain_text(title_note)
+                  expect(page.locator('.public-grid')).to_contain_text(quote_note)
+                  expect(page.locator('[data-action="window-upload"]')).to_have_count(1)
+                  checks.append({'page':'/products/window-graphics','original_paragraph_and_upload_preserved':True})
+                  page.goto(root+'/products/labels')
+                  expect(page.locator('h1.product-page-title')).to_contain_text(re.compile('labels',re.I))
+                  expect(page.locator('.public-grid')).to_contain_text('One design per order.')
+                  expect(page.locator('.public-grid')).to_contain_text(quote_note)
+                  expect(page.locator('[data-action="product-canva"]')).to_have_count(1)
+                  expect(page.locator('[data-action="window-upload"]')).to_have_count(1)
+                  checks.append({'page':'/products/labels','original_paragraph_canva_and_upload_preserved':True})
+                  assert not errors, errors
+                  assert not blocked, blocked
+                  report={'live':live,'passed':True,'checks':checks,'no_orders_submitted':True,'no_settings_changed_by_test':True}
+                  Path('tint-note-verification.json').write_text(json.dumps(report,indent=2))
+                  print('PASS',json.dumps(report),flush=True)
+              except Exception:
+                  print('FAILURE PAGE:',page.url)
+                  print(page.locator('body').inner_text()[-6000:])
+                  page.screenshot(path='tint-note-failure.png',full_page=True)
+                  raise
+              finally:
+                  browser.close()
+          PY
+      - name: Save browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tint-note-verification
+          path: |
+            tint-note-*.png
+            tint-note-verification.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Create a tested release branch containing only the two changed application files
+        if: github.ref_name == 'tint-note-cleanup-20260924'
+        run: |
+          git diff -- app/static/app.js app/static/index.html > "$RUNNER_TEMP/tint-note.patch"
+          test -s "$RUNNER_TEMP/tint-note.patch"
+          git restore app/static/app.js app/static/index.html
+          git checkout --detach e2fd6e4ebc7d15e4dec1ba6b7b4c8467fb468ad1
+          git apply "$RUNNER_TEMP/tint-note.patch"
+          git add app/static/app.js app/static/index.html
+          git config user.name 'Tinting copy maintenance'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Hide artwork and wrap disclaimer on no-artwork tinting pages'
+          git push origin HEAD:refs/heads/tint-note-cleanup-release-20260924
