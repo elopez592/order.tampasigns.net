@@ -8,7 +8,7 @@ const records=new Map();let project=[],html='',title='',notice='';
 const nodes={'#window-upload-input':{isConnected:true,value:'',files:[]},'#window-upload-error':{isConnected:true,textContent:''},'#window-upload-files':{innerHTML:''}};
 globalThis.document={querySelectorAll:()=>[],querySelector:s=>s==='form[data-form="public-order"] input[name="artwork"]'?{closest:()=>({insertAdjacentHTML:(_pos,value)=>notice=value})}:nodes[s]||null};
 const esc=x=>String(x).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
-const ctx={esc,showModal:(t,h)=>{title=t;html=h;},toast:()=>{},getDesign:async id=>records.get(id),saveDesign:async d=>records.set(d.id,structuredClone(d)),product:id=>products.find(p=>p.id===Number(id)),getProject:()=>project,persist:()=>{}};
+const ctx={esc,showModal:(t,h)=>{title=t;html=h;},toast:()=>{},getDesign:async id=>records.get(id),saveDesign:async d=>records.set(d.id,{...d,files:[...d.files]}),product:id=>products.find(p=>p.id===Number(id)),getProject:()=>project,persist:()=>{}};
 let uploads=createWindowUploads(ctx);
 const file=new File(['%PDF-1.4\nexact original artwork'], 'Front.pdf',{type:'application/pdf',lastModified:1});
 async function choose(files){nodes['#window-upload-input'].files=files;await nodes['#window-upload-input'].onchange({target:nodes['#window-upload-input']});}
