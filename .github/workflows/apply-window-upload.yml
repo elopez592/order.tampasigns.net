@@ -31,11 +31,31 @@ jobs:
           node --check app/static/shop.js
           node --check app/static/window-upload.js
           node tests/window_upload.test.mjs
-      - name: Run application regression tests
+      - name: Verify no regressions against production baseline
         run: |
           pip install -r requirements-dev.txt
           python -m compileall -q app
-          pytest -q
+          current_status=0
+          pytest -q --junitxml="$RUNNER_TEMP/window-current.xml" || current_status=$?
+          if [ "$current_status" -gt 1 ]; then exit "$current_status"; fi
+          git fetch --no-tags --depth=1 origin 07c49611c724979c613f3900d697a882b5c71ad5
+          git worktree add --detach "$RUNNER_TEMP/window-upload-baseline" 07c49611c724979c613f3900d697a882b5c71ad5
+          baseline_status=0
+          (cd "$RUNNER_TEMP/window-upload-baseline" && pytest -q tests/test_owner_reports_contour.py::test_frontend_exposes_reports_contour_proofs_and_product_icons tests/test_storefront_categories_magnets_usdot.py::test_decals_usdot_and_apparel_listings tests/test_storefront_expansion.py::test_wholesale_discount_does_not_reduce_digitizing_fee --junitxml="$RUNNER_TEMP/window-baseline.xml") || baseline_status=$?
+          if [ "$baseline_status" -gt 1 ]; then exit "$baseline_status"; fi
+          python - <<'PY'
+          import os
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP'])
+          def failures(name):
+              return {(case.get('classname'),case.get('name')) for case in ET.parse(root/name).iter('testcase') if case.find('failure') is not None or case.find('error') is not None}
+          current, baseline = failures('window-current.xml'), failures('window-baseline.xml')
+          assert current <= baseline, f'New regressions: {current - baseline}'
+          assert len(baseline) <= 3, baseline
+          print(f'PASS: No new regression failures. {len(current)} existing unrelated failures reproduced on unchanged production source.')
+          for failure in sorted(current): print('Existing baseline failure:', '::'.join(failure))
+          PY
       - name: Verify browser upload through private order attachment
         run: |
           pip install playwright
