@@ -1,0 +1,32 @@
+name: Verify live wrap artwork options
+on:
+  push:
+    branches: [verify-wrap-artwork-live-20260924]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      VERIFY_BASE_URL: https://orders.tampasigns.net
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install isolated browser verification tools
+        run: |
+          pip install Pillow playwright
+          python -m playwright install --with-deps chromium
+      - name: Verify live wrap pages, uploaded drafts and cart without submitting orders
+        run: python scripts/verify_wrap_upload_browser.py --live
+      - name: Save live verification screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-wrap-artwork-verification
+          path: wrap-upload-*.png
+          if-no-files-found: ignore
