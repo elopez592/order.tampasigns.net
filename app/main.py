@@ -311,17 +311,19 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         return {'authorize_url': authorize_url}
 
     @app.get('/api/canva/callback')
-    def canva_callback(request: Request, code: str = '', state: str = '', error: str = ''):
-        def return_with_status(return_path='/', status='error'):
+    def canva_callback(request: Request, code: str = '', state: str = '', error: str = '', error_description: str = ''):
+        def return_with_status(return_path='/', status='error', detail=''):
             glue = '&' if '?' in return_path else '?'
-            return RedirectResponse(f'{return_path}{glue}canva={quote(status)}', status_code=303)
+            extra = f'&canva_error={quote(detail[:160])}' if detail else ''
+            return RedirectResponse(f'{return_path}{glue}canva={quote(status)}{extra}', status_code=303)
 
         if error:
             with transaction(database, True) as conn:
                 return_path = canva.finish_oauth_error(conn, state) if state else '/'
-            return return_with_status(return_path, 'denied')
+            detail = error_description or error
+            return return_with_status(return_path, 'denied' if error == 'access_denied' else 'error', detail)
         if not code or not state:
-            return return_with_status('/', 'missing')
+            return return_with_status('/', 'missing', 'Canva did not return an authorization code.')
         with transaction(database, True) as conn:
             return_path = canva.exchange_code(conn, state, code, public_url)
         return return_with_status(return_path, 'connected')
