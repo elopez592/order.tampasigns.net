@@ -305,7 +305,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
 
     @app.post('/api/canva/connect')
     def canva_connect(request: Request, payload: dict = Body(default={})):
-        return_path = str(payload.get('return_path') or '/studio')
+        return_path = str(payload.get('return_path') or '/project')
         with transaction(database, True) as conn:
             authorize_url = canva.begin_oauth(conn, request.state.session['token_hash'], public_url, return_path)
         return {'authorize_url': authorize_url}
@@ -313,9 +313,9 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     @app.get('/api/canva/callback')
     def canva_callback(request: Request, code: str = '', state: str = '', error: str = ''):
         if error:
-            return RedirectResponse('/studio?canva=denied', status_code=303)
+            return RedirectResponse('/project?canva=denied', status_code=303)
         if not code or not state:
-            return RedirectResponse('/studio?canva=missing', status_code=303)
+            return RedirectResponse('/project?canva=missing', status_code=303)
         with transaction(database, True) as conn:
             return_path = canva.exchange_code(conn, state, code, public_url)
         glue = '&' if '?' in return_path else '?'
@@ -1487,8 +1487,6 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     @app.get('/portal', response_class=HTMLResponse)
     @app.get('/products', response_class=HTMLResponse)
     @app.get('/project', response_class=HTMLResponse)
-    @app.get('/studio', response_class=HTMLResponse)
-    @app.get('/contour', response_class=HTMLResponse)
     @app.get('/account', response_class=HTMLResponse)
     def frontend(request: Request):
         path = request.url.path
