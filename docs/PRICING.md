@@ -26,6 +26,8 @@ line_price = max(rate_price, product_minimum, margin_floor)
 
 The margin floor is rounded up to a cent. Ordinary money rounding is half-up. Waste is a cost allowance, not extra finished square footage charged as though delivered to the customer. Labor allowances increase linearly with quantity and are not quantity-discounted. Do not include installation labor in a bundled cost/rate and add the same labor again.
 
+Decals use the current $10 setup plus $18 per finished square foot, with no separate Decals line minimum. One 6 × 6 inch decal is $14.50 and one 12 × 12 inch decal is $28.00 before optional finish, tax or delivery. The $50 shop minimum applies to the whole project at online checkout; customers may combine products to reach it.
+
 ### Quantity bands
 
 Bands are **graduated**, not all-units discounts. For bands beginning at 1 with multiplier 1.0, 100 with 0.9, and 500 with 0.8, the first 99 pieces use 1.0, pieces 100-499 use 0.9, and pieces 500 onward use 0.8. This avoids a sudden lower total when adding one item at a tier boundary. Minimum charges and the cost floor can override the band calculation.

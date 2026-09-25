@@ -4,6 +4,7 @@ import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Iterator
 
@@ -41,7 +42,7 @@ def initialize(path: Path) -> None:
         conn.execute('PRAGMA journal_mode=WAL')
         conn.executescript(Path(__file__).with_name('schema.sql').read_text())
         versions = [r[0] for r in conn.execute('SELECT version FROM schema_version')]
-        if versions not in ([1], [1, 2], [1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 6, 7]):
+        if versions not in ([1], [1, 2], [1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 6, 7], [1, 2, 3, 4, 5, 6, 7, 8]):
             raise RuntimeError('Unsupported database schema; back up and migrate explicitly.')
         conn.execute('INSERT OR IGNORE INTO schema_version VALUES (2)')
         conn.execute('INSERT OR IGNORE INTO schema_version VALUES (3)')
@@ -55,6 +56,22 @@ def initialize(path: Path) -> None:
         conn.execute('INSERT OR IGNORE INTO schema_version VALUES (5)')
         conn.execute('INSERT OR IGNORE INTO schema_version VALUES (6)')
         conn.execute('INSERT OR IGNORE INTO schema_version VALUES (7)')
+        if 8 not in versions:
+            # Earlier live Decals had a $50 line floor in addition to the $50 shop
+            # minimum. Move only that known rate profile to area-based pricing once.
+            for row in conn.execute("SELECT id,config FROM products WHERE name='Decals'").fetchall():
+                cfg = json.loads(row['config'])
+                try:
+                    legacy_rate = (Decimal(str(cfg.get('minimum_price'))) == 50 and
+                                   Decimal(str(cfg.get('setup_price'))) == 10 and
+                                   Decimal(str(cfg.get('sell_per_sqft'))) == 18)
+                except InvalidOperation:
+                    legacy_rate = False
+                if legacy_rate:
+                    cfg['minimum_price'] = '0'
+                    conn.execute('UPDATE products SET config=?,version=version+1,updated_at=? WHERE id=?',
+                                 (json.dumps(cfg), now(), row['id']))
+            conn.execute('INSERT OR IGNORE INTO schema_version VALUES (8)')
     finally:
         conn.close()
     try:
