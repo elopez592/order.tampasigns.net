@@ -12,7 +12,7 @@ from fastapi import HTTPException
 from .db import settings
 
 D = Decimal
-USDOT_STYLES = {'bold', 'condensed', 'industrial', 'serif', 'rounded', 'highway', 'stencil', 'monospace', 'modern', 'slab'}
+USDOT_STYLES = {'bold', 'condensed', 'industrial', 'serif', 'rounded', 'highway', 'stencil', 'monospace', 'modern', 'slab', 'montserrat', 'league_spartan', 'archivo_black', 'roboto_condensed', 'oswald', 'barlow_condensed', 'anton', 'bebas_neue', 'alfa_slab', 'black_ops', 'bungee', 'orbitron', 'righteous', 'graduate', 'luckiest_guy', 'playfair', 'merriweather', 'roboto_slab', 'cinzel', 'rye', 'courier_prime', 'fredoka', 'lobster', 'pacifico', 'permanent_marker'}
 USDOT_FONT_SCALES = {D('0.8'), D('1'), D('1.2'), D('1.4')}
 USDOT_FONT_DEFAULTS = {'company': 56, 'phone': 30, 'number': 72, 'licenses': 30, 'location': 32}
 USDOT_IDENTITIES = {'text', 'logo'}
