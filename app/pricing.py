@@ -110,6 +110,7 @@ def validate_config(cfg: dict) -> dict:
     for key, default, lo, hi in [
         ('sell_per_sqft', '8', '0', '10000'), ('cost_per_sqft', '2', '0', '10000'),
         ('setup_price', '15', '0', '100000'), ('setup_cost', '5', '0', '100000'),
+        ('usdot_logo_setup_price', '20', '0', '100000'),
         ('minimum_price', '25', '0', '100000'), ('waste_percent', '15', '0', '200'),
         ('labor_minutes_per_unit', '0', '0', '10000'),
         ('installation_minutes_per_sqft', '0', '0', '1000'),
@@ -520,6 +521,8 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
                     + labor_hours * labor_cost * pricing_factor + lamination_cost + material_cost + installation_hours * labor_cost * pricing_factor)
         cost = cent_round(raw_cost * (1 + overhead))
 
+        usdot_logo_fee = cents(cfg.get('usdot_logo_setup_price', '20')) if generated_usdot.get('identity') == 'logo' else 0
+
         if cfg.get('quantity_price_table'):
             base_total = table_total(qty, cfg['quantity_price_table']) * 100
             base_area = D(cfg['price_table_base_width']) * D(cfg['price_table_base_height']) / 144
@@ -532,6 +535,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             calculated = (D(cfg['setup_price']) * 100 + area * band_qty * D(cfg['sell_per_sqft']) * 100 * pricing_factor
                           + labor_hours * labor_sell * pricing_factor + lamination_sell + material_sell + installation_hours * labor_sell * pricing_factor)
 
+        calculated += usdot_logo_fee
         floor = 0 if cfg.get('quantity_price_table') else int((D(cost) / (1 - margin)).quantize(D('1'), rounding=ROUND_CEILING))
         sell = max(cent_round(calculated), cents(cfg['minimum_price']), floor)
         if include_roof_wrap:
@@ -542,7 +546,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
         retail_sell = sell
         wholesale_discount = product_discounts.get(row['id'], wholesale_default)
         if wholesale and wholesale_discount > 0:
-            protected_fee = min(sell, cents(cfg.get('digitizing_fee', 0) if cfg.get('finished_apparel') else cfg['setup_price']))
+            protected_fee = min(sell, cents(cfg.get('digitizing_fee', 0) if cfg.get('finished_apparel') else cfg['setup_price']) + usdot_logo_fee)
             if row['category'] == 'Custom' or any(word in row['name'].lower() for word in ('design', 'digitiz')):
                 protected_fee = sell
             discounted = protected_fee + cent_round(D(sell - protected_fee) * (D(1) - wholesale_discount / 100))
@@ -563,6 +567,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             'print_locations': item.get('print_locations', []) if garment_price is not None else [],
             'embroidery_preview': embroidery_preview,
             'digitizing_fee_cents': garment_fee * 100,
+            'usdot_logo_fee_cents': usdot_logo_fee,
             'quote_only': bool(cfg.get('quote_only')) or design_requested,
             'category': row['category'], 'description': str(item.get('description', ''))[:200],
             'width': str(width), 'height': str(height), 'quantity': qty, 'unit': cfg['unit'],
