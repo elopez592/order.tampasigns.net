@@ -1,10 +1,23 @@
 """Customer catalog additions and finished garment pricing."""
 import json
+import re
 from fastapi import HTTPException
 from .db import transaction, now
 
 COLORS = {'White': '#ffffff', 'Black': '#252525', 'Navy': '#182b49', 'Royal': '#2453a0', 'Red': '#bd2437', 'Sport Grey': '#a8a8a8'}
 SIZES = ['S', 'M', 'L', 'XL', '2XL', '3XL']
+EMBROIDERY_KINDS = {
+    'embroidered_shirt': 'Embroidered T-shirt',
+    'embroidered_polo': 'Embroidered polo',
+    'embroidered_hat': 'Embroidered hat',
+    'embroidered_hoodie': 'Embroidered hoodie',
+    'embroidered_jacket': 'Embroidered jacket',
+}
+CHEST_PLACEMENTS = [
+    {'id': 'left_chest', 'label': 'Left chest — up to 4.5 x 4.5 in', 'width': '4.5', 'height': '4.5'},
+    {'id': 'right_chest', 'label': 'Right chest — up to 4.5 x 4.5 in', 'width': '4.5', 'height': '4.5'},
+]
+HAT_PLACEMENTS = [{'id': 'front', 'label': 'Front — up to 4 x 2.25 in', 'width': '4', 'height': '2.25'}]
 PRINTS = {'front': 'Full front', 'back': 'Full back', 'left_chest': 'Left chest'}
 PRINT_PRICES = {'front': 30, 'back': 30, 'left_chest': 25}
 
@@ -38,7 +51,8 @@ def upgrade_catalog(database):
                 cfg.update(
                     finished_apparel=True, apparel_kind='embroidered_hat', quote_only=True,
                     shirt_colors=COLORS, shirt_sizes=['Adjustable'], digitizing_fee='35',
-                    apparel_unit_price=cfg.get('apparel_unit_price', cfg.get('setup_price', '35')),
+                    placement_options=HAT_PLACEMENTS,
+                    apparel_unit_price=cfg.get('apparel_unit_price') if float(cfg.get('apparel_unit_price') or 0) > 0 else '35',
                     setup_price='0', minimum_price='0', instant=False,
                     description='Choose a hat color and quantity. Product pricing is calculated first, then a one-time $35 digitizing fee is added to the embroidery order.'
                 )
@@ -47,7 +61,8 @@ def upgrade_catalog(database):
                 cfg.update(
                     finished_apparel=True, apparel_kind='embroidered_polo', quote_only=True,
                     shirt_colors=COLORS, shirt_sizes=SIZES, digitizing_fee='35',
-                    apparel_unit_price=cfg.get('apparel_unit_price', cfg.get('setup_price', '35')),
+                    placement_options=CHEST_PLACEMENTS,
+                    apparel_unit_price=cfg.get('apparel_unit_price') if float(cfg.get('apparel_unit_price') or 0) > 0 else '35',
                     setup_price='0', minimum_price='0', instant=False,
                     description='Choose polo colors, sizes and chest placement. Product pricing is calculated first, then a one-time $35 digitizing fee is added to the embroidery order.'
                 )
@@ -190,6 +205,20 @@ def upgrade_catalog(database):
                 description='Construction signs printed on durable 3mm aluminum composite panels. Choose 2 × 4, 3 × 6, 4 × 8 or 5 × 10 feet.'
             ),
         }
+        for name, kind in (('Embroidered T-shirts', 'embroidered_shirt'),
+                           ('Embroidered hoodies', 'embroidered_hoodie'),
+                           ('Embroidered jackets', 'embroidered_jacket')):
+            additions[name] = dict(
+                category='Apparel', storefront_categories=['Apparel'], unit='piece',
+                sell_per_sqft='0', cost_per_sqft='0', setup_price='0', setup_cost='0',
+                waste_percent='0', labor_minutes_per_unit='0', minimum_price='0',
+                default_width='3.5', default_height='3.5', min_width='1', min_height='1',
+                max_width='12', max_height='12', instant=False, quote_only=True,
+                finished_apparel=True, apparel_kind=kind, apparel_unit_price='35',
+                digitizing_fee='35', shirt_colors=COLORS, shirt_sizes=SIZES,
+                placement_options=CHEST_PLACEMENTS, self_approve_artwork=False,
+                description=f'Choose {name.lower()}, color, sizes and chest placement. Upload a logo for a digital embroidery preview. Garment and stitch pricing is confirmed by the shop; a one-time $35 digitizing fee applies.'
+            )
         for product_name, values in additions.items():
             if conn.execute('SELECT id FROM products WHERE name=?', (product_name,)).fetchone():
                 continue
@@ -221,7 +250,38 @@ def garment_selection(item, qty, cfg, product_name):
         if not isinstance(placements, list) or len(placements) != 1 or placements[0] not in options:
             raise HTTPException(422, 'Choose a valid embroidery placement.')
         unit_price = float(cfg.get('apparel_unit_price') or cfg.get('setup_price') or 0)
-        garment = 'Embroidered hat' if kind == 'embroidered_hat' else 'Embroidered polo'
+        garment = EMBROIDERY_KINDS.get(kind, product_name)
         placement_labels = [options[placements[0]]]
     description = garment + ' / ' + color + ' / ' + ', '.join(f'{s}: {q}' for s, q in sizes.items() if q) + ' / ' + ', '.join(placement_labels)
-    return unit_price, int(float(cfg.get('digitizing_fee', 0))), description
+    preview = None
+    if kind != 'custom_shirt' and item.get('embroidery_preview') is not None:
+        preview = validate_embroidery_preview(item['embroidery_preview'], cfg, placements[0])
+        description += f' / embroidery {preview["width"]:g} x {preview["height"]:g} in'
+    return unit_price, int(float(cfg.get('digitizing_fee', 0))), description, preview
+
+
+def validate_embroidery_preview(value, cfg, placement):
+    """Only placement instructions are accepted here; artwork remains a private job upload."""
+    if not isinstance(value, dict):
+        raise HTTPException(422, 'Invalid embroidery preview.')
+    option = next((p for p in cfg.get('placement_options', []) if p['id'] == placement), None)
+    if not option:
+        raise HTTPException(422, 'Choose a valid embroidery placement.')
+    try:
+        width, height = float(value['width']), float(value['height'])
+        x, y = float(value['offset_x']), float(value['offset_y'])
+    except (ValueError, TypeError, KeyError):
+        raise HTTPException(422, 'Enter valid embroidery dimensions and position.')
+    import math
+    limit = 0.35 if placement == 'front' else 0.75
+    if (not all(math.isfinite(v) for v in (width, height, x, y)) or
+            width < 0.5 or height < 0.2 or width > float(option['width']) or
+            height > float(option['height']) or abs(x) > limit or abs(y) > limit):
+        raise HTTPException(422, 'Embroidery size or placement exceeds the garment area.')
+    colors = value.get('thread_colors')
+    if (not isinstance(colors, list) or not 1 <= len(colors) <= 8 or
+            any(not isinstance(c, str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', c) for c in colors)):
+        raise HTTPException(422, 'Choose 1 to 8 thread colors.')
+    return {'width': round(width, 2), 'height': round(height, 2),
+            'offset_x': round(x, 2), 'offset_y': round(y, 2),
+            'thread_colors': [c.lower() for c in colors]}

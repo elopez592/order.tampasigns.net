@@ -117,7 +117,8 @@ def validate_config(cfg: dict) -> dict:
         result['installation_workflow_id'] = int(workflow_id)
     result['description'] = str(cfg.get('description', ''))[:700]
     apparel_kind = str(cfg.get('apparel_kind', '')).strip().lower()
-    if apparel_kind not in ('', 'custom_shirt', 'embroidered_hat', 'embroidered_polo'):
+    if apparel_kind not in ('', 'custom_shirt', 'embroidered_hat', 'embroidered_polo',
+                            'embroidered_shirt', 'embroidered_hoodie', 'embroidered_jacket'):
         raise HTTPException(422, 'Choose a valid apparel kind.')
     result['apparel_kind'] = apparel_kind
     result['apparel_unit_price'] = str(number(cfg.get('apparel_unit_price', 0), 'Apparel unit price', '0', '10000'))
@@ -399,9 +400,10 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
         qty = int(qty)
         garment_price = None
         garment_fee = 0
+        embroidery_preview = None
         if cfg.get('finished_apparel'):
             from .storefront import garment_selection
-            garment_price, garment_fee, garment_description = garment_selection(item, qty, cfg, row['name'])
+            garment_price, garment_fee, garment_description, embroidery_preview = garment_selection(item, qty, cfg, row['name'])
             item = dict(item, width=12, height=12, description=garment_description)
         width = number(item.get('width'), 'Width in inches', cfg.get('min_width', '0.1'), '10000')
         height = number(item.get('height'), 'Height in inches', cfg.get('min_height', '0.1'), '10000')
@@ -529,6 +531,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             'shirt_color': item.get('shirt_color', '') if garment_price is not None else '',
             'size_quantities': item.get('size_quantities', {}) if garment_price is not None else {},
             'print_locations': item.get('print_locations', []) if garment_price is not None else [],
+            'embroidery_preview': embroidery_preview,
             'digitizing_fee_cents': garment_fee * 100,
             'quote_only': bool(cfg.get('quote_only')) or design_requested,
             'category': row['category'], 'description': str(item.get('description', ''))[:200],
