@@ -165,7 +165,9 @@ function usdotCustomizer(cfg){
   const styles=[['bold','Bold sans'],['condensed','Condensed'],['industrial','Industrial'],['serif','Classic serif'],['rounded','Rounded'],['highway','Highway'],['stencil','Stencil'],['monospace','Monospace'],['modern','Modern'],['slab','Slab serif']];
   const pointSize=(name,value)=>input(name,'Size',value,'number','min="8" max="300" step="1" required inputmode="numeric"');
   const paired=(field,size)=>'<div class="usdot-field-pair">'+field+size+'</div>';
-  return '<div class="usdot-config"><div class="row mb"><span class="step-number">1</span><div><h3>Build your USDOT decal</h3><p class="field-hint">Drag any line or logo directly in the preview to place it where you want.</p></div></div>'+
+  const handles='<span class="usdot-transform-handle usdot-resize-handle" data-usdot-transform="resize" title="Drag to resize" aria-hidden="true"></span><span class="usdot-rotate-stem" aria-hidden="true"></span><span class="usdot-transform-handle usdot-rotate-handle" data-usdot-transform="rotate" title="Drag to rotate" aria-hidden="true"></span>';
+  const textItem=(key,cls,text)=>'<div class="usdot-preview-item '+cls+'" data-usdot-key="'+key+'"><span class="usdot-preview-content">'+text+'</span>'+handles+'</div>';
+  return '<div class="usdot-config"><div class="row mb"><span class="step-number">1</span><div><h3>Build your USDOT decal</h3><p class="field-hint">Select any item in the preview. Drag it to move, drag the corner to resize, and drag the round handle to rotate.</p></div></div>'+
     '<div class="usdot-identity-choice"><label><input type="radio" name="usdot_identity" value="text" checked> Company name</label><label><input type="radio" name="usdot_identity" value="logo"> Upload logo</label></div>'+
     '<div class="usdot-text-identity">'+paired(input('company_name','Company name','','text','maxlength="80" placeholder="Company name"'),pointSize('usdot_company_points',56))+'</div>'+
     '<div class="usdot-logo-identity" hidden><label class="field"><span>Company logo</span><input id="usdot-logo-file" name="usdot_logo_file" type="file" accept="image/png,image/jpeg,image/webp"></label>'+input('usdot_logo_width','Logo width (%)',42,'number','min="10" max="95" step="1" inputmode="numeric"')+'<p class="field-hint">PNG with a transparent background works best.</p></div>'+
@@ -175,23 +177,38 @@ function usdotCustomizer(cfg){
     paired(input('location_line','City / State or extra line (optional)','','text','maxlength="80" placeholder="Tampa, FL"'),pointSize('usdot_location_points',32))+
     '<div class="fields">'+select('usdot_style','Font / style',styles,'bold')+input('usdot_text_color','Letter color','#111111','color')+'</div>'+
     '<div class="usdot-preview" id="usdot-preview" aria-label="Live USDOT decal preview">'+
-      '<div class="usdot-preview-item usdot-preview-company" data-usdot-key="company">YOUR COMPANY</div>'+
-      '<img class="usdot-preview-item usdot-preview-logo" data-usdot-key="logo" alt="Uploaded company logo" hidden>'+
-      '<div class="usdot-preview-item usdot-preview-phone" data-usdot-key="phone" hidden></div>'+
-      '<div class="usdot-preview-item usdot-preview-number" data-usdot-key="number">USDOT 1234567</div>'+
-      '<div class="usdot-preview-item usdot-preview-licenses" data-usdot-key="licenses" hidden></div>'+
-      '<div class="usdot-preview-item usdot-preview-location" data-usdot-key="location" hidden></div>'+
-    '</div><button type="button" class="btn light small mt-sm" data-action="usdot-reset-layout">Reset layout</button>'+
-    '<p class="field-hint">The production file has a transparent background and no printed border. The logo and all text use the positions shown here.</p></div><div class="divider"></div>';
+      textItem('company','usdot-preview-company','YOUR COMPANY')+
+      '<div class="usdot-preview-item usdot-preview-logo" data-usdot-key="logo" hidden><img class="usdot-preview-content" alt="Uploaded company logo">'+handles+'</div>'+
+      textItem('phone','usdot-preview-phone','')+
+      textItem('number','usdot-preview-number','USDOT 1234567')+
+      textItem('licenses','usdot-preview-licenses','')+
+      textItem('location','usdot-preview-location','')+
+    '</div><button type="button" class="btn light small mt-sm" data-action="usdot-reset-layout">Reset transforms</button>'+
+    '<p class="field-hint">Move, resize, and rotate every line or logo independently. The print-ready file uses these exact transforms.</p></div><div class="divider"></div>';
 }
-const usdotPositions={company:{x:50,y:16},logo:{x:50,y:20},phone:{x:50,y:33},number:{x:50,y:51},licenses:{x:50,y:69},location:{x:50,y:85}};
-let usdotLogoDraft=null;
+const usdotPositions={
+  company:{x:50,y:16,rotation:0},logo:{x:50,y:20,rotation:0},phone:{x:50,y:33,rotation:0},
+  number:{x:50,y:51,rotation:0},licenses:{x:50,y:69,rotation:0},location:{x:50,y:85,rotation:0}
+};
+let usdotLogoDraft=null,usdotSelectedKey='number';
 function usdotIdentity(){
   const form=$('#calculator');return form?.querySelector('input[name="usdot_identity"]:checked')?.value||'text';
 }
-function usdotPosition(key){return usdotPositions[key]||{x:50,y:50};}
+function usdotPosition(key){return usdotPositions[key]||{x:50,y:50,rotation:0};}
+function usdotSizeField(key){
+  return {company:'usdot_company_points',phone:'usdot_phone_points',number:'usdot_number_points',licenses:'usdot_license_points',location:'usdot_location_points',logo:'usdot_logo_width'}[key]||'';
+}
 function resetUsdotPositions(){
-  Object.assign(usdotPositions,{company:{x:50,y:16},logo:{x:50,y:20},phone:{x:50,y:33},number:{x:50,y:51},licenses:{x:50,y:69},location:{x:50,y:85}});
+  Object.assign(usdotPositions,{
+    company:{x:50,y:16,rotation:0},logo:{x:50,y:20,rotation:0},phone:{x:50,y:33,rotation:0},
+    number:{x:50,y:51,rotation:0},licenses:{x:50,y:69,rotation:0},location:{x:50,y:85,rotation:0}
+  });
+  const form=$('#calculator');
+  if(form){
+    const defaults={company:56,phone:30,number:72,licenses:30,location:32};
+    Object.entries(defaults).forEach(([key,value])=>{const field=form.elements[usdotSizeField(key)];if(field)field.value=value;});
+    if(form.elements.usdot_logo_width)form.elements.usdot_logo_width.value=42;
+  }
   updateUsdotPreview();
 }
 async function loadUsdotLogo(file){
@@ -205,7 +222,7 @@ async function loadUsdotLogo(file){
   canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);
   const dataUrl=canvas.toDataURL(file.type==='image/jpeg'?'image/jpeg':'image/png',.92);
   usdotLogoDraft={id:crypto.randomUUID(),name:file.name,type:file.type,data_url:dataUrl};
-  updateUsdotPreview();
+  usdotSelectedKey='logo';updateUsdotPreview();
 }
 function updateUsdotPreview(){
   const form=$('#calculator'),preview=$('#usdot-preview');if(!form||!preview)return;
@@ -221,15 +238,22 @@ function updateUsdotPreview(){
   preview.style.aspectRatio=width+' / '+height;
   const values={company,phone,number:'USDOT '+number,licenses,location};
   Object.entries(values).forEach(([key,value])=>{
-    const el=$('[data-usdot-key="'+key+'"]',preview);if(!el)return;
-    el.textContent=value;el.hidden=(key==='company'&&identity!=='text')||(['phone','licenses','location'].includes(key)&&!value);
-    el.style.fontSize=(Math.max(8,Math.min(300,pointSizes[key]))*.42)+'px';
+    const item=$('[data-usdot-key="'+key+'"]',preview),content=$('.usdot-preview-content',item);if(!item||!content)return;
+    content.textContent=value;item.hidden=(key==='company'&&identity!=='text')||(['phone','licenses','location'].includes(key)&&!value);
+    content.style.fontSize=(Math.max(8,Math.min(300,pointSizes[key]))*.42)+'px';
   });
-  const logo=$('[data-usdot-key="logo"]',preview),logoMode=identity==='logo';
-  if(logo){logo.hidden=!logoMode||!usdotLogoDraft;logo.src=usdotLogoDraft?.data_url||'';logo.style.width=Math.max(10,Math.min(95,Number(form.elements.usdot_logo_width?.value)||42))+'%';}
+  const logo=$('[data-usdot-key="logo"]',preview),logoImage=$('.usdot-preview-content',logo),logoMode=identity==='logo';
+  if(logo&&logoImage){
+    logo.hidden=!logoMode||!usdotLogoDraft;logoImage.src=usdotLogoDraft?.data_url||'';
+    logo.style.width=Math.max(10,Math.min(95,Number(form.elements.usdot_logo_width?.value)||42))+'%';
+  }
   $('.usdot-text-identity')?.toggleAttribute('hidden',identity!=='text');
   $('.usdot-logo-identity')?.toggleAttribute('hidden',identity!=='logo');
-  all('[data-usdot-key]',preview).forEach(el=>{const p=usdotPosition(el.dataset.usdotKey);el.style.left=p.x+'%';el.style.top=p.y+'%';});
+  all('[data-usdot-key]',preview).forEach(item=>{
+    const p=usdotPosition(item.dataset.usdotKey);
+    item.style.left=p.x+'%';item.style.top=p.y+'%';item.style.transform='translate(-50%,-50%) rotate('+Number(p.rotation||0)+'deg)';
+    item.classList.toggle('selected',item.dataset.usdotKey===usdotSelectedKey&&!item.hidden);
+  });
 }
 
 function vehicleDetailsCustomizer(cfg){
@@ -688,19 +712,44 @@ document.addEventListener('change',event=>{
   if(event.target.name==='placement'&&event.target.closest('#calculator')){const form=$('#calculator'),product=state.catalog.products.find(p=>p.id===state.selectedProduct),choice=(product?.config.placement_options||[]).find(x=>x.id===event.target.value);if(choice){form.elements.width.value=choice.width;form.elements.height.value=choice.height;}form.elements.width.readOnly=event.target.value!=='custom';form.elements.height.readOnly=event.target.value!=='custom';recalculate();}
   if(event.target.name==='usdot_style'||event.target.name?.startsWith('usdot_')&&event.target.name.endsWith('_points'))updateUsdotPreview();
 });
-let usdotDrag=null;
+let usdotTransform=null;
 document.addEventListener('pointerdown',event=>{
-  const item=event.target.closest('[data-usdot-key]'),preview=item?.closest('#usdot-preview');if(!item||!preview)return;
-  event.preventDefault();item.setPointerCapture?.(event.pointerId);usdotDrag={item,preview,key:item.dataset.usdotKey,pointerId:event.pointerId};
+  const item=event.target.closest('[data-usdot-key]'),preview=item?.closest('#usdot-preview');if(!item||!preview||item.hidden)return;
+  const mode=event.target.closest('[data-usdot-transform]')?.dataset.usdotTransform||'move',key=item.dataset.usdotKey,form=$('#calculator'),p=usdotPosition(key);
+  usdotSelectedKey=key;updateUsdotPreview();event.preventDefault();item.setPointerCapture?.(event.pointerId);
+  const bounds=item.getBoundingClientRect(),centerX=bounds.left+bounds.width/2,centerY=bounds.top+bounds.height/2;
+  const fieldName=usdotSizeField(key),field=fieldName?form?.elements[fieldName]:null;
+  usdotTransform={
+    mode,key,item,preview,pointerId:event.pointerId,startClientX:event.clientX,startClientY:event.clientY,
+    startX:Number(p.x),startY:Number(p.y),startRotation:Number(p.rotation||0),centerX,centerY,
+    startAngle:Math.atan2(event.clientY-centerY,event.clientX-centerX)*180/Math.PI,
+    startDistance:Math.max(8,Math.hypot(event.clientX-centerX,event.clientY-centerY)),
+    field,startSize:Number(field?.value)||(key==='logo'?42:32)
+  };
 });
 document.addEventListener('pointermove',event=>{
-  if(!usdotDrag)return;const rect=usdotDrag.preview.getBoundingClientRect();
-  const x=Math.max(0,Math.min(100,(event.clientX-rect.left)/rect.width*100)),y=Math.max(0,Math.min(100,(event.clientY-rect.top)/rect.height*100));
-  usdotPositions[usdotDrag.key]={x:Number(x.toFixed(1)),y:Number(y.toFixed(1))};updateUsdotPreview();
+  if(!usdotTransform)return;
+  const t=usdotTransform,p=t.preview.getBoundingClientRect(),transform=usdotPosition(t.key);
+  if(t.mode==='move'){
+    transform.x=Math.max(0,Math.min(100,t.startX+(event.clientX-t.startClientX)/p.width*100));
+    transform.y=Math.max(0,Math.min(100,t.startY+(event.clientY-t.startClientY)/p.height*100));
+  }else if(t.mode==='resize'&&t.field){
+    const distance=Math.max(4,Math.hypot(event.clientX-t.centerX,event.clientY-t.centerY)),ratio=distance/t.startDistance;
+    const min=t.key==='logo'?10:8,max=t.key==='logo'?95:300;
+    t.field.value=Math.round(Math.max(min,Math.min(max,t.startSize*ratio)));
+  }else if(t.mode==='rotate'){
+    const angle=Math.atan2(event.clientY-t.centerY,event.clientX-t.centerX)*180/Math.PI;
+    let rotation=t.startRotation+(angle-t.startAngle);rotation=((rotation+180)%360+360)%360-180;
+    if(event.shiftKey)rotation=Math.round(rotation/15)*15;
+    transform.rotation=Number(rotation.toFixed(1));
+  }
+  updateUsdotPreview();
 });
-document.addEventListener('pointerup',()=>{
-  if(!usdotDrag)return;usdotDrag=null;recalculate();
-});
+function finishUsdotTransform(){
+  if(!usdotTransform)return;usdotTransform.item.releasePointerCapture?.(usdotTransform.pointerId);usdotTransform=null;recalculate();
+}
+document.addEventListener('pointerup',finishUsdotTransform);
+document.addEventListener('pointercancel',finishUsdotTransform);
 window.addEventListener('hashchange',()=>route().catch(e=>toast(e.message,true)));
 window.addEventListener('popstate',()=>route().catch(e=>toast(e.message,true)));
 async function boot(){
