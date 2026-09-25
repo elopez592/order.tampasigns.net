@@ -24,7 +24,7 @@ from .db import initialize, transaction, settings, audit, now
 from .security import digest, password_matches, password_hash, text, email, payment_url, rate_limit
 from .pricing import calculate, public_quote, validate_config, number, cents, cent_round
 from .domain import (get_job, totals, latest_proof, production_started, gate_reason,
-                     serialize_job, create_job, validate_steps, APPROVAL_STATEMENT)
+                     serialize_job, create_job, validate_steps, stage, APPROVAL_STATEMENT)
 from .seed import bootstrap
 from .images import sanitize, save_asset, panel_sheet, MAX_UPLOAD
 from .checkout import (StripeGateway, availability, eligible_quote, checkout_policy,
@@ -844,7 +844,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             else:
                 gross_profit = money['merchandise_cents'] - money['cost_cents']
             rows.append({'number': job['number'], 'created_at': job['created_at'], 'customer': job['customer_name'],
-                         'title': job['title'], 'booked': booked, 'stage': job['stage'], 'revenue_cents': money['merchandise_cents'],
+                         'title': job['title'], 'booked': booked, 'stage': stage(conn, job), 'revenue_cents': money['merchandise_cents'],
                          'cost_cents': money['cost_cents'], 'profit_cents': gross_profit,
                          'paid_cents': money['paid_cents'], 'balance_cents': money['balance_cents']})
             if booked:
