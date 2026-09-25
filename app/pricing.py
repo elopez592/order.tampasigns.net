@@ -41,6 +41,8 @@ def usdot_design(value) -> dict:
     result['number'] = re.sub(r'^USDOT\s*', '', result['number'], flags=re.I)
     result['logo_id'] = str(value.get('logo_id', '')).strip()[:100]
     result['logo_name'] = str(value.get('logo_name', '')).strip()[:160]
+    if identity == 'logo' and not result['logo_id']:
+        raise HTTPException(422, 'Upload a company logo for the USDOT identity.')
     result['logo_width'] = str(number(value.get('logo_width', 42), 'USDOT logo width', '10', '95'))
     style = str(value.get('style', 'bold')).strip().lower()
     if style not in USDOT_STYLES:
