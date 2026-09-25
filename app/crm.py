@@ -366,13 +366,13 @@ def _auto_candidates(conn, current: datetime | None = None) -> list[dict]:
             "SELECT 1 FROM tasks WHERE job_id=? AND status!='done' LIMIT 1", (job["id"],)
         ).fetchone():
             continue
+        selected_contacts.add(job["contact_id"])
 
         first_name = (job["name"] or "there").strip().split()[0]
         if job["published"] and job["accepted_version"] != job["quote_version"]:
             published_at = _latest_event_time(conn, job["id"], "quote.published")
             reminder_key = f'quote:{job["id"]}:v{job["quote_version"]}'
             if published_at and current - published_at >= timedelta(days=3) and not _sent_for_key(conn, reminder_key):
-                selected_contacts.add(job["contact_id"])
                 candidates.append({
                     "contact_id": job["contact_id"], "job_id": job["id"], "recipient": job["email"],
                     "kind": "quote", "reminder_key": reminder_key,
@@ -420,7 +420,6 @@ def _auto_candidates(conn, current: datetime | None = None) -> list[dict]:
                 approval_at = _parse_stamp(approved["created_at"]) if approved else _parse_stamp(latest_proof["created_at"])
                 reminder_key = f'payment:{job["id"]}:q{job["quote_version"]}:p{latest_proof["id"]}'
                 if approval_at and current - approval_at >= timedelta(days=7) and not _sent_for_key(conn, reminder_key):
-                    selected_contacts.add(job["contact_id"])
                     candidates.append({
                         "contact_id": job["contact_id"], "job_id": job["id"], "recipient": job["email"],
                         "kind": "payment", "reminder_key": reminder_key,
