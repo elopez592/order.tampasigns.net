@@ -331,3 +331,99 @@ def test_customer_approval_of_generated_proof_still_downloads(live_setup):
     proof_r=employee.post(f'/api/staff/jobs/{jid}/layout',json={'artwork':{'0':aid},'publish_as_proof':True})
     assert proof_r.status_code==200
     assert c.get('/api/assets/'+str(proof_r.json()['asset_id'])).status_code==200
+
+
+
+def custom_paid_object(session):
+    body=json.loads(session['request_body'])
+    return {'id':session['stripe_id'],'object':'checkout.session','status':'complete','payment_status':'paid',
+            'mode':'payment','livemode':False,'currency':'usd','payment_intent':'pi_custom_'+session['id'],
+            'amount_subtotal':session['amount_cents'],'amount_total':session['amount_cents'],
+            'total_details':{'amount_shipping':0,'amount_tax':0,'amount_discount':0},
+            'client_reference_id':'custom-'+str(session['job_id']),
+            'metadata':{'custom_checkout_id':session['id'],'job_id':str(session['job_id']),
+                        'quote_version':str(session['quote_version']),'payment_kind':session['payment_kind']}}
+
+
+def test_custom_quote_unlocks_deposit_or_total_after_acceptance(live_setup):
+    app,admin,employee=live_setup
+    from .conftest import create_banner, finalize
+    jid=create_banner(admin)
+    finalize(admin,jid)
+    c=portal(app,admin,jid)
+    before=c.get('/api/portal/job').json()
+    assert not before['custom_checkout']['available']
+    accept(c)
+    job=c.get('/api/portal/job').json()
+    assert job['custom_checkout']['available']
+    assert job['custom_checkout']['can_pay_deposit']
+    assert job['custom_checkout']['can_pay_total']
+    assert job['custom_checkout']['deposit_cents']==job['totals']['deposit_remaining_cents']
+    response=c.post('/api/portal/custom-checkout',json={'payment_kind':'deposit'})
+    assert response.status_code==200,response.text
+    with transaction(app.state.database) as conn:
+        session=dict(conn.execute(
+            'SELECT * FROM custom_checkout_sessions WHERE job_id=? ORDER BY rowid DESC LIMIT 1',(jid,)
+        ).fetchone())
+    assert session['amount_cents']==job['totals']['deposit_remaining_cents']
+    body=json.loads(session['request_body'])
+    assert body['line_items[0][price_data][unit_amount]']==str(session['amount_cents'])
+    assert body['metadata[payment_kind]']=='deposit'
+
+
+def test_custom_stripe_deposit_then_balance(live_setup):
+    app,admin,employee=live_setup
+    from .conftest import create_banner, finalize
+    jid=create_banner(admin)
+    finalize(admin,jid)
+    c=portal(app,admin,jid)
+    accept(c)
+    initial=c.get('/api/portal/job').json()
+    deposit=initial['totals']['deposit_remaining_cents']
+
+    first=c.post('/api/portal/custom-checkout',json={'payment_kind':'deposit'})
+    assert first.status_code==200,first.text
+    with transaction(app.state.database) as conn:
+        session=dict(conn.execute(
+            'SELECT * FROM custom_checkout_sessions WHERE job_id=? ORDER BY rowid DESC LIMIT 1',(jid,)
+        ).fetchone())
+    assert send_event(app,custom_paid_object(session)).status_code==200
+    after=c.get('/api/portal/job').json()
+    assert after['totals']['paid_cents']==deposit
+    assert after['totals']['balance_cents']==initial['totals']['total_cents']-deposit
+    assert after['custom_checkout']['can_pay_total']
+    assert not after['custom_checkout']['can_pay_deposit']
+
+    second=c.post('/api/portal/custom-checkout',json={'payment_kind':'total'})
+    assert second.status_code==200,second.text
+    with transaction(app.state.database) as conn:
+        balance_session=dict(conn.execute(
+            'SELECT * FROM custom_checkout_sessions WHERE job_id=? ORDER BY rowid DESC LIMIT 1',(jid,)
+        ).fetchone())
+    assert balance_session['amount_cents']==after['totals']['balance_cents']
+    assert send_event(app,custom_paid_object(balance_session)).status_code==200
+    paid=c.get('/api/portal/job').json()
+    assert paid['totals']['balance_cents']==0
+    assert paid['custom_checkout']['status']=='paid'
+
+
+def test_custom_checkout_rejects_unaccepted_or_tampered_payment(live_setup):
+    app,admin,employee=live_setup
+    from .conftest import create_banner, finalize
+    jid=create_banner(admin)
+    finalize(admin,jid)
+    c=portal(app,admin,jid)
+    assert c.post('/api/portal/custom-checkout',json={'payment_kind':'total'}).status_code==409
+    accept(c)
+    assert c.post('/api/portal/custom-checkout',json={'payment_kind':'other'}).status_code==422
+    assert c.post('/api/portal/custom-checkout',json={'payment_kind':'total'}).status_code==200
+    with transaction(app.state.database) as conn:
+        session=dict(conn.execute(
+            'SELECT * FROM custom_checkout_sessions WHERE job_id=? ORDER BY rowid DESC LIMIT 1',(jid,)
+        ).fetchone())
+    obj=custom_paid_object(session)
+    obj['amount_total']-=1
+    assert send_event(app,obj).status_code==200
+    job=c.get('/api/portal/job').json()
+    assert job['totals']['paid_cents']==0
+    assert job['custom_checkout']['status']=='payment_review'
