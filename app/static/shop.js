@@ -249,16 +249,16 @@ export function createShop(ctx) {
     const d=item.usdot_design,width=Math.max(1,Number(item.width)||18),height=Math.max(1,Number(item.height)||12),dpi=Math.max(72,Math.min(300,4800/Math.max(width,height))),legacyScale=Math.max(.8,Math.min(1.4,Number(d.font_scale)||1)),points=d.font_sizes||{company:56*legacyScale,phone:30*legacyScale,number:72*legacyScale,licenses:30*legacyScale,location:32*legacyScale};
     const canvas=document.createElement('canvas');canvas.width=Math.round(width*dpi);canvas.height=Math.round(height*dpi);
     const c=canvas.getContext('2d'),font=usdotFonts[d.style]||usdotFonts.bold,pad=canvas.width*.035;
-    const defaults={company:{x:50,y:16},logo:{x:50,y:20},phone:{x:50,y:33},number:{x:50,y:51},licenses:{x:50,y:69},location:{x:50,y:85}},positions=d.positions||{};
-    const pos=key=>({x:Number(positions[key]?.x??defaults[key].x),y:Number(positions[key]?.y??defaults[key].y)});
+    const defaults={company:{x:50,y:16,rotation:0},logo:{x:50,y:20,rotation:0},phone:{x:50,y:33,rotation:0},number:{x:50,y:51,rotation:0},licenses:{x:50,y:69,rotation:0},location:{x:50,y:85,rotation:0}},positions=d.positions||{};
+    const pos=key=>({x:Number(positions[key]?.x??defaults[key].x),y:Number(positions[key]?.y??defaults[key].y),rotation:Number(positions[key]?.rotation??0)});
     c.fillStyle=d.text_color||'#111111';c.textAlign='center';c.textBaseline='middle';
     const drawText=(key,text)=>{
       if(!text)return;const p=pos(key),preferred=Math.max(12,Number(points[key]||24)*dpi/72),px=fitUsdotText(c,text,canvas.width-pad*2,preferred,font);
-      c.font=`900 ${px}px ${font}`;c.fillText(text,canvas.width*p.x/100,canvas.height*p.y/100,canvas.width-pad*2);
+      c.save();c.translate(canvas.width*p.x/100,canvas.height*p.y/100);c.rotate(p.rotation*Math.PI/180);c.font=`900 ${px}px ${font}`;c.fillText(text,0,0,canvas.width-pad*2);c.restore();
     };
     if((d.identity||'text')==='logo'&&d.logo_data_url){
       const logo=await loadImage(d.logo_data_url),p=pos('logo'),targetWidth=canvas.width*Math.max(.1,Math.min(.95,Number(d.logo_width||42)/100)),ratio=logo.height/Math.max(1,logo.width),targetHeight=targetWidth*ratio;
-      c.drawImage(logo,canvas.width*p.x/100-targetWidth/2,canvas.height*p.y/100-targetHeight/2,targetWidth,targetHeight);
+      c.save();c.translate(canvas.width*p.x/100,canvas.height*p.y/100);c.rotate(p.rotation*Math.PI/180);c.drawImage(logo,-targetWidth/2,-targetHeight/2,targetWidth,targetHeight);c.restore();
     }else drawText('company',String(d.company||'').toUpperCase());
     drawText('phone',String(d.phone||'').toUpperCase());
     drawText('number','USDOT '+String(d.number||'').toUpperCase().replace(/^USDOT\s*/,''));
