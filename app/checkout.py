@@ -23,15 +23,15 @@ from .db import audit, now, settings, transaction
 from .pricing import calculate, public_quote, cents, cent_round
 from .security import digest
 
-API_VERSION = '2026-02-25.clover'
+API_VERSION = '2026-08-26.dahlia'
 
 
 class StripeGateway:
     def __init__(self):
         self.key = os.getenv('STRIPE_SECRET_KEY', '')
         self.webhook_secret = os.getenv('STRIPE_WEBHOOK_SECRET', '')
-        self.live = self.key.startswith('sk_live_')
-        self.ready = bool(self.key.startswith(('sk_test_', 'sk_live_')) and self.webhook_secret.startswith('whsec_'))
+        self.live = self.key.startswith(('sk_live_', 'rk_live_'))
+        self.ready = bool(self.key.startswith(('sk_test_', 'sk_live_', 'rk_test_', 'rk_live_')) and self.webhook_secret.startswith('whsec_'))
 
     def request(self, path, data=None, idempotency_key=None):
         if not self.ready:
@@ -214,7 +214,7 @@ def start_checkout(database, job_id, gateway, public_url):
         body = json.loads(current['request_body'])
     else:
         line = quote['lines'][0]
-        body = {'mode':'payment', 'payment_method_types[0]':'card',
+        body = {'mode':'payment', 'integration_identifier':'tampa_orders_qxmdrjap',
                 'success_url': public_url + '/portal?payment=received',
                 'cancel_url': public_url + '/portal?payment=cancelled',
                 'client_reference_id': order_data['id'], 'customer_email': job_data['customer_email'],
