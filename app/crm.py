@@ -351,6 +351,58 @@ def install(app, database, require_admin, issue_email_portal):
         }
         return {"contacts": all_contacts[:1000], "totals": totals, "statuses": list(STATUSES)}
 
+    @app.get("/api/admin/crm.csv")
+    def crm_csv(request: Request, user=Depends(require_admin)):
+        with transaction(database, True) as conn:
+            contacts = _snapshot(conn)
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(
+            [
+                "Name",
+                "Company",
+                "Email",
+                "Phone",
+                "Status",
+                "Source",
+                "Tags",
+                "Follow up",
+                "Jobs",
+                "Quoted",
+                "Paid",
+                "Balance",
+                "Last activity",
+                "Internal notes",
+            ]
+        )
+        for item in contacts:
+            writer.writerow(
+                [
+                    item["name"],
+                    item["company"],
+                    item["email"],
+                    item["phone"],
+                    item["status"],
+                    item["source"],
+                    ", ".join(item["tags"]),
+                    item["follow_up_date"] or "",
+                    item["order_count"],
+                    f'{item["quoted_cents"] / 100:.2f}',
+                    f'{item["paid_cents"] / 100:.2f}',
+                    f'{item["balance_cents"] / 100:.2f}',
+                    item["last_activity"] or "",
+                    item["notes"],
+                ]
+            )
+        return Response(
+            output.getvalue(),
+            media_type="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition": 'attachment; filename="tampa-signs-crm.csv"',
+                "Cache-Control": "no-store",
+            },
+        )
+
     @app.get("/api/admin/crm/{contact_id}")
     def crm_detail(contact_id: int, request: Request, user=Depends(require_admin)):
         with transaction(database, True) as conn:
@@ -527,54 +579,3 @@ def install(app, database, require_admin, issue_email_portal):
             raise HTTPException(503, "The reminder could not be sent. Check email delivery settings and try again.")
         return {"ok": True, "message": "Project reminder sent.", "job_id": job["id"]}
 
-    @app.get("/api/admin/crm.csv")
-    def crm_csv(request: Request, user=Depends(require_admin)):
-        with transaction(database, True) as conn:
-            contacts = _snapshot(conn)
-        output = io.StringIO()
-        writer = csv.writer(output)
-        writer.writerow(
-            [
-                "Name",
-                "Company",
-                "Email",
-                "Phone",
-                "Status",
-                "Source",
-                "Tags",
-                "Follow up",
-                "Jobs",
-                "Quoted",
-                "Paid",
-                "Balance",
-                "Last activity",
-                "Internal notes",
-            ]
-        )
-        for item in contacts:
-            writer.writerow(
-                [
-                    item["name"],
-                    item["company"],
-                    item["email"],
-                    item["phone"],
-                    item["status"],
-                    item["source"],
-                    ", ".join(item["tags"]),
-                    item["follow_up_date"] or "",
-                    item["order_count"],
-                    f'{item["quoted_cents"] / 100:.2f}',
-                    f'{item["paid_cents"] / 100:.2f}',
-                    f'{item["balance_cents"] / 100:.2f}',
-                    item["last_activity"] or "",
-                    item["notes"],
-                ]
-            )
-        return Response(
-            output.getvalue(),
-            media_type="text/csv; charset=utf-8",
-            headers={
-                "Content-Disposition": 'attachment; filename="tampa-signs-crm.csv"',
-                "Cache-Control": "no-store",
-            },
-        )
