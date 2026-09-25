@@ -219,6 +219,7 @@ def _contact_dict(row):
         item["tags"] = json.loads(item.get("tags") or "[]")
     except json.JSONDecodeError:
         item["tags"] = []
+    item["auto_reminders"] = bool(item.get("auto_reminders", 1))
     return item
 
 
@@ -311,7 +312,7 @@ def _detail(conn, contact_id: int):
     contact["reminder_job_id"] = open_job["id"] if open_job else None
     contact["can_remind"] = bool(contact["email"] and open_job and contact["status"] not in {"completed", "lost"})
     contact["reminders"] = [dict(row) for row in conn.execute(
-        """SELECT id,job_id,recipient,status,error,created_at
+        """SELECT id,job_id,recipient,status,error,kind,reminder_key,automatic,created_at
            FROM crm_reminders WHERE contact_id=? ORDER BY id DESC LIMIT 20""",
         (contact_id,),
     )]
@@ -321,6 +322,7 @@ def _detail(conn, contact_id: int):
 def install(app, database, require_admin, issue_email_portal):
     with transaction(database, True) as conn:
         conn.executescript(SCHEMA)
+        _upgrade_crm_schema(conn)
         sync_jobs(conn)
 
     @app.get("/api/admin/crm")
@@ -444,12 +446,13 @@ def install(app, database, require_admin, issue_email_portal):
         tags = _tags(payload.get("tags", []))
         notes = text(payload.get("notes", ""), "Internal notes", 10000)
         follow_up = _follow_up(payload.get("follow_up_date"))
+        auto_reminders = 1 if payload.get("auto_reminders", True) is not False else 0
         stamp = now()
         try:
             with transaction(database, True) as conn:
                 cursor = conn.execute(
                     """INSERT INTO crm_contacts(name,company,email,phone,status,source,tags,notes,
-                       follow_up_date,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                       follow_up_date,auto_reminders,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (
                         name,
                         company,
@@ -460,6 +463,7 @@ def install(app, database, require_admin, issue_email_portal):
                         json.dumps(tags),
                         notes,
                         follow_up,
+                        auto_reminders,
                         stamp,
                         stamp,
                     ),
@@ -497,6 +501,7 @@ def install(app, database, require_admin, issue_email_portal):
                 "tags": json.dumps(_tags(payload.get("tags", json.loads(current["tags"] or "[]")))),
                 "notes": text(payload.get("notes", current["notes"]), "Internal notes", 10000),
                 "follow_up_date": _follow_up(payload.get("follow_up_date", current["follow_up_date"])),
+                "auto_reminders": 1 if payload.get("auto_reminders", bool(current["auto_reminders"])) is not False else 0,
                 "updated_at": now(),
             }
             if values["status"] not in STATUSES:
@@ -506,7 +511,7 @@ def install(app, database, require_admin, issue_email_portal):
             try:
                 conn.execute(
                     """UPDATE crm_contacts SET name=?,company=?,email=?,phone=?,status=?,source=?,
-                       tags=?,notes=?,follow_up_date=?,updated_at=? WHERE id=?""",
+                       tags=?,notes=?,follow_up_date=?,auto_reminders=?,updated_at=? WHERE id=?""",
                     (
                         values["name"],
                         values["company"],
@@ -517,6 +522,7 @@ def install(app, database, require_admin, issue_email_portal):
                         values["tags"],
                         values["notes"],
                         values["follow_up_date"],
+                        values["auto_reminders"],
                         values["updated_at"],
                         contact_id,
                     ),
