@@ -55,7 +55,13 @@ def save_asset(conn, directory: Path, job_id: int, raw: bytes, name: str, mime: 
 def panel_sheet(conn, directory: Path, job, mappings: dict, fit='contain') -> bytes:
     if fit not in ('contain', 'cover'):
         raise HTTPException(422, 'Fit must be contain or cover.')
-    lines = json.loads(job['quote_snapshot'])['lines']
+    all_lines = json.loads(job['quote_snapshot'])['lines']
+    indexed_lines = [(i, line) for i, line in enumerate(all_lines)
+                     if line.get('artwork_required', not line.get('artwork_upload_disabled', False))
+                     and line.get('width') not in (None, '') and line.get('height') not in (None, '')]
+    if not indexed_lines:
+        raise HTTPException(422, 'This quote has no product lines that require an artwork layout.')
+    lines = [line for _, line in indexed_lines]
     columns = min(3, len(lines))
     tilew, tileh = 540, 450
     canvas = Image.new('RGB', (columns * tilew + 64, math.ceil(len(lines) / columns) * tileh + 180), '#f0f3f6')
@@ -77,7 +83,8 @@ def panel_sheet(conn, directory: Path, job, mappings: dict, fit='contain') -> by
         w, h = max(1, round(float(line['width']) * scale)), max(1, round(float(line['height']) * scale))
         x, y = left + (tilew - 18 - w) // 2, top + 48 + (320 - h) // 2
         draw.rectangle((x, y, x + w, y + h), fill='#e6eef3', outline='#112536', width=2)
-        aid = mappings.get(str(i))
+        source_index = indexed_lines[i][0]
+        aid = mappings.get(str(source_index))
         if aid is not None:
             asset = conn.execute('SELECT * FROM assets WHERE id=? AND job_id=?', (aid, job['id'])).fetchone()
             if not asset or asset['mime'] != 'image/png':
