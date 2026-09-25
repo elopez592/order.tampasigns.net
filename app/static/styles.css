@@ -173,3 +173,26 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .product-photo-window-graphics .product-example-photo,.product-photo-storefront-window-tinting .product-example-photo,.product-photo-fleet-window-tinting .product-example-photo,.product-photo-custom-t-shirts .product-example-photo,.product-photo-embroidered-hats .product-example-photo,.product-photo-embroidered-polos .product-example-photo,.product-photo-roll-up-banners .product-example-photo{background-image:url('/static/products/storefront-apparel-client-jobs.webp?v=20260925-1')}
 .product-photo-window-graphics .product-example-photo{background-position:0 0}.product-photo-storefront-window-tinting .product-example-photo,.product-photo-fleet-window-tinting .product-example-photo{background-position:50% 0}.product-photo-custom-t-shirts .product-example-photo{background-position:100% 0}.product-photo-embroidered-hats .product-example-photo{background-position:0 100%}.product-photo-embroidered-polos .product-example-photo{background-position:50% 100%}.product-photo-roll-up-banners .product-example-photo{background-position:100% 100%}
 .product-photo-trailer-food-truck-wraps .product-example-photo{background-image:url('/static/wraps/trailer-coverage-blue.webp?v=20260925-1');background-size:cover;background-position:center}
+/* Individual crops preserve product proportions and keep the subject in focus. */
+.product-example-photo{background-size:cover;background-repeat:no-repeat;background-position:center center}
+.product-photo-die-cut-stickers .product-example-photo{background-image:url('/static/products/client-jobs/die-cut-stickers.webp?v=20260925-1');background-position:50% 54%}
+.product-photo-transfer-stickers .product-example-photo{background-image:url('/static/products/client-jobs/transfer-stickers.webp?v=20260925-1');background-position:50% 48%}
+.product-photo-labels .product-example-photo{background-image:url('/static/products/client-jobs/labels.webp?v=20260925-1');background-position:50% 52%}
+.product-photo-magnets .product-example-photo{background-image:url('/static/products/client-jobs/magnets.webp?v=20260925-1');background-position:52% 56%}
+.product-photo-decals .product-example-photo{background-image:url('/static/products/client-jobs/decals.webp?v=20260925-1');background-position:51% 51%}
+.product-photo-usdot-decals .product-example-photo{background-image:url('/static/products/client-jobs/usdot-decals.webp?v=20260925-1');background-position:58% 53%}
+.product-photo-banners .product-example-photo{background-image:url('/static/products/client-jobs/banners.webp?v=20260925-1');background-position:50% 47%}
+.product-photo-acm-signs .product-example-photo{background-image:url('/static/products/client-jobs/acm-signs.webp?v=20260925-1');background-position:50% 48%}
+.product-photo-yard-signs .product-example-photo{background-image:url('/static/products/client-jobs/yard-signs.webp?v=20260925-1');background-position:50% 46%}
+.product-photo-acrylic-sign-face-replacement .product-example-photo{background-image:url('/static/products/client-jobs/acrylic-sign-face-replacement.webp?v=20260925-1');background-position:50% 42%}
+.product-photo-a-frame-inserts .product-example-photo{background-image:url('/static/products/client-jobs/a-frame-inserts.webp?v=20260925-1');background-position:50% 48%}
+.product-photo-construction-signs .product-example-photo{background-image:url('/static/products/client-jobs/construction-signs.webp?v=20260925-1');background-position:50% 52%}
+.product-photo-foam-boards .product-example-photo{background-image:url('/static/products/client-jobs/foam-boards.webp?v=20260925-1');background-position:55% 48%}
+.product-photo-window-graphics .product-example-photo{background-image:url('/static/products/client-jobs/window-graphics.webp?v=20260925-1');background-position:50% 53%}
+.product-photo-storefront-window-tinting .product-example-photo,.product-photo-fleet-window-tinting .product-example-photo{background-image:url('/static/products/client-jobs/storefront-window-tinting.webp?v=20260925-1');background-position:50% 50%}
+.product-photo-custom-t-shirts .product-example-photo{background-image:url('/static/products/client-jobs/custom-t-shirts.webp?v=20260925-1');background-position:50% 57%}
+.product-photo-embroidered-hats .product-example-photo{background-image:url('/static/products/client-jobs/embroidered-hats.webp?v=20260925-1');background-position:50% 54%}
+.product-photo-embroidered-polos .product-example-photo{background-image:url('/static/products/client-jobs/embroidered-polos.webp?v=20260925-1');background-position:50% 50%}
+.product-photo-roll-up-banners .product-example-photo{background-image:url('/static/products/client-jobs/roll-up-banners.webp?v=20260925-1');background-position:55% 48%}
+.product-photo-partial-vehicle-wraps .product-example-photo{background-image:url('/static/products/client-jobs/vehicle-wraps.webp?v=20260925-1');background-position:center}
+.product-photo-trailer-food-truck-wraps .product-example-photo{background-image:url('/static/products/client-jobs/trailer-food-truck-wraps.webp?v=20260925-1');background-position:center}
