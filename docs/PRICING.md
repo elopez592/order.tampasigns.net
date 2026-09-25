@@ -30,7 +30,7 @@ The margin floor is rounded up to a cent. Ordinary money rounding is half-up. Wa
 
 Bands are **graduated**, not all-units discounts. For bands beginning at 1 with multiplier 1.0, 100 with 0.9, and 500 with 0.8, the first 99 pieces use 1.0, pieces 100-499 use 0.9, and pieces 500 onward use 0.8. This avoids a sudden lower total when adding one item at a tier boundary. Minimum charges and the cost floor can override the band calculation.
 
-This is this application's transparent model, not a claim to reproduce Sticker Mule's proprietary calculation. Separate products can represent materials, finishing methods or packaging configurations. The calculator does not currently choose roll core sizes, nesting patterns, material variants within a product, or vehicle models.
+This is this application's transparent model, not a claim to reproduce Sticker Mule's proprietary calculation. Separate products can represent materials, finishing methods or packaging configurations. The calculator does not currently choose roll core sizes, nesting patterns or vehicle models.
 
 ### Job-level adjustments
 
@@ -55,6 +55,16 @@ For each product, test at least a small, standard and large order against your a
 
 For acrylic, a 25.42-square-foot finished sign can require purchasing more than 25.42 square feet. The generic waste percentage does not solve full-sheet availability, thickness, freight or cut-yield constraints. Use an actual supplier quote and a job cost adjustment.
 
+### ACM sign thickness, September 2026
+
+The single-sided ACM signs product defaults to 3 mm at $14/sq ft and offers 6 mm at $20/sq ft. The 6 mm selection adds $3.50/sq ft to the estimated material cost. Both use the existing $20 setup, $65 product minimum, and optional $2/sq ft laminate. Installation and artwork design are separate. For a single sign with no laminate, 24 × 36 inches calculates to $104 (3 mm) or $140 (6 mm); 48 × 96 inches calculates to $468 or $660. Gloss laminate adds $12 or $64 respectively to those 6 mm examples.
+
+The $3.50/sq ft incremental cost covers the higher of two published 4 × 8 sheet comparisons before freight: Curbell lists 3 mm at $64.64 and 6 mm at $111.96; Blue Ridge lists 3 mm at $64.32 and 6 mm at $172.67. This benchmark is not a supplier commitment for Tampa pickup or delivered cost. Verify actual sheet purchase, yield and freight for unusually large or multi-panel jobs.
+
+- `https://www.curbellplastics.com/product-category/material/aluminum-composite-material-acm/c-tek-panels/`
+- `https://blueridgesignsupply.com/products/acm-poly-metal-panel-4x-8-x-3mm`
+- `https://blueridgesignsupply.com/products/acm-4-x-8-x-6mm-poly-metal-panel`
+
 For installed wraps, film cost alone is not installed selling price. Confirm coverage, film/laminate, panel plan, removal, vehicle condition, disassembly and installation labor. Both installed wraps and print-only wrap panels are quote-only. Their costs/workflows remain distinct; wholesale print rates are not installed retail pricing.
 
 Reference UX researched September 17, 2026:
@@ -69,4 +79,4 @@ No competitor rate table, branding, product imagery or third-party source code i
 
 An administrator sets instant purchase, requires-installation, wrap classification, dimensions and quantity limits for each product. Server checks prevent wraps or installed items from using standard checkout even if an instant-purchase flag is selected. Review-only and oversized products stay on the quote path. Example standard products are stickers, labels, magnets, banners, ACM signs and yard signs; confirm their material/finish specifications and applicable shipping before enabling them. Current seeded storefront perf and acrylic-face replacement include custom/installation scope and remain quote-only. Add separate supply-only products for straightforward pickup work with appropriate rates and limits.
 
-One public online order has one product, one size and one design with a chosen quantity. No multi-item cart, per-order coupons, automatic carrier charges or within-product variants are implemented. These are not hidden fee calculations; the merchandise estimate is visible before checkout and configured tax/shipping is reviewed before payment.
+One public online order has one product, one size and one design with a chosen quantity. Supported products can offer material and finish choices. Per-order coupons and automatic carrier charges are not implemented. The merchandise estimate is visible before checkout and configured tax/shipping is reviewed before payment.
