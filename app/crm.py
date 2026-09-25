@@ -4,8 +4,10 @@ from __future__ import annotations
 import csv
 import io
 import json
+import hmac
+import os
 import sqlite3
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 
 from fastapi import Body, Depends, HTTPException, Request
 from fastapi.responses import Response
@@ -36,6 +38,7 @@ CREATE TABLE IF NOT EXISTS crm_contacts (
  tags TEXT NOT NULL DEFAULT '[]',
  notes TEXT NOT NULL DEFAULT '',
  follow_up_date TEXT,
+ auto_reminders INTEGER NOT NULL DEFAULT 1,
  created_at TEXT NOT NULL,
  updated_at TEXT NOT NULL
 );
@@ -56,10 +59,28 @@ CREATE TABLE IF NOT EXISTS crm_reminders (
  status TEXT NOT NULL CHECK(status IN ('sent','failed')),
  error TEXT NOT NULL DEFAULT '',
  sent_by INTEGER REFERENCES users(id),
+ kind TEXT NOT NULL DEFAULT 'manual',
+ reminder_key TEXT NOT NULL DEFAULT '',
+ automatic INTEGER NOT NULL DEFAULT 0,
  created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS crm_reminders_contact ON crm_reminders(contact_id,id);
+CREATE INDEX IF NOT EXISTS crm_reminders_key ON crm_reminders(reminder_key,status);
 """
+
+
+def _upgrade_crm_schema(conn) -> None:
+    contact_columns = {row[1] for row in conn.execute("PRAGMA table_info(crm_contacts)")}
+    if "auto_reminders" not in contact_columns:
+        conn.execute("ALTER TABLE crm_contacts ADD COLUMN auto_reminders INTEGER NOT NULL DEFAULT 1")
+    reminder_columns = {row[1] for row in conn.execute("PRAGMA table_info(crm_reminders)")}
+    if "kind" not in reminder_columns:
+        conn.execute("ALTER TABLE crm_reminders ADD COLUMN kind TEXT NOT NULL DEFAULT 'manual'")
+    if "reminder_key" not in reminder_columns:
+        conn.execute("ALTER TABLE crm_reminders ADD COLUMN reminder_key TEXT NOT NULL DEFAULT ''")
+    if "automatic" not in reminder_columns:
+        conn.execute("ALTER TABLE crm_reminders ADD COLUMN automatic INTEGER NOT NULL DEFAULT 0")
+    conn.execute("CREATE INDEX IF NOT EXISTS crm_reminders_key ON crm_reminders(reminder_key,status)")
 
 
 def _optional_email(value) -> str:
