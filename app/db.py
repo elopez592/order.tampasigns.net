@@ -41,7 +41,7 @@ def initialize(path: Path) -> None:
         conn.execute('PRAGMA journal_mode=WAL')
         conn.executescript(Path(__file__).with_name('schema.sql').read_text())
         versions = [r[0] for r in conn.execute('SELECT version FROM schema_version')]
-        if versions not in ([1], [1, 2], [1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5, 6]):
+        if versions not in ([1], [1, 2], [1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 6, 7]):
             raise RuntimeError('Unsupported database schema; back up and migrate explicitly.')
         conn.execute('INSERT OR IGNORE INTO schema_version VALUES (2)')
         conn.execute('INSERT OR IGNORE INTO schema_version VALUES (3)')
@@ -54,6 +54,7 @@ def initialize(path: Path) -> None:
         conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS wholesale_clients_username ON wholesale_clients(username COLLATE NOCASE)')
         conn.execute('INSERT OR IGNORE INTO schema_version VALUES (5)')
         conn.execute('INSERT OR IGNORE INTO schema_version VALUES (6)')
+        conn.execute('INSERT OR IGNORE INTO schema_version VALUES (7)')
     finally:
         conn.close()
     try:
