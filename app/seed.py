@@ -174,6 +174,8 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 ]
             if 'usdot decal' in lname:
                 cfg['storefront_categories'] = ['Vehicles','Fleet Services']
+                cfg['usdot_logo_setup_price'] = '20'
+                cfg['description'] = 'Custom USDOT identification decals with live layout controls. Lettering-only pricing is the base price; using a company logo adds a $20 setup charge. Full-color or complex artwork may require additional pricing after shop review.'
                 cfg['size_options'] = [
                     {'label':'18 x 12 in','width':'18','height':'12'},
                     {'label':'24 x 12 in','width':'24','height':'12'},
@@ -522,10 +524,11 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
         if not conn.execute("SELECT id FROM products WHERE lower(name)='usdot decals' LIMIT 1").fetchone():
             usdot_cfg = validate_config({
                 'unit':'piece','sell_per_sqft':'20','cost_per_sqft':'4','setup_price':'12','setup_cost':'6',
+                'usdot_logo_setup_price':'20',
                 'minimum_price':'0','waste_percent':'15','labor_minutes_per_unit':'0','min_quantity':1,
                 'max_quantity':1000,'default_width':18,'default_height':12,'min_width':3,'min_height':3,
                 'max_width':48,'max_height':48,'max_short_axis':24,'max_long_axis':48,'instant':True,
-                'description':'Basic USDOT identification decals with an instant text preview. Enter your company information and choose a lettering style before ordering.',
+                'description':'Custom USDOT identification decals with live layout controls. Lettering-only pricing is the base price; using a company logo adds a $20 setup charge. Full-color or complex artwork may require additional pricing after shop review.',
                 'is_wrap':False,'requires_installation':False,'supports_installation':False,
                 'supports_multiple_dimensions':False,'self_approve_artwork':True,'usdot_customizer':True,
                 'storefront_categories':['Vehicles','Fleet Services'],'quantity_presets':[1,2,5,10,25,50],'size_options':[
