@@ -107,6 +107,8 @@ def test_decals_usdot_and_apparel_listings(env):
     usdot = products['USDOT Decals']
     assert usdot['config']['storefront_categories'] == ['Vehicles', 'Fleet Services']
     assert usdot['config']['usdot_customizer'] is True
+    assert usdot['config']['usdot_logo_setup_price'] == '20'
+    assert 'Full-color' in usdot['config']['description']
     assert [x['label'] for x in usdot['config']['size_options']] == ['18 x 12 in', '24 x 12 in', '24 x 18 in']
     assert usdot['config']['max_short_axis'] == '24'
     assert usdot['config']['max_long_axis'] == '48'
@@ -229,6 +231,23 @@ def test_usdot_quote_preserves_generated_preview_copy(env):
     assert saved['font_sizes'] == {'company': '64', 'phone': '28', 'number': '80', 'licenses': '26', 'location': '30'}
     assert saved['text_color'] == '#ffffff'
     assert 'background_color' not in saved
+
+    lettering = client.post('/api/calculate', json={'items':[{
+        'product_id': usdot['id'], 'width': 18, 'height': 12, 'quantity': 1,
+        'usdot_design': design | {'identity': 'text'}, 'lamination': 'none'
+    }]})
+    logo = client.post('/api/calculate', json={'items':[{
+        'product_id': usdot['id'], 'width': 18, 'height': 12, 'quantity': 1,
+        'usdot_design': design | {
+            'identity': 'logo', 'company': '', 'logo_id': 'test-logo',
+            'logo_name': 'company-logo.png', 'logo_width': 42
+        }, 'lamination': 'none'
+    }]})
+    assert lettering.status_code == 200, lettering.text
+    assert logo.status_code == 200, logo.text
+    assert lettering.json()['lines'][0]['usdot_logo_fee_cents'] == 0
+    assert logo.json()['lines'][0]['usdot_logo_fee_cents'] == 2000
+    assert logo.json()['subtotal_cents'] - lettering.json()['subtotal_cents'] == 2000
 
     invalid = client.post('/api/calculate', json={'items':[{
         'product_id': usdot['id'], 'width': 18, 'height': 12, 'quantity': 1,
