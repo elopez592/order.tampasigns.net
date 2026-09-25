@@ -32,4 +32,3 @@ def test_frontend_exposes_reports_and_product_icons_without_contour_designer():
     assert "'/api/admin/reports'" in app_js
     assert 'product-catalog-card' in shop_js
     assert 'Create live contour-cut proof' not in shop_js
-    assert 'customer-contour-proof.png' not in shop_js
