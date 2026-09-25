@@ -248,15 +248,27 @@ export function createShop(ctx) {
   async function usdotPrintFile(item,index){
     const d=item.usdot_design,width=Math.max(1,Number(item.width)||18),height=Math.max(1,Number(item.height)||12),dpi=Math.max(72,Math.min(300,4800/Math.max(width,height))),legacyScale=Math.max(.8,Math.min(1.4,Number(d.font_scale)||1)),points=d.font_sizes||{company:56*legacyScale,phone:30*legacyScale,number:72*legacyScale,licenses:30*legacyScale,location:32*legacyScale};
     const canvas=document.createElement('canvas');canvas.width=Math.round(width*dpi);canvas.height=Math.round(height*dpi);
-    const c=canvas.getContext('2d'),font=usdotFonts[d.style]||usdotFonts.bold,pad=canvas.width*.055;
-    const lines=[{key:'company',text:String(d.company||'').toUpperCase()},{key:'phone',text:String(d.phone||'').toUpperCase()},{key:'number',text:'USDOT '+String(d.number||'').toUpperCase().replace(/^USDOT\s*/,'')},{key:'licenses',text:String(d.licenses||'').toUpperCase()},{key:'location',text:String(d.location||'').toUpperCase()}].filter(x=>x.text&&x.text!=='USDOT ');
-    const preferred=lines.map(x=>Math.max(12,Number(points[x.key]||24)*dpi/72)),gap=Math.max(5,8*dpi/72),total=preferred.reduce((a,b)=>a+b,0)+gap*(lines.length-1),scale=Math.min(1,(canvas.height-pad*2)/total);
-    let y=(canvas.height-(total*scale))/2;c.fillStyle=d.text_color||'#111111';c.textAlign='center';c.textBaseline='top';
-    lines.forEach((line,lineIndex)=>{const px=fitUsdotText(c,line.text,canvas.width-pad*2,preferred[lineIndex]*scale,font);c.fillText(line.text,canvas.width/2,y,canvas.width-pad*2);y+=px+gap*scale;});
+    const c=canvas.getContext('2d'),font=usdotFonts[d.style]||usdotFonts.bold,pad=canvas.width*.035;
+    const defaults={company:{x:50,y:16},logo:{x:50,y:20},phone:{x:50,y:33},number:{x:50,y:51},licenses:{x:50,y:69},location:{x:50,y:85}},positions=d.positions||{};
+    const pos=key=>({x:Number(positions[key]?.x??defaults[key].x),y:Number(positions[key]?.y??defaults[key].y)});
+    c.fillStyle=d.text_color||'#111111';c.textAlign='center';c.textBaseline='middle';
+    const drawText=(key,text)=>{
+      if(!text)return;const p=pos(key),preferred=Math.max(12,Number(points[key]||24)*dpi/72),px=fitUsdotText(c,text,canvas.width-pad*2,preferred,font);
+      c.font=`900 ${px}px ${font}`;c.fillText(text,canvas.width*p.x/100,canvas.height*p.y/100,canvas.width-pad*2);
+    };
+    if((d.identity||'text')==='logo'&&d.logo_data_url){
+      const logo=await loadImage(d.logo_data_url),p=pos('logo'),targetWidth=canvas.width*Math.max(.1,Math.min(.95,Number(d.logo_width||42)/100)),ratio=logo.height/Math.max(1,logo.width),targetHeight=targetWidth*ratio;
+      c.drawImage(logo,canvas.width*p.x/100-targetWidth/2,canvas.height*p.y/100-targetHeight/2,targetWidth,targetHeight);
+    }else drawText('company',String(d.company||'').toUpperCase());
+    drawText('phone',String(d.phone||'').toUpperCase());
+    drawText('number','USDOT '+String(d.number||'').toUpperCase().replace(/^USDOT\s*/,''));
+    drawText('licenses',String(d.licenses||'').toUpperCase());
+    drawText('location',String(d.location||'').toUpperCase());
     const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
     if(!blob)throw new Error('Unable to generate the USDOT print file.');
     return new File([blob],`item-${index+1}-usdot-print-ready-${width}x${height}in.png`,{type:'image/png'});
   }
+
   async function designFiles(uploadedFiles=[]){
     const files=[...await windowUploads.filesFor(project),...await embroidery.filesFor(project)],imageUploads=uploadedFiles.filter(file=>['image/png','image/jpeg'].includes(file.type));let contourUploadIndex=0;
     for(let i=0;i<project.length;i++){
