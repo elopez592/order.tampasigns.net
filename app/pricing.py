@@ -118,7 +118,7 @@ def validate_config(cfg: dict) -> dict:
     result['description'] = str(cfg.get('description', ''))[:700]
     apparel_kind = str(cfg.get('apparel_kind', '')).strip().lower()
     if apparel_kind not in ('', 'custom_shirt', 'embroidered_hat', 'embroidered_polo',
-                            'embroidered_shirt', 'embroidered_hoodie', 'embroidered_jacket'):
+                            'embroidered_hoodie'):
         raise HTTPException(422, 'Choose a valid apparel kind.')
     result['apparel_kind'] = apparel_kind
     result['apparel_unit_price'] = str(number(cfg.get('apparel_unit_price', 0), 'Apparel unit price', '0', '10000'))

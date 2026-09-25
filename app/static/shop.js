@@ -1,5 +1,5 @@
 import {createWindowUploads, usesDirectArtwork} from './window-upload.js?v=20260925-embroidery-2';
-import {createEmbroidery, embroidered} from './embroidery.js?v=20260925-2';
+import {createEmbroidery, embroidered} from './embroidery.js?v=20260925-photos-1';
 
 // Customer project cart and artwork attachments.
 export function createShop(ctx) {
@@ -32,7 +32,7 @@ export function createShop(ctx) {
       const kind=p.config.apparel_kind||'custom_shirt',colors=Object.keys(p.config.shirt_colors||{}),sizes=p.config.shirt_sizes||[],defaultColor=colors.includes('White')?'White':colors[0],defaultSize=sizes.includes('M')?'M':sizes[0];
       const placements=kind==='custom_shirt'?[['front','Full front · $30 per shirt'],['back','Full back · $30 per shirt'],['left_chest','Left chest · $25 per shirt']]:(p.config.placement_options||[]).map(o=>[o.id,o.label]);
       const locationType=kind==='custom_shirt'?'checkbox':'radio',locationTitle=kind==='custom_shirt'?'Print locations (choose one or more)':'Embroidery placement';
-      const itemLabel=kind==='embroidered_hat'?'Hat':kind==='embroidered_polo'?'Polo':kind==='embroidered_hoodie'?'Hoodie':kind==='embroidered_jacket'?'Jacket':'Shirt';
+      const itemLabel=kind==='embroidered_hat'?'Hat':kind==='embroidered_polo'?'Polo':kind==='embroidered_hoodie'?'Hoodie':'Shirt';
       f.innerHTML=`${select('shirt_color',itemLabel+' color',colors.map(c=>[c,c]),defaultColor)}<h3 class="mt mb">Choose sizes and quantities</h3><div class="shirt-sizes">${sizes.map(s=>`<label class="field"><span>${esc(s)}</span><input data-shirt-size="${esc(s)}" type="number" min="0" max="100000" step="1" value="${s===defaultSize?1:0}" required></label>`).join('')}</div><fieldset class="print-locations mt"><legend>${locationTitle}</legend>${placements.map(([v,l],i)=>`<label><input type="${locationType}" name="print_locations" value="${esc(v)}" ${i===0?'checked':''}> ${esc(l)}</label>`).join('')}</fieldset>${p.config.digitizing_fee&&Number(p.config.digitizing_fee)>0?`<div class="notice info mt">A one-time ${money(Number(p.config.digitizing_fee)*100)} digitizing fee is added on top of the product price for this embroidery order.</div>`:''}<div id="calc-feedback" class="form-error"></div>`;
       if(kind==='custom_shirt')$('.product-preview').innerHTML=`<img class="shirt-sample" src="${imageFor(defaultColor)}" alt="${esc(defaultColor)} Gildan Heavy Cotton 5000 sample"><span class="preview-label">Gildan 5000 · Supplier sample</span>`;
       f.addEventListener('change',e=>{if(kind==='custom_shirt'&&e.target.name==='shirt_color')$('.shirt-sample').src=imageFor(e.target.value);recalculate();});

@@ -7,11 +7,9 @@ from .db import transaction, now
 COLORS = {'White': '#ffffff', 'Black': '#252525', 'Navy': '#182b49', 'Royal': '#2453a0', 'Red': '#bd2437', 'Sport Grey': '#a8a8a8'}
 SIZES = ['S', 'M', 'L', 'XL', '2XL', '3XL']
 EMBROIDERY_KINDS = {
-    'embroidered_shirt': 'Embroidered T-shirt',
     'embroidered_polo': 'Embroidered polo',
     'embroidered_hat': 'Embroidered hat',
     'embroidered_hoodie': 'Embroidered hoodie',
-    'embroidered_jacket': 'Embroidered jacket',
 }
 CHEST_PLACEMENTS = [
     {'id': 'left_chest', 'label': 'Left chest — up to 4.5 x 4.5 in', 'width': '4.5', 'height': '4.5'},
@@ -30,6 +28,10 @@ def upgrade_catalog(database):
             cats = cfg.get('storefront_categories', [])
             name = row['name']
             active, public = row['active'], row['public']
+            # Retain old product records for existing jobs while retiring them from sale.
+            if (name in ('Embroidered T-shirts', 'Embroidered jackets') or
+                    cfg.get('apparel_kind') in ('embroidered_shirt', 'embroidered_jacket')):
+                active, public = 0, 0
             if name in ('Die-cut stickers', 'Decals'):
                 cfg['contour_customizer'] = True
             if 'banner' in name.lower() or name == 'Custom T-shirts':
@@ -205,9 +207,7 @@ def upgrade_catalog(database):
                 description='Construction signs printed on durable 3mm aluminum composite panels. Choose 2 × 4, 3 × 6, 4 × 8 or 5 × 10 feet.'
             ),
         }
-        for name, kind in (('Embroidered T-shirts', 'embroidered_shirt'),
-                           ('Embroidered hoodies', 'embroidered_hoodie'),
-                           ('Embroidered jackets', 'embroidered_jacket')):
+        for name, kind in (('Embroidered hoodies', 'embroidered_hoodie'),):
             additions[name] = dict(
                 category='Apparel', storefront_categories=['Apparel'], unit='piece',
                 sell_per_sqft='0', cost_per_sqft='0', setup_price='0', setup_cost='0',

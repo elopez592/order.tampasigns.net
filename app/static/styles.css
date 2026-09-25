@@ -196,8 +196,12 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .product-photo-roll-up-banners .product-example-photo{background-image:url('/static/products/client-jobs/roll-up-banners.webp?v=20260925-1');background-position:55% 48%}
 .product-photo-partial-vehicle-wraps .product-example-photo{background-image:url('/static/products/client-jobs/vehicle-wraps.webp?v=20260925-1');background-position:center}
 .product-photo-trailer-food-truck-wraps .product-example-photo{background-image:url('/static/products/client-jobs/trailer-food-truck-wraps.webp?v=20260925-1');background-position:center}
-/* Live garment mockups are generated locally from the customer's uploaded logo. */
-.product-preview.embroidery-product-preview{height:auto;aspect-ratio:800/680;background:#e8eff1;overflow:hidden;margin-bottom:24px}
+/* Generated garment photography is shared by catalog cards and logo mockups. */
+.product-photo-embroidered-polos,.product-photo-embroidered-hats,.product-photo-embroidered-hoodies{background:#f4f5f6}
+.product-photo-embroidered-polos .product-example-photo{background-image:url('/static/products/embroidery/polo-photo.webp');background-size:contain;background-position:center}
+.product-photo-embroidered-hats .product-example-photo{background-image:url('/static/products/embroidery/hat-photo.webp');background-size:contain;background-position:center}
+.product-photo-embroidered-hoodies .product-example-photo{background-image:url('/static/products/embroidery/hoodie-photo.webp');background-size:contain;background-position:center}
+.product-preview.embroidery-product-preview{height:auto;aspect-ratio:800/680;background:#f4f5f6;overflow:hidden;margin-bottom:24px}
 .embroidery-product-preview canvas,.embroidery-modal-canvas{display:block;width:100%;height:auto}
 .embroidery-controls{border-top:1px solid var(--line);margin-top:20px;padding-top:20px}
 .embroidery-controls input[type=range]{padding:0;accent-color:var(--accent);min-height:28px}
