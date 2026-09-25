@@ -15,6 +15,12 @@ D = Decimal
 USDOT_STYLES = {'bold', 'condensed', 'industrial', 'serif', 'rounded', 'highway', 'stencil', 'monospace', 'modern', 'slab'}
 USDOT_FONT_SCALES = {D('0.8'), D('1'), D('1.2'), D('1.4')}
 USDOT_FONT_DEFAULTS = {'company': 56, 'phone': 30, 'number': 72, 'licenses': 30, 'location': 32}
+USDOT_IDENTITIES = {'text', 'logo'}
+USDOT_POSITION_DEFAULTS = {
+    'company': {'x': 50, 'y': 16}, 'logo': {'x': 50, 'y': 20},
+    'phone': {'x': 50, 'y': 33}, 'number': {'x': 50, 'y': 51},
+    'licenses': {'x': 50, 'y': 69}, 'location': {'x': 50, 'y': 85},
+}
 
 
 def usdot_design(value) -> dict:
@@ -24,9 +30,18 @@ def usdot_design(value) -> dict:
         raise HTTPException(422, 'USDOT design details must be an object.')
     limits = {'company': 80, 'phone': 40, 'number': 20, 'licenses': 100, 'location': 80}
     result = {key: str(value.get(key, '')).strip()[:limit] for key, limit in limits.items()}
-    if not result['company'] or not result['number']:
-        raise HTTPException(422, 'Company name and USDOT number are required.')
+    identity = str(value.get('identity', 'text')).strip().lower()
+    if identity not in USDOT_IDENTITIES:
+        raise HTTPException(422, 'Choose company text or an uploaded logo for the USDOT identity.')
+    result['identity'] = identity
+    if identity == 'text' and not result['company']:
+        raise HTTPException(422, 'Company name is required when using text for the USDOT identity.')
+    if not result['number']:
+        raise HTTPException(422, 'USDOT number is required.')
     result['number'] = re.sub(r'^USDOT\s*', '', result['number'], flags=re.I)
+    result['logo_id'] = str(value.get('logo_id', '')).strip()[:100]
+    result['logo_name'] = str(value.get('logo_name', '')).strip()[:160]
+    result['logo_width'] = str(number(value.get('logo_width', 42), 'USDOT logo width', '10', '95'))
     style = str(value.get('style', 'bold')).strip().lower()
     if style not in USDOT_STYLES:
         raise HTTPException(422, 'Choose a valid USDOT font style.')
@@ -42,6 +57,18 @@ def usdot_design(value) -> dict:
         key: str(number(font_sizes.get(key, default), f'{key.title()} point size', '8', '300'))
         for key, default in USDOT_FONT_DEFAULTS.items()
     }
+    positions = value.get('positions', {})
+    if not isinstance(positions, dict) or set(positions) - set(USDOT_POSITION_DEFAULTS):
+        raise HTTPException(422, 'USDOT positions must match the available design elements.')
+    result['positions'] = {}
+    for key, defaults in USDOT_POSITION_DEFAULTS.items():
+        position = positions.get(key) or {}
+        if not isinstance(position, dict) or set(position) - {'x', 'y'}:
+            raise HTTPException(422, f'{key.title()} position must contain x and y values.')
+        result['positions'][key] = {
+            'x': str(number(position.get('x', defaults['x']), f'{key.title()} horizontal position', '0', '100')),
+            'y': str(number(position.get('y', defaults['y']), f'{key.title()} vertical position', '0', '100')),
+        }
     color = str(value.get('text_color', '#111111')).strip().lower()
     if not re.fullmatch(r'#[0-9a-f]{6}', color):
         raise HTTPException(422, 'Choose a valid USDOT lettering color.')
