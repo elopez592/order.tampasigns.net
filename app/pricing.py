@@ -17,9 +17,9 @@ USDOT_FONT_SCALES = {D('0.8'), D('1'), D('1.2'), D('1.4')}
 USDOT_FONT_DEFAULTS = {'company': 56, 'phone': 30, 'number': 72, 'licenses': 30, 'location': 32}
 USDOT_IDENTITIES = {'text', 'logo'}
 USDOT_POSITION_DEFAULTS = {
-    'company': {'x': 50, 'y': 16}, 'logo': {'x': 50, 'y': 20},
-    'phone': {'x': 50, 'y': 33}, 'number': {'x': 50, 'y': 51},
-    'licenses': {'x': 50, 'y': 69}, 'location': {'x': 50, 'y': 85},
+    'company': {'x': 50, 'y': 16, 'rotation': 0}, 'logo': {'x': 50, 'y': 20, 'rotation': 0},
+    'phone': {'x': 50, 'y': 33, 'rotation': 0}, 'number': {'x': 50, 'y': 51, 'rotation': 0},
+    'licenses': {'x': 50, 'y': 69, 'rotation': 0}, 'location': {'x': 50, 'y': 85, 'rotation': 0},
 }
 
 
@@ -65,11 +65,12 @@ def usdot_design(value) -> dict:
     result['positions'] = {}
     for key, defaults in USDOT_POSITION_DEFAULTS.items():
         position = positions.get(key) or {}
-        if not isinstance(position, dict) or set(position) - {'x', 'y'}:
-            raise HTTPException(422, f'{key.title()} position must contain x and y values.')
+        if not isinstance(position, dict) or set(position) - {'x', 'y', 'rotation'}:
+            raise HTTPException(422, f'{key.title()} transform must contain valid position and rotation values.')
         result['positions'][key] = {
             'x': str(number(position.get('x', defaults['x']), f'{key.title()} horizontal position', '0', '100')),
             'y': str(number(position.get('y', defaults['y']), f'{key.title()} vertical position', '0', '100')),
+            'rotation': str(number(position.get('rotation', defaults['rotation']), f'{key.title()} rotation', '-180', '180')),
         }
     color = str(value.get('text_color', '#111111')).strip().lower()
     if not re.fullmatch(r'#[0-9a-f]{6}', color):
