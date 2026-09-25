@@ -22,7 +22,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .db import initialize, transaction, settings, audit, now
 from .security import digest, password_matches, password_hash, text, email, payment_url, rate_limit
-from .pricing import calculate, public_quote, validate_config, number, cents
+from .pricing import calculate, public_quote, validate_config, number, cents, cent_round
 from .domain import (get_job, totals, latest_proof, production_started, gate_reason,
                      serialize_job, create_job, validate_steps, APPROVAL_STATEMENT)
 from .seed import bootstrap
@@ -70,6 +70,94 @@ def require_admin(request: Request):
 
 def actor(user):
     return f'{user["name"]} (staff #{user["id"]})'
+
+
+def revised_quote_snapshot(existing: dict, raw_lines) -> dict:
+    if not isinstance(raw_lines, list) or not 1 <= len(raw_lines) <= 30:
+        raise HTTPException(422, 'A quote needs 1 to 30 product or service lines.')
+    source_lines = existing.get('lines', [])
+    used_sources = set()
+    checked = []
+    for raw in raw_lines:
+        if not isinstance(raw, dict):
+            raise HTTPException(422, 'Invalid quote line.')
+        source_index = raw.get('source_index')
+        base = {}
+        if source_index not in (None, ''):
+            if type(source_index) is not int or source_index < 0 or source_index >= len(source_lines) or source_index in used_sources:
+                raise HTTPException(422, 'Invalid original quote line reference.')
+            used_sources.add(source_index)
+            base = dict(source_lines[source_index])
+        is_new = not bool(base)
+
+        name = text(raw.get('name', base.get('name', '')), 'Line item name', 120, True)
+        description = text(raw.get('description', base.get('description', '')), 'Line item description', 500)
+        unit = text(raw.get('unit', base.get('unit', 'each') or 'each'), 'Line item unit', 40, True)
+        quantity = number(raw.get('quantity', base.get('quantity', 1)), 'Line item quantity', '0.01', '1000000')
+        width_raw = raw.get('width', base.get('width', ''))
+        height_raw = raw.get('height', base.get('height', ''))
+        width = None if width_raw in (None, '') else number(width_raw, 'Line item width', '0.01', '10000')
+        height = None if height_raw in (None, '') else number(height_raw, 'Line item height', '0.01', '10000')
+        if (width is None) != (height is None):
+            raise HTTPException(422, 'Enter both width and height, or leave both blank for a service line.')
+
+        sell_default = base.get('sell_cents', 0) / 100
+        cost_default = base.get('cost_cents', 0) / 100
+        sell = cents(raw.get('sell_total', sell_default), 'Line customer price')
+        cost = cents(raw.get('cost_total', cost_default), 'Line estimated cost')
+        default_artwork = bool(base) and not base.get('artwork_upload_disabled', False) and width is not None and height is not None
+        artwork_required = raw.get('artwork_required', default_artwork)
+        if not isinstance(artwork_required, bool):
+            raise HTTPException(422, 'Artwork requirement must be true or false.')
+        if artwork_required and (width is None or height is None):
+            raise HTTPException(422, 'Artwork-required lines need width and height.')
+
+        qty_value = int(quantity) if quantity == quantity.to_integral() else str(quantity.normalize())
+        net_area = width * height * quantity / 144 if width is not None else number(0)
+        line = base
+        line.update({
+            'name': name, 'description': description, 'unit': unit, 'quantity': qty_value,
+            'width': '' if width is None else str(width), 'height': '' if height is None else str(height),
+            'net_sqft': str(net_area.quantize(number('0.0001'))), 'sell_cents': sell, 'cost_cents': cost,
+            'retail_sell_cents': sell,
+            'price_per_item_cents': cent_round(number(sell, 'Line cents', '0', '100000000000') / quantity),
+            'review_required': True, 'artwork_required': artwork_required,
+            'manual_quote_line': bool(base.get('manual_quote_line')) or is_new,
+        })
+        if is_new:
+            line.update({
+                'product_id': None, 'product_version': None, 'category': 'Custom',
+                'finished_apparel': False, 'artwork_upload_disabled': not artwork_required,
+                'material_sqft': str(net_area.quantize(number('0.0001'))), 'labor_hours': '0',
+                'wholesale_discount_percent': '', 'quote_only': True,
+                'installation_requested': False, 'design_requested': False, 'usdot_design': {},
+                'self_approve_artwork': False, 'installation_estimate_cents': 0,
+                'lamination': '', 'lamination_label': '', 'lamination_cents': 0,
+                'material': '', 'material_label': '', 'material_cents': 0,
+                'coverage_option': '', 'coverage_label': '', 'include_roof_wrap': False,
+                'vehicle_type': '', 'vehicle_type_label': '', 'workflow_id': None, 'floor_applied': False,
+            })
+        checked.append(line)
+
+    revised = dict(existing)
+    revised['lines'] = checked
+    revised['subtotal_cents'] = sum(line['sell_cents'] for line in checked)
+    revised['cost_cents'] = sum(line['cost_cents'] for line in checked)
+    revised['review_required'] = True
+    revised['meets_minimum_order'] = (not revised.get('minimum_order_cents')) or revised['subtotal_cents'] >= revised.get('minimum_order_cents', 0)
+    revised['pricing_basis'] = 'Saved product pricing plus owner-edited quote lines and services.'
+    return revised
+
+
+def quote_line_needs_artwork(line: dict) -> bool:
+    if 'artwork_required' in line:
+        return line.get('artwork_required') is True
+    if line.get('artwork_upload_disabled'):
+        return False
+    try:
+        return float(line.get('width') or 0) > 0 and float(line.get('height') or 0) > 0
+    except (TypeError, ValueError):
+        return False
 
 
 def create_app(data_dir=None, demo=None) -> FastAPI:
@@ -877,6 +965,11 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 raise HTTPException(409, 'Financial revisions after production begins require a separate change-order job.')
             if payload.get('version') != job['quote_version']:
                 raise HTTPException(409, 'This quote was edited elsewhere. Reload before saving.')
+            quote_snapshot = job['quote_snapshot']
+            if 'lines' in payload:
+                quote_snapshot = json.dumps(
+                    revised_quote_snapshot(json.loads(job['quote_snapshot']), payload.get('lines')),
+                    separators=(',', ':'))
             extra_price = cents(payload.get('extra_price', 0), 'Additional services price')
             extra_cost = cents(payload.get('extra_cost', 0), 'Additional job cost')
             shipping = cents(payload.get('shipping', 0), 'Delivery charge')
@@ -887,11 +980,11 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 raise HTTPException(422, 'Explain the price adjustment or additional services.')
             deposit = str(number(payload.get('deposit_percent', job['deposit_percent']), 'Deposit %', '0', '100'))
             verified = payload.get('charges_verified') is True
-            conn.execute('''UPDATE jobs SET extra_price_cents=?,extra_cost_cents=?,shipping_cents=?,tax_cents=?,
+            conn.execute('''UPDATE jobs SET quote_snapshot=?,extra_price_cents=?,extra_cost_cents=?,shipping_cents=?,tax_cents=?,
                 price_override_cents=?,adjustment_note=?,deposit_percent=?,charges_verified=?,
                 quote_version=quote_version+1,published=0,accepted_version=NULL,accepted_name=NULL,accepted_at=NULL,
                 payment_url=NULL,invoice_reference='' WHERE id=?''',
-                (extra_price, extra_cost, shipping, tax, override, note, deposit, int(verified), job_id))
+                (quote_snapshot, extra_price, extra_cost, shipping, tax, override, note, deposit, int(verified), job_id))
             revised = get_job(conn, job_id)
             summary = totals(conn, revised)
             if summary['total_cents'] <= 0 or summary['total_cents'] < summary['paid_cents']:
@@ -1191,8 +1284,11 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             if job['archived'] or (is_proof and production_started(conn, job_id)):
                 raise HTTPException(409, 'This job cannot accept a new proof. Create a change-order job.')
             lines = json.loads(job['quote_snapshot'])['lines']
-            if is_proof and any(str(i) not in mappings for i in range(len(lines))):
-                raise HTTPException(422, 'Assign artwork to every item before publishing a complete proof package.')
+            artwork_indexes = [i for i, line in enumerate(lines) if quote_line_needs_artwork(line)]
+            if not artwork_indexes:
+                raise HTTPException(422, 'This quote has no product lines that require an artwork layout.')
+            if is_proof and any(str(i) not in mappings for i in artwork_indexes):
+                raise HTTPException(422, 'Assign artwork to every printable product before publishing a complete proof package.')
             raw = panel_sheet(conn, uploads, job, mappings, payload.get('fit', 'contain'))
             aid = save_asset(conn, uploads, job_id, raw, job['number'] + '-layout.png', 'image/png', '.png', 'proof' if is_proof else 'layout', actor(user))
             if is_proof:
