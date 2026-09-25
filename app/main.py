@@ -844,7 +844,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             else:
                 gross_profit = money['merchandise_cents'] - money['cost_cents']
             rows.append({'number': job['number'], 'created_at': job['created_at'], 'customer': job['customer_name'],
-                         'title': job['title'], 'booked': booked, 'revenue_cents': money['merchandise_cents'],
+                         'title': job['title'], 'booked': booked, 'stage': job['stage'], 'revenue_cents': money['merchandise_cents'],
                          'cost_cents': money['cost_cents'], 'profit_cents': gross_profit,
                          'paid_cents': money['paid_cents'], 'balance_cents': money['balance_cents']})
             if booked:
