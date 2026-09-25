@@ -14,7 +14,7 @@ from fastapi import HTTPException
 
 from app.checkout import StripeGateway, availability
 from app.db import transaction
-from .conftest import anonymous, portal, proof, approve, finish, task_action, payment
+from .conftest import anonymous, portal, accept, proof, approve, finish, task_action, payment
 
 
 class FakeGateway(StripeGateway):
