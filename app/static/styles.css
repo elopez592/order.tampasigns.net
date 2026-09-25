@@ -138,7 +138,7 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .product-example .example-item strong{font-size:clamp(15px,2vw,25px);line-height:1.05;letter-spacing:-.6px}
 .product-example .example-item small{font-size:8px;font-weight:850;letter-spacing:1.7px;color:#087f81}
 .product-example .example-caption{position:absolute;right:12px;bottom:10px;padding:5px 8px;border-radius:99px;background:#0b0f10d9;color:#b7f5ec;font-size:8px;font-weight:800;letter-spacing:1px}
-.product-example-catalog{min-height:175px;width:100%;margin-bottom:19px;border-radius:12px}
+.product-example-catalog{width:100%;min-height:0;aspect-ratio:4/3;margin-bottom:19px;border-radius:12px}
 .product-example-catalog .example-item{width:65%;min-height:82px;padding:13px 16px}
 .product-example-catalog .example-item strong{font-size:clamp(14px,1.5vw,21px)}
 .product-example-window{background:linear-gradient(135deg,#0c1f23 0%,#2e6970 57%,#acd9d1 100%)}
@@ -201,6 +201,9 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .product-photo-embroidered-polos .product-example-photo{background-image:url('/static/products/embroidery/polo-photo.webp');background-size:contain;background-position:center}
 .product-photo-embroidered-hats .product-example-photo{background-image:url('/static/products/embroidery/hat-photo.webp');background-size:contain;background-position:center}
 .product-photo-embroidered-hoodies .product-example-photo{background-image:url('/static/products/embroidery/hoodie-photo.webp');background-size:contain;background-position:center}
+/* Show the complete photo in the roomier catalog cards; product detail crops stay as designed. */
+.product-example-catalog .product-example-photo{background-size:contain}
+.product-example-catalog:hover .product-example-photo{transform:none}
 .product-preview.embroidery-product-preview{height:auto;aspect-ratio:800/680;background:#f4f5f6;overflow:hidden;margin-bottom:24px}
 .embroidery-product-preview canvas,.embroidery-modal-canvas{display:block;width:100%;height:auto}
 .embroidery-controls{border-top:1px solid var(--line);margin-top:20px;padding-top:20px}
