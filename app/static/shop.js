@@ -243,18 +243,60 @@ export function createShop(ctx) {
     $('#contour-upload').onchange=async e=>{try{const f=e.target.files[0];if(!f)return;if(!['image/png','image/jpeg'].includes(f.type)||f.size>50*1024*1024)throw new Error('Choose a PNG or JPEG image up to 50 MB.');const url=URL.createObjectURL(f);let im;try{im=await loadImage(url);}finally{URL.revokeObjectURL(url);}const normalized=document.createElement('canvas'),scale=Math.min(1,3000/Math.max(im.width,im.height));normalized.width=Math.max(1,Math.round(im.width*scale));normalized.height=Math.max(1,Math.round(im.height*scale));normalized.getContext('2d').drawImage(im,0,0,normalized.width,normalized.height);draft.image=normalized.toDataURL('image/png');draft.original=f;contourImage=await loadImage(draft.image);$('[data-action="contour-save"]').disabled=false;redraw();}catch(error){toast(error.message,true);}};
     $('#contour-border').oninput=e=>{draft.settings.border=Number(e.target.value);$('#contour-border-value').textContent=e.target.value+' in';redraw();};$('#contour-color').oninput=e=>{draft.settings.border_color=e.target.value;redraw();};$('#contour-scale').oninput=e=>{draft.settings.scale=Number(e.target.value);redraw();};$('select[name="contour_shape"]').onchange=e=>{draft.settings.shape=e.target.value;redraw();};
   }
-  const usdotFonts={bold:'Arial, sans-serif',condensed:'"Arial Narrow", Arial, sans-serif',industrial:'Impact, "Arial Black", sans-serif',serif:'Georgia, serif',rounded:'"Trebuchet MS", Arial, sans-serif',highway:'"Arial Black", Arial, sans-serif',stencil:'Impact, "Arial Black", sans-serif',monospace:'"Courier New", monospace',modern:'"Century Gothic", Futura, Arial, sans-serif',slab:'Rockwell, "Courier New", serif'};
-  function fitUsdotText(context,text,maxWidth,size,font){let px=Math.max(12,Math.round(size));context.font=`900 ${px}px ${font}`;while(px>12&&context.measureText(text).width>maxWidth){px=Math.floor(px*.94);context.font=`900 ${px}px ${font}`;}return px;}
+  const usdotFonts={
+    montserrat:{family:'Montserrat, Arial, sans-serif',weight:700},
+    league_spartan:{family:'"League Spartan", Arial, sans-serif',weight:700},
+    archivo_black:{family:'"Archivo Black", Arial, sans-serif',weight:400},
+    roboto_condensed:{family:'"Roboto Condensed", Arial, sans-serif',weight:700},
+    oswald:{family:'Oswald, Arial, sans-serif',weight:700},
+    barlow_condensed:{family:'"Barlow Condensed", Arial, sans-serif',weight:700},
+    anton:{family:'Anton, Impact, sans-serif',weight:400},
+    bebas_neue:{family:'"Bebas Neue", Impact, sans-serif',weight:400},
+    alfa_slab:{family:'"Alfa Slab One", Rockwell, serif',weight:400},
+    black_ops:{family:'"Black Ops One", Impact, sans-serif',weight:400},
+    bungee:{family:'Bungee, Impact, sans-serif',weight:400},
+    orbitron:{family:'Orbitron, Arial, sans-serif',weight:700},
+    righteous:{family:'Righteous, Arial, sans-serif',weight:400},
+    graduate:{family:'Graduate, Rockwell, serif',weight:400},
+    luckiest_guy:{family:'"Luckiest Guy", Impact, sans-serif',weight:400},
+    fredoka:{family:'Fredoka, Arial, sans-serif',weight:700},
+    lobster:{family:'Lobster, cursive',weight:400},
+    pacifico:{family:'Pacifico, cursive',weight:400},
+    permanent_marker:{family:'"Permanent Marker", cursive',weight:400},
+    playfair:{family:'"Playfair Display", Georgia, serif',weight:700},
+    merriweather:{family:'Merriweather, Georgia, serif',weight:700},
+    roboto_slab:{family:'"Roboto Slab", Rockwell, serif',weight:700},
+    cinzel:{family:'Cinzel, Georgia, serif',weight:700},
+    rye:{family:'Rye, Georgia, serif',weight:400},
+    courier_prime:{family:'"Courier Prime", "Courier New", monospace',weight:700},
+    bold:{family:'Arial, sans-serif',weight:700},
+    condensed:{family:'"Arial Narrow", Arial, sans-serif',weight:700},
+    industrial:{family:'Impact, "Arial Black", sans-serif',weight:400},
+    serif:{family:'Georgia, serif',weight:700},
+    rounded:{family:'"Trebuchet MS", Arial, sans-serif',weight:700},
+    highway:{family:'"Arial Black", Arial, sans-serif',weight:400},
+    stencil:{family:'Impact, "Arial Black", sans-serif',weight:400},
+    monospace:{family:'"Courier New", monospace',weight:700},
+    modern:{family:'"Century Gothic", Futura, Arial, sans-serif',weight:700},
+    slab:{family:'Rockwell, "Courier New", serif',weight:700}
+  };
+  function fitUsdotText(context,text,maxWidth,size,font){
+    let px=Math.max(12,Math.round(size));context.font=`${font.weight} ${px}px ${font.family}`;
+    while(px>12&&context.measureText(text).width>maxWidth){px=Math.floor(px*.94);context.font=`${font.weight} ${px}px ${font.family}`;}
+    return px;
+  }
+
   async function usdotPrintFile(item,index){
     const d=item.usdot_design,width=Math.max(1,Number(item.width)||18),height=Math.max(1,Number(item.height)||12),dpi=Math.max(72,Math.min(300,4800/Math.max(width,height))),legacyScale=Math.max(.8,Math.min(1.4,Number(d.font_scale)||1)),points=d.font_sizes||{company:56*legacyScale,phone:30*legacyScale,number:72*legacyScale,licenses:30*legacyScale,location:32*legacyScale};
     const canvas=document.createElement('canvas');canvas.width=Math.round(width*dpi);canvas.height=Math.round(height*dpi);
-    const c=canvas.getContext('2d'),font=usdotFonts[d.style]||usdotFonts.bold,pad=canvas.width*.035;
+    const c=canvas.getContext('2d'),font=usdotFonts[d.style]||usdotFonts.montserrat,pad=canvas.width*.035;
+    try{await document.fonts.load(`${font.weight} 48px ${font.family}`);await document.fonts.ready;}catch{}
     const defaults={company:{x:50,y:16,rotation:0},logo:{x:50,y:20,rotation:0},phone:{x:50,y:33,rotation:0},number:{x:50,y:51,rotation:0},licenses:{x:50,y:69,rotation:0},location:{x:50,y:85,rotation:0}},positions=d.positions||{};
     const pos=key=>({x:Number(positions[key]?.x??defaults[key].x),y:Number(positions[key]?.y??defaults[key].y),rotation:Number(positions[key]?.rotation??0)});
     c.fillStyle=d.text_color||'#111111';c.textAlign='center';c.textBaseline='middle';
     const drawText=(key,text)=>{
       if(!text)return;const p=pos(key),preferred=Math.max(12,Number(points[key]||24)*dpi/72),px=fitUsdotText(c,text,canvas.width-pad*2,preferred,font);
-      c.save();c.translate(canvas.width*p.x/100,canvas.height*p.y/100);c.rotate(p.rotation*Math.PI/180);c.font=`900 ${px}px ${font}`;c.fillText(text,0,0,canvas.width-pad*2);c.restore();
+      c.save();c.translate(canvas.width*p.x/100,canvas.height*p.y/100);c.rotate(p.rotation*Math.PI/180);c.font=`${font.weight} ${px}px ${font.family}`;c.fillText(text,0,0,canvas.width-pad*2);c.restore();
     };
     if((d.identity||'text')==='logo'&&d.logo_data_url){
       const logo=await loadImage(d.logo_data_url),p=pos('logo'),targetWidth=canvas.width*Math.max(.1,Math.min(.95,Number(d.logo_width||42)/100)),ratio=logo.height/Math.max(1,logo.width),targetHeight=targetWidth*ratio;
