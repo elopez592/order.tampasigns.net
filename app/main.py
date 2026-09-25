@@ -30,7 +30,7 @@ from .images import sanitize, save_asset, panel_sheet, MAX_UPLOAD
 from .checkout import (StripeGateway, availability, eligible_quote, checkout_policy,
                        start_checkout, start_custom_checkout, process_event, order_for_job)
 from .mailer import public_status as email_status, notify_customer, notify_staff, send_test_email
-from . import canva, marketing
+from . import canva, marketing, crm
 import uuid
 
 COOKIE = 'signshop_session'
@@ -101,6 +101,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     app.state.initial_credentials = credentials
     app.state.public_url = public_url
     marketing.install(app, database, public_url, production, require_admin)
+    crm.install(app, database, require_admin)
 
     def seo_html(title: str, description: str, canonical: str, product=None) -> str:
         source = (STATIC / 'index.html').read_text()
