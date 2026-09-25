@@ -73,12 +73,21 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .usdot-logo-identity{display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:10px;align-items:end;margin-bottom:12px}
 .usdot-logo-identity .field-hint{grid-column:1/-1;margin:0}
 .usdot-preview{position:relative;margin-top:15px;border:1px dashed #9badab;background-color:#fff;background-image:linear-gradient(45deg,#edf2f1 25%,transparent 25%),linear-gradient(-45deg,#edf2f1 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#edf2f1 75%),linear-gradient(-45deg,transparent 75%,#edf2f1 75%);background-size:20px 20px;background-position:0 0,0 10px,10px -10px,-10px 0;color:#111;border-radius:8px;overflow:hidden;aspect-ratio:3/2;transition:aspect-ratio .2s ease,color .2s ease;touch-action:none;min-height:220px}
-.usdot-preview-item{position:absolute;transform:translate(-50%,-50%);max-width:92%;white-space:nowrap;text-align:center;line-height:1;cursor:grab;user-select:none;touch-action:none}
+.usdot-preview-item{position:absolute;max-width:92%;white-space:nowrap;text-align:center;line-height:1;cursor:grab;user-select:none;touch-action:none;transform-origin:center center}
 .usdot-preview-item:active{cursor:grabbing}
-.usdot-preview-company{font-size:24px;font-weight:850;letter-spacing:.5px}
-.usdot-preview-number{font-size:32px;font-weight:900;letter-spacing:1px}
-.usdot-preview-phone,.usdot-preview-licenses,.usdot-preview-location{font-size:14px;font-weight:700;letter-spacing:.8px}
-.usdot-preview-logo{height:auto;max-height:42%;object-fit:contain;pointer-events:auto}
+.usdot-preview-item.selected{outline:1.5px dashed var(--accent);outline-offset:6px;z-index:5}
+.usdot-preview-content{display:block;pointer-events:none}
+.usdot-preview-company .usdot-preview-content{font-size:24px;font-weight:850;letter-spacing:.5px}
+.usdot-preview-number .usdot-preview-content{font-size:32px;font-weight:900;letter-spacing:1px}
+.usdot-preview-phone .usdot-preview-content,.usdot-preview-licenses .usdot-preview-content,.usdot-preview-location .usdot-preview-content{font-size:14px;font-weight:700;letter-spacing:.8px}
+.usdot-preview-logo .usdot-preview-content{width:100%;height:auto;max-height:160px;object-fit:contain}
+.usdot-transform-handle,.usdot-rotate-stem{display:none}
+.usdot-preview-item.selected .usdot-transform-handle,.usdot-preview-item.selected .usdot-rotate-stem{display:block}
+.usdot-transform-handle{position:absolute;width:16px;height:16px;border:2px solid #fff;background:var(--accent);box-shadow:0 1px 5px #0003;z-index:8;touch-action:none}
+.usdot-resize-handle{right:-15px;bottom:-15px;border-radius:4px;cursor:nwse-resize}
+.usdot-rotate-stem{position:absolute;width:2px;height:24px;left:50%;top:-34px;transform:translateX(-50%);background:var(--accent);z-index:6;pointer-events:none}
+.usdot-rotate-handle{left:50%;top:-48px;transform:translateX(-50%);border-radius:50%;cursor:grab}
+.usdot-rotate-handle:active{cursor:grabbing}
 .usdot-preview[data-style="bold"]{font-family:Arial,Helvetica,sans-serif}
 .usdot-preview[data-style="condensed"]{font-family:"Arial Narrow","Liberation Sans Narrow",Arial,sans-serif;font-stretch:condensed}
 .usdot-preview[data-style="industrial"]{font-family:Impact,"Arial Black",sans-serif;letter-spacing:.5px}
@@ -89,7 +98,7 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .usdot-preview[data-style="monospace"]{font-family:"Courier New",monospace}
 .usdot-preview[data-style="modern"]{font-family:"Century Gothic",Futura,Arial,sans-serif;letter-spacing:1px}
 .usdot-preview[data-style="slab"]{font-family:Rockwell,"Courier New",serif;font-weight:800}
-@media(max-width:700px){.usdot-field-pair,.usdot-logo-identity{grid-template-columns:minmax(0,1fr) 92px}.usdot-preview{min-height:180px}.usdot-preview-number{font-size:25px}.usdot-preview-company{font-size:20px}}
+@media(max-width:700px){.usdot-field-pair,.usdot-logo-identity{grid-template-columns:minmax(0,1fr) 92px}.usdot-preview{min-height:180px}.usdot-transform-handle{width:18px;height:18px}.usdot-rotate-handle{top:-50px}}
 @media(max-width:950px){.storefront-category-tabs{margin-left:0;overflow:auto;flex-wrap:nowrap;padding-bottom:5px}.storefront-category-tabs button{white-space:nowrap}}
 @media(max-width:950px){.product-rail.grouped{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}.product-rail.grouped>.eyebrow,.product-rail.grouped>.product-group-label{grid-column:1/-1}.product-rail.grouped .product-option{white-space:normal}}
 @media(max-width:700px){.storefront-category-tabs{margin-bottom:14px}.usdot-preview-number{font-size:25px}.usdot-preview-company{font-size:20px}}
