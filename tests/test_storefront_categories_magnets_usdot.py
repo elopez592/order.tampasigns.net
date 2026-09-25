@@ -270,8 +270,9 @@ def test_usdot_custom_measurements_and_font_size_ui(env):
     js = client.get('/static/app.js').text
     shop = client.get('/static/shop.js').text
     assert 'Custom measurements (up to ' in js
-    assert "pointSize('usdot_company_points','Company size (pt)',56)" in js
-    assert "pointSize('usdot_number_points','USDOT size (pt)',72)" in js
+    assert "pointSize('usdot_company_points',56)" in js
+    assert "pointSize('usdot_number_points',72)" in js
+    assert "const paired=(field,size)" in js
     assert "font_sizes:{company:f.elements.usdot_company_points?.value||'56'" in js
     assert 'd.font_sizes||' in shop
     assert 'TRUE-SIZE ARTBOARD' in shop

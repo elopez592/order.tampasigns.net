@@ -20,6 +20,7 @@ export function createCrmDashboard({api,staffShell,esc,money,showModal,closeModa
         <label class="field"><span>Follow-up date</span><input name="follow_up_date" type="date" value="${esc(contact.follow_up_date||'')}"></label>
       </div>
       <label class="field"><span>Tags</span><input name="tags" value="${esc(tags)}" maxlength="500" placeholder="Fleet, Storefront, Contractor, Repeat Customer"></label>
+      <label class="check-row"><input type="hidden" name="auto_reminders" value="false"><input type="checkbox" name="auto_reminders" value="true" ${contact.auto_reminders!==false?'checked':''}><span><strong>Automatic project reminders</strong><small>Send conservative quote, proof, and required-deposit reminders when this customer has the next action.</small></span></label>
       <label class="field"><span>Internal notes</span><textarea name="notes" rows="6" maxlength="10000" placeholder="Private notes for your team">${esc(contact.notes||'')}</textarea></label>
       <div class="form-error"></div>
       <div class="modal-footer"><button type="button" class="btn light" data-action="close">Cancel</button><button class="btn primary">Save contact</button></div>
@@ -33,7 +34,7 @@ export function createCrmDashboard({api,staffShell,esc,money,showModal,closeModa
     if(filters.q)params.set('q',filters.q);
     const data=await api('/api/admin/crm'+(params.toString()?'?'+params:''));
     const t=data.totals;
-    staffShell(`<div class="page-heading"><div><div class="eyebrow">CUSTOMERS & LEADS</div><h1>CRM</h1><p>Customer details, lead follow-ups and order history in one place.</p></div><div class="row wrap"><a class="btn light" href="/api/admin/crm.csv">Export CSV</a><button class="btn primary" data-action="crm-new">+ Add contact</button></div></div>
+    staffShell(`<div class="page-heading"><div><div class="eyebrow">CUSTOMERS & LEADS</div><h1>CRM</h1><p>Customer details, lead follow-ups and order history in one place.</p></div><div class="row wrap"><button class="btn light" data-action="crm-run-auto">Run reminder check now</button><a class="btn light" href="/api/admin/crm.csv">Export CSV</a><button class="btn primary" data-action="crm-new">+ Add contact</button></div></div>
       <div class="kpis">
         <section class="kpi"><div class="eyebrow">CONTACTS</div><div class="metric">${number(t.contacts)}</div><small class="muted">Customers and leads</small></section>
         <section class="kpi"><div class="eyebrow">ACTIVE LEADS</div><div class="metric">${number(t.leads)}</div><small class="muted">Still in sales follow-up</small></section>
@@ -67,6 +68,7 @@ export function createCrmDashboard({api,staffShell,esc,money,showModal,closeModa
       <div class="kpis crm-mini-kpis"><section class="kpi"><div class="eyebrow">JOBS</div><div class="metric">${number(c.order_count)}</div></section><section class="kpi"><div class="eyebrow">QUOTED</div><div class="metric">${money(c.quoted_cents)}</div></section><section class="kpi"><div class="eyebrow">PAID</div><div class="metric">${money(c.paid_cents)}</div></section><section class="kpi last"><div class="eyebrow">BALANCE</div><div class="metric">${money(c.balance_cents)}</div></section></div>
       <div class="fields"><div><strong>Lead source</strong><p class="muted">${esc(c.source||'Not set')}</p></div><div><strong>Follow-up</strong><p class="muted">${esc(c.follow_up_date||'Not set')}</p></div></div>
       ${c.tags?.length?'<div><strong>Tags</strong><p class="muted">'+c.tags.map(x=>esc(x)).join(' · ')+'</p></div>':''}
+      <div><strong>Automatic reminders</strong><p class="muted">${c.auto_reminders?'On — quote, proof, and required-deposit nudges':'Paused for this contact'}</p></div>
       ${c.notes?'<div><strong>Internal notes</strong><p style="white-space:pre-wrap">'+esc(c.notes)+'</p></div>':''}
       ${c.reminders?.length?'<div class="notice info"><strong>Last project reminder</strong><br>'+esc(localDate(c.reminders[0].created_at))+' · '+esc(c.reminders[0].status==='sent'?'Sent to '+c.reminders[0].recipient:'Delivery failed')+'</div>':''}
       <div class="divider"></div><h3>Order & quote history</h3>
@@ -79,6 +81,11 @@ export function createCrmDashboard({api,staffShell,esc,money,showModal,closeModa
   actions['crm-new']=()=>{current=null;showModal('Add CRM contact',contactForm(),true);};
   actions['crm-open']=b=>open(Number(b.dataset.id));
   actions['crm-edit']=()=>{if(current)showModal('Edit CRM contact',contactForm(current),true);};
+  actions['crm-run-auto']=async()=>{
+    const result=await api('/api/admin/crm/reminders/run','POST',{});
+    toast(result.sent?result.sent+' automatic reminder'+(result.sent===1?'':'s')+' sent.':result.failed?result.failed+' reminder delivery attempt'+(result.failed===1?'':'s')+' failed.':'No automatic reminders are due right now.',!!result.failed);
+    await render();
+  };
   actions['crm-remind']=async()=>{
     if(!current)return;
     if(!confirm('Send a friendly “Don’t forget about your project” reminder to '+(current.email||'this contact')+'?'))return;
@@ -88,7 +95,7 @@ export function createCrmDashboard({api,staffShell,esc,money,showModal,closeModa
   };
   forms['crm-filter']=async(_f,d)=>render({status:d.status||'all',q:d.q||''});
   forms['crm-contact']=async(_f,d)=>{
-    const payload={...d,tags:d.tags||''};
+    const payload={...d,tags:d.tags||'',auto_reminders:d.auto_reminders==='true'};
     const saved=current?await api('/api/admin/crm/'+current.id,'PATCH',payload):await api('/api/admin/crm','POST',payload);
     current=saved;closeModal();toast('CRM contact saved.');await render();
   };

@@ -4,8 +4,10 @@ from __future__ import annotations
 import csv
 import io
 import json
+import hmac
+import os
 import sqlite3
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 
 from fastapi import Body, Depends, HTTPException, Request
 from fastapi.responses import Response
@@ -13,6 +15,7 @@ from fastapi.responses import Response
 from .db import audit, now, transaction
 from .security import email, text
 from .mailer import notify_one
+from .domain import totals, production_started
 
 STATUSES = (
     "new_lead",
@@ -36,6 +39,7 @@ CREATE TABLE IF NOT EXISTS crm_contacts (
  tags TEXT NOT NULL DEFAULT '[]',
  notes TEXT NOT NULL DEFAULT '',
  follow_up_date TEXT,
+ auto_reminders INTEGER NOT NULL DEFAULT 1,
  created_at TEXT NOT NULL,
  updated_at TEXT NOT NULL
 );
@@ -56,10 +60,27 @@ CREATE TABLE IF NOT EXISTS crm_reminders (
  status TEXT NOT NULL CHECK(status IN ('sent','failed')),
  error TEXT NOT NULL DEFAULT '',
  sent_by INTEGER REFERENCES users(id),
+ kind TEXT NOT NULL DEFAULT 'manual',
+ reminder_key TEXT NOT NULL DEFAULT '',
+ automatic INTEGER NOT NULL DEFAULT 0,
  created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS crm_reminders_contact ON crm_reminders(contact_id,id);
 """
+
+
+def _upgrade_crm_schema(conn) -> None:
+    contact_columns = {row[1] for row in conn.execute("PRAGMA table_info(crm_contacts)")}
+    if "auto_reminders" not in contact_columns:
+        conn.execute("ALTER TABLE crm_contacts ADD COLUMN auto_reminders INTEGER NOT NULL DEFAULT 1")
+    reminder_columns = {row[1] for row in conn.execute("PRAGMA table_info(crm_reminders)")}
+    if "kind" not in reminder_columns:
+        conn.execute("ALTER TABLE crm_reminders ADD COLUMN kind TEXT NOT NULL DEFAULT 'manual'")
+    if "reminder_key" not in reminder_columns:
+        conn.execute("ALTER TABLE crm_reminders ADD COLUMN reminder_key TEXT NOT NULL DEFAULT ''")
+    if "automatic" not in reminder_columns:
+        conn.execute("ALTER TABLE crm_reminders ADD COLUMN automatic INTEGER NOT NULL DEFAULT 0")
+    conn.execute("CREATE INDEX IF NOT EXISTS crm_reminders_key ON crm_reminders(reminder_key,status)")
 
 
 def _optional_email(value) -> str:
@@ -198,6 +219,7 @@ def _contact_dict(row):
         item["tags"] = json.loads(item.get("tags") or "[]")
     except json.JSONDecodeError:
         item["tags"] = []
+    item["auto_reminders"] = bool(item.get("auto_reminders", 1))
     return item
 
 
@@ -290,16 +312,191 @@ def _detail(conn, contact_id: int):
     contact["reminder_job_id"] = open_job["id"] if open_job else None
     contact["can_remind"] = bool(contact["email"] and open_job and contact["status"] not in {"completed", "lost"})
     contact["reminders"] = [dict(row) for row in conn.execute(
-        """SELECT id,job_id,recipient,status,error,created_at
+        """SELECT id,job_id,recipient,status,error,kind,reminder_key,automatic,created_at
            FROM crm_reminders WHERE contact_id=? ORDER BY id DESC LIMIT 20""",
         (contact_id,),
     )]
     return contact
 
 
+def _parse_stamp(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _sent_for_key(conn, reminder_key: str) -> bool:
+    return bool(conn.execute(
+        "SELECT 1 FROM crm_reminders WHERE reminder_key=? AND status='sent' LIMIT 1",
+        (reminder_key,),
+    ).fetchone())
+
+
+def _latest_event_time(conn, job_id: int, action: str) -> datetime | None:
+    row = conn.execute(
+        "SELECT created_at FROM events WHERE job_id=? AND action=? ORDER BY id DESC LIMIT 1",
+        (job_id, action),
+    ).fetchone()
+    return _parse_stamp(row["created_at"]) if row else None
+
+
+def _auto_candidates(conn, current: datetime | None = None) -> list[dict]:
+    current = current or datetime.now(timezone.utc)
+    sync_jobs(conn)
+    candidates = []
+    selected_contacts = set()
+    rows = conn.execute(
+        """SELECT cj.contact_id,c.name,c.email,c.status,c.auto_reminders,j.*
+           FROM crm_contact_jobs cj
+           JOIN crm_contacts c ON c.id=cj.contact_id
+           JOIN jobs j ON j.id=cj.job_id
+           WHERE j.archived=0 AND c.auto_reminders=1 AND c.email<>''
+             AND c.status NOT IN ('completed','lost')
+             AND NOT EXISTS (SELECT 1 FROM checkout_orders co WHERE co.job_id=j.id)
+           ORDER BY j.id DESC"""
+    ).fetchall()
+    for job in rows:
+        if job["contact_id"] in selected_contacts:
+            continue
+        if not conn.execute(
+            "SELECT 1 FROM tasks WHERE job_id=? AND status!='done' LIMIT 1", (job["id"],)
+        ).fetchone():
+            continue
+        selected_contacts.add(job["contact_id"])
+
+        first_name = (job["name"] or "there").strip().split()[0]
+        if job["published"] and job["accepted_version"] != job["quote_version"]:
+            published_at = _latest_event_time(conn, job["id"], "quote.published")
+            reminder_key = f'quote:{job["id"]}:v{job["quote_version"]}'
+            if published_at and current - published_at >= timedelta(days=3) and not _sent_for_key(conn, reminder_key):
+                candidates.append({
+                    "contact_id": job["contact_id"], "job_id": job["id"], "recipient": job["email"],
+                    "kind": "quote", "reminder_key": reminder_key,
+                    "subject": "Your Tampa Signs quote is waiting",
+                    "title": "Don’t forget about your project",
+                    "message": (
+                        f"Hi {first_name},\n\nYour quote for “{job['title']}” is ready whenever you are. "
+                        "You can review the details and approve the current quote from your private project page.\n\n"
+                        "If you have questions or want to adjust anything, just reply to this email."
+                    ),
+                    "action_label": "Review my quote",
+                })
+            continue
+
+        latest_proof = conn.execute(
+            "SELECT * FROM proofs WHERE job_id=? ORDER BY version DESC LIMIT 1", (job["id"],)
+        ).fetchone()
+        if latest_proof and latest_proof["status"] == "pending":
+            proof_at = _parse_stamp(latest_proof["created_at"])
+            reminder_key = f'proof:{latest_proof["id"]}:v{latest_proof["version"]}'
+            if proof_at and current - proof_at >= timedelta(days=3) and not _sent_for_key(conn, reminder_key):
+                selected_contacts.add(job["contact_id"])
+                candidates.append({
+                    "contact_id": job["contact_id"], "job_id": job["id"], "recipient": job["email"],
+                    "kind": "proof", "reminder_key": reminder_key,
+                    "subject": "Your Tampa Signs proof is ready to review",
+                    "title": "Your proof is waiting for approval",
+                    "message": (
+                        f"Hi {first_name},\n\nYour latest proof for “{job['title']}” is ready for review. "
+                        "Please approve it or request changes from your private project page so we can keep things moving.\n\n"
+                        "If you need help, just reply to this email."
+                    ),
+                    "action_label": "Review my proof",
+                })
+            continue
+
+        if latest_proof and latest_proof["status"] == "approved" and not production_started(conn, job["id"]):
+            financials = totals(conn, job)
+            if financials["deposit_remaining_cents"] > 0 and job["accepted_version"] == job["quote_version"]:
+                approved = conn.execute(
+                    """SELECT created_at FROM proof_decisions
+                       WHERE proof_id=? AND action='approve' ORDER BY id DESC LIMIT 1""",
+                    (latest_proof["id"],),
+                ).fetchone()
+                approval_at = _parse_stamp(approved["created_at"]) if approved else _parse_stamp(latest_proof["created_at"])
+                reminder_key = f'payment:{job["id"]}:q{job["quote_version"]}:p{latest_proof["id"]}'
+                if approval_at and current - approval_at >= timedelta(days=7) and not _sent_for_key(conn, reminder_key):
+                    candidates.append({
+                        "contact_id": job["contact_id"], "job_id": job["id"], "recipient": job["email"],
+                        "kind": "payment", "reminder_key": reminder_key,
+                        "subject": "Your Tampa Signs project is ready for the next step",
+                        "title": "Ready to keep your project moving?",
+                        "message": (
+                            f"Hi {first_name},\n\nYour quote and proof for “{job['title']}” are approved. "
+                            "The required deposit is still open, and completing it will let us move the project into production.\n\n"
+                            "You can continue from your private project page below."
+                        ),
+                        "action_label": "Continue my project",
+                    })
+    return candidates
+
+
+def run_auto_reminders(database, issue_email_portal, current: datetime | None = None) -> dict:
+    with transaction(database, True) as conn:
+        candidates = _auto_candidates(conn, current)
+        prepared = []
+        for item in candidates:
+            if _sent_for_key(conn, item["reminder_key"]):
+                continue
+            prepared.append(item | {"portal_url": issue_email_portal(conn, item["job_id"], days=14)})
+
+    result = {"eligible": len(prepared), "sent": 0, "failed": 0, "items": []}
+    for item in prepared:
+        event_key = "crm.auto." + item["reminder_key"].replace(":", ".")
+        ok = notify_one(
+            database,
+            item["job_id"],
+            event_key,
+            item["recipient"],
+            "customer",
+            item["subject"],
+            item["title"],
+            item["message"],
+            item["portal_url"],
+            item["action_label"],
+        )
+        with transaction(database, True) as conn:
+            if ok and _sent_for_key(conn, item["reminder_key"]):
+                continue
+            cursor = conn.execute(
+                """INSERT INTO crm_reminders(contact_id,job_id,recipient,status,error,sent_by,kind,
+                   reminder_key,automatic,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    item["contact_id"], item["job_id"], item["recipient"], "sent" if ok else "failed",
+                    "" if ok else "Email delivery was not accepted.", None, item["kind"],
+                    item["reminder_key"], 1, now(),
+                ),
+            )
+            audit(
+                conn,
+                item["job_id"],
+                "Automatic CRM reminder",
+                "crm.auto_reminder_sent" if ok else "crm.auto_reminder_failed",
+                {
+                    "contact_id": item["contact_id"],
+                    "reminder_id": cursor.lastrowid,
+                    "kind": item["kind"],
+                    "reminder_key": item["reminder_key"],
+                },
+            )
+        result["sent" if ok else "failed"] += 1
+        result["items"].append({
+            "job_id": item["job_id"],
+            "contact_id": item["contact_id"],
+            "kind": item["kind"],
+            "status": "sent" if ok else "failed",
+        })
+    return result
+
+
 def install(app, database, require_admin, issue_email_portal):
     with transaction(database, True) as conn:
         conn.executescript(SCHEMA)
+        _upgrade_crm_schema(conn)
         sync_jobs(conn)
 
     @app.get("/api/admin/crm")
@@ -403,6 +600,42 @@ def install(app, database, require_admin, issue_email_portal):
             },
         )
 
+    @app.get("/api/admin/crm/reminders/preview")
+    def crm_reminder_preview(request: Request, user=Depends(require_admin)):
+        with transaction(database, True) as conn:
+            candidates = _auto_candidates(conn)
+        return {
+            "eligible": len(candidates),
+            "items": [
+                {
+                    "contact_id": item["contact_id"],
+                    "job_id": item["job_id"],
+                    "kind": item["kind"],
+                    "recipient": item["recipient"],
+                }
+                for item in candidates
+            ],
+        }
+
+    @app.post("/api/admin/crm/reminders/run")
+    def crm_reminder_run(request: Request, user=Depends(require_admin)):
+        result = run_auto_reminders(database, issue_email_portal)
+        with transaction(database, True) as conn:
+            audit(conn, None, f'{user["name"]} (staff #{user["id"]})', "crm.auto_reminders_run",
+                  {"eligible": result["eligible"], "sent": result["sent"], "failed": result["failed"]})
+        return result
+
+    @app.post("/api/internal/crm-reminders/run")
+    def crm_reminder_cron(request: Request):
+        secret = os.getenv("REMINDER_CRON_SECRET", "").strip()
+        supplied = request.headers.get("authorization", "")
+        expected = "Bearer " + secret
+        if not secret:
+            raise HTTPException(503, "Automatic reminder scheduler is not configured.")
+        if len(supplied) != len(expected) or not hmac.compare_digest(supplied, expected):
+            raise HTTPException(401, "Invalid scheduler credential.")
+        return run_auto_reminders(database, issue_email_portal)
+
     @app.get("/api/admin/crm/{contact_id}")
     def crm_detail(contact_id: int, request: Request, user=Depends(require_admin)):
         with transaction(database, True) as conn:
@@ -423,12 +656,13 @@ def install(app, database, require_admin, issue_email_portal):
         tags = _tags(payload.get("tags", []))
         notes = text(payload.get("notes", ""), "Internal notes", 10000)
         follow_up = _follow_up(payload.get("follow_up_date"))
+        auto_reminders = 1 if payload.get("auto_reminders", True) is not False else 0
         stamp = now()
         try:
             with transaction(database, True) as conn:
                 cursor = conn.execute(
                     """INSERT INTO crm_contacts(name,company,email,phone,status,source,tags,notes,
-                       follow_up_date,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                       follow_up_date,auto_reminders,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (
                         name,
                         company,
@@ -439,6 +673,7 @@ def install(app, database, require_admin, issue_email_portal):
                         json.dumps(tags),
                         notes,
                         follow_up,
+                        auto_reminders,
                         stamp,
                         stamp,
                     ),
@@ -476,6 +711,7 @@ def install(app, database, require_admin, issue_email_portal):
                 "tags": json.dumps(_tags(payload.get("tags", json.loads(current["tags"] or "[]")))),
                 "notes": text(payload.get("notes", current["notes"]), "Internal notes", 10000),
                 "follow_up_date": _follow_up(payload.get("follow_up_date", current["follow_up_date"])),
+                "auto_reminders": 1 if payload.get("auto_reminders", bool(current["auto_reminders"])) is not False else 0,
                 "updated_at": now(),
             }
             if values["status"] not in STATUSES:
@@ -485,7 +721,7 @@ def install(app, database, require_admin, issue_email_portal):
             try:
                 conn.execute(
                     """UPDATE crm_contacts SET name=?,company=?,email=?,phone=?,status=?,source=?,
-                       tags=?,notes=?,follow_up_date=?,updated_at=? WHERE id=?""",
+                       tags=?,notes=?,follow_up_date=?,auto_reminders=?,updated_at=? WHERE id=?""",
                     (
                         values["name"],
                         values["company"],
@@ -496,6 +732,7 @@ def install(app, database, require_admin, issue_email_portal):
                         values["tags"],
                         values["notes"],
                         values["follow_up_date"],
+                        values["auto_reminders"],
                         values["updated_at"],
                         contact_id,
                     ),
