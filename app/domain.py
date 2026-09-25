@@ -205,8 +205,10 @@ def serialize_job(conn, job, audience='admin', detail=True, gateway=None):
         for payment in result['payments']:
             payment.pop('note', None)
     result['events'] = [dict(e) | {'details': json.loads(e['details'])} for e in conn.execute(event_query, (job['id'],))]
-    from .checkout import order_summary, StripeGateway
-    result['checkout'] = order_summary(conn, job, gateway or StripeGateway())
+    from .checkout import order_summary, custom_checkout_summary, StripeGateway
+    payment_gateway = gateway or StripeGateway()
+    result['checkout'] = order_summary(conn, job, payment_gateway)
+    result['custom_checkout'] = custom_checkout_summary(conn, job, payment_gateway)
     for receipt in conn.execute('SELECT * FROM online_payments WHERE job_id=? ORDER BY id DESC', (job['id'],)):
         result['payments'].append({'id': 'online-' + str(receipt['id']), 'amount_cents': receipt['amount_cents'],
             'reference': 'Online card payment', 'note': 'Stripe-verified receipt', 'created_at': receipt['created_at'],
