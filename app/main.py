@@ -28,7 +28,7 @@ from .domain import (get_job, totals, latest_proof, production_started, gate_rea
 from .seed import bootstrap
 from .images import sanitize, save_asset, panel_sheet, MAX_UPLOAD
 from .checkout import (StripeGateway, availability, eligible_quote, checkout_policy,
-                       start_checkout, process_event, order_for_job)
+                       start_checkout, start_custom_checkout, process_event, order_for_job)
 from .mailer import public_status as email_status, notify_customer, notify_staff, send_test_email
 from . import canva, marketing
 import uuid
@@ -489,6 +489,14 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         with transaction(database) as conn:
             job_id = portal_job(conn,request)['id']
         return start_checkout(database,job_id,app.state.gateway,public_url)
+
+    @app.post('/api/portal/custom-checkout')
+    def begin_custom_checkout(request: Request, payload: dict = Body(...)):
+        throttle(request,'checkout',20,3600)
+        payment_kind = payload.get('payment_kind', 'total')
+        with transaction(database) as conn:
+            job_id = portal_job(conn,request)['id']
+        return start_custom_checkout(database,job_id,payment_kind,app.state.gateway,public_url)
 
     @app.post('/api/payments/stripe/webhook')
     async def stripe_webhook(request: Request):

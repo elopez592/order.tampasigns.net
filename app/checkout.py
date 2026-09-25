@@ -251,6 +251,222 @@ def start_checkout(database, job_id, gateway, public_url):
     return {'url':url}
 
 
+def custom_checkout_summary(conn, job, gateway):
+    """Customer-facing Stripe options for an accepted custom quote."""
+    if order_for_job(conn, job['id']):
+        return None
+    from .domain import totals
+    money = totals(conn, job)
+    latest = conn.execute(
+        "SELECT * FROM custom_checkout_sessions WHERE job_id=? ORDER BY created_at DESC, rowid DESC LIMIT 1",
+        (job['id'],)
+    ).fetchone()
+    status = 'payment_review' if latest and latest['status'] == 'review' else 'awaiting_payment'
+    accepted = bool(job['published'] and job['charges_verified']
+                    and job['accepted_version'] == job['quote_version'])
+    available = bool(gateway.ready and accepted and not job['archived']
+                     and money['balance_cents'] > 0 and status != 'payment_review')
+    deposit_due = min(money['deposit_remaining_cents'], money['balance_cents'])
+    return {
+        'status': status if money['balance_cents'] > 0 else 'paid',
+        'available': available,
+        'can_pay_deposit': bool(available and deposit_due > 0),
+        'can_pay_total': bool(available and money['balance_cents'] > 0),
+        'deposit_cents': deposit_due,
+        'balance_cents': money['balance_cents'],
+        'test_mode': bool(gateway.ready and not gateway.live),
+    }
+
+
+def start_custom_checkout(database, job_id, payment_kind, gateway, public_url):
+    """Open Stripe Checkout for the accepted custom quote's deposit or current balance."""
+    if payment_kind not in ('deposit', 'total'):
+        raise HTTPException(422, 'Choose deposit or total payment.')
+    if not gateway.ready:
+        raise HTTPException(503, 'Online card payments are not connected. Please contact the shop.')
+
+    with transaction(database, True) as conn:
+        from .domain import get_job, totals
+        job = get_job(conn, job_id)
+        if order_for_job(conn, job_id):
+            raise HTTPException(409, 'Use the existing online order checkout for this order.')
+        if job['archived'] or not job['published'] or not job['charges_verified']:
+            raise HTTPException(409, 'This custom quote is not ready for payment.')
+        if job['accepted_version'] != job['quote_version']:
+            raise HTTPException(409, 'Approve the current quote before paying.')
+        money = totals(conn, job)
+        amount = money['deposit_remaining_cents'] if payment_kind == 'deposit' else money['balance_cents']
+        amount = min(amount, money['balance_cents'])
+        if amount <= 0:
+            raise HTTPException(409, 'No payment is currently due for this option.')
+
+        previous = conn.execute(
+            "SELECT * FROM custom_checkout_sessions WHERE job_id=? ORDER BY created_at DESC, rowid DESC LIMIT 1",
+            (job_id,)
+        ).fetchone()
+        if previous and previous['status'] == 'review':
+            raise HTTPException(409, 'Payment needs shop review before trying again.')
+        current = dict(previous) if previous and previous['status'] in ('creating', 'open') else None
+        if current and (current['quote_version'] != job['quote_version']
+                        or current['amount_cents'] != amount
+                        or current['payment_kind'] != payment_kind):
+            # Do not create a second simultaneous Stripe session for a different amount.
+            # The existing session remains the authoritative in-progress payment.
+            if current['stripe_id'] and current['url']:
+                return {'url': current['url'], 'amount_cents': current['amount_cents'],
+                        'payment_kind': current['payment_kind'], 'existing': True}
+            raise HTTPException(409, 'A payment session is already being prepared. Please retry shortly.')
+
+        if current is None:
+            session_key = uuid.uuid4().hex
+            expires_at = int(time.time()) + 3600
+            conn.execute(
+                '''INSERT INTO custom_checkout_sessions
+                   (id,job_id,quote_version,payment_kind,amount_cents,expires_at,created_at)
+                   VALUES(?,?,?,?,?,?,?)''',
+                (session_key, job_id, job['quote_version'], payment_kind, amount, expires_at, now())
+            )
+            current = dict(conn.execute(
+                'SELECT * FROM custom_checkout_sessions WHERE id=?', (session_key,)
+            ).fetchone())
+        job_data = dict(job)
+
+    if current['stripe_id']:
+        live_session = gateway.retrieve_session(current['stripe_id'])
+        if live_session.get('payment_status') == 'paid':
+            with transaction(database, True) as conn:
+                ok = reconcile_custom_paid(conn, current, live_session,
+                                           'reconcile:' + current['stripe_id'], gateway.live)
+            if not ok:
+                raise HTTPException(409, 'Payment requires shop review. Please do not pay again.')
+            return {'paid': True, 'url': public_url + '/portal?payment=received'}
+        if live_session.get('status') == 'expired' and current['status'] == 'open':
+            with transaction(database, True) as conn:
+                conn.execute(
+                    "UPDATE custom_checkout_sessions SET status='expired' WHERE id=? AND status='open'",
+                    (current['id'],)
+                )
+            return start_custom_checkout(database, job_id, payment_kind, gateway, public_url)
+        if live_session.get('status') == 'complete':
+            raise HTTPException(409, 'The payment provider is confirming this payment. Please refresh shortly; do not pay again.')
+        if current['url']:
+            return {'url': current['url'], 'amount_cents': current['amount_cents'],
+                    'payment_kind': current['payment_kind']}
+
+    if current['expires_at'] < time.time() + 1800 and not current['stripe_id']:
+        raise HTTPException(409, 'This interrupted checkout needs shop review before restarting payment.')
+
+    if current['request_body']:
+        body = json.loads(current['request_body'])
+    else:
+        label = 'Deposit' if payment_kind == 'deposit' else 'Balance'
+        body = {
+            'mode': 'payment',
+            'integration_identifier': 'tampa_custom_orders_qxmdrjap',
+            'success_url': public_url + '/portal?payment=received',
+            'cancel_url': public_url + '/portal?payment=cancelled',
+            'client_reference_id': 'custom-' + str(job_id),
+            'customer_email': job_data['customer_email'],
+            'metadata[job_id]': str(job_id),
+            'metadata[custom_checkout_id]': current['id'],
+            'metadata[quote_version]': str(job_data['quote_version']),
+            'metadata[payment_kind]': payment_kind,
+            'payment_intent_data[metadata][job_id]': str(job_id),
+            'payment_intent_data[metadata][custom_checkout_id]': current['id'],
+            'line_items[0][price_data][currency]': 'usd',
+            'line_items[0][price_data][unit_amount]': str(current['amount_cents']),
+            'line_items[0][price_data][product_data][name]': f'{label} - {job_data["number"]}',
+            'line_items[0][price_data][product_data][description]': job_data['title'],
+            'line_items[0][quantity]': '1',
+            'billing_address_collection': 'required',
+            'expires_at': str(int(current['expires_at'])),
+            'custom_text[submit][message]': 'Payment confirms the amount shown. Artwork approval remains a separate step.',
+        }
+        with transaction(database, True) as conn:
+            conn.execute(
+                'UPDATE custom_checkout_sessions SET request_body=? WHERE id=? AND request_body IS NULL',
+                (json.dumps(body), current['id'])
+            )
+            body = json.loads(conn.execute(
+                'SELECT request_body FROM custom_checkout_sessions WHERE id=?', (current['id'],)
+            ).fetchone()[0])
+
+    result = gateway.create_session(body, 'tampa-custom-checkout-' + current['id'])
+    sid, url = result.get('id', ''), result.get('url', '')
+    if (not re.fullmatch(r'cs_[A-Za-z0-9_]+', sid)
+            or urlsplit(url).scheme != 'https'
+            or urlsplit(url).hostname != 'checkout.stripe.com'):
+        raise HTTPException(502, 'Payment provider returned an invalid checkout link.')
+    with transaction(database, True) as conn:
+        conn.execute(
+            "UPDATE custom_checkout_sessions SET stripe_id=?,url=?,"
+            "status=CASE WHEN status='creating' THEN 'open' ELSE status END WHERE id=?",
+            (sid, url, current['id'])
+        )
+    return {'url': url, 'amount_cents': current['amount_cents'], 'payment_kind': payment_kind}
+
+
+def reconcile_custom_paid(conn, session, data, event_id, live):
+    from .domain import get_job, totals
+    job = get_job(conn, session['job_id'])
+    metadata = data.get('metadata') or {}
+    breakdown = data.get('total_details') or {}
+    intent = data.get('payment_intent')
+    total = data.get('amount_total')
+    money = totals(conn, job)
+    correct = (
+        data.get('payment_status') == 'paid'
+        and data.get('currency') == 'usd'
+        and data.get('livemode') is live
+        and data.get('mode') == 'payment'
+        and data.get('client_reference_id') == 'custom-' + str(job['id'])
+        and metadata.get('custom_checkout_id') == session['id']
+        and metadata.get('job_id') == str(job['id'])
+        and metadata.get('quote_version') == str(session['quote_version'])
+        and metadata.get('payment_kind') == session['payment_kind']
+        and session['quote_version'] == job['quote_version']
+        and job['accepted_version'] == job['quote_version']
+        and not job['archived']
+        and (not session['stripe_id'] or session['stripe_id'] == data.get('id'))
+        and isinstance(intent, str) and intent.startswith('pi_')
+        and data.get('amount_subtotal') == session['amount_cents']
+        and type(total) is int and total == session['amount_cents']
+        and breakdown.get('amount_tax', 0) == 0
+        and breakdown.get('amount_shipping', 0) == 0
+        and breakdown.get('amount_discount', 0) == 0
+        and money['balance_cents'] >= session['amount_cents']
+    )
+    if not correct:
+        conn.execute("UPDATE custom_checkout_sessions SET status='review' WHERE id=?", (session['id'],))
+        audit(conn, job['id'], 'Payment provider', 'checkout.needs_review',
+              {'event_id': event_id, 'session_id': data.get('id'), 'custom': True}, False)
+        return False
+
+    existing = conn.execute(
+        'SELECT id FROM online_payments WHERE session_id=? OR payment_intent=?',
+        (data['id'], intent)
+    ).fetchone()
+    if not existing:
+        adjustment = conn.execute(
+            'SELECT * FROM payment_adjustments WHERE payment_intent=?', (intent,)
+        ).fetchone()
+        conn.execute(
+            '''INSERT INTO online_payments
+               (job_id,session_id,payment_intent,amount_cents,refunded_cents,disputed,event_id,created_at)
+               VALUES(?,?,?,?,?,?,?,?)''',
+            (job['id'], data['id'], intent, total,
+             min(total, adjustment['refunded_cents']) if adjustment else 0,
+             adjustment['disputed'] if adjustment else 0, event_id, now())
+        )
+        audit(conn, job['id'], 'Payment provider', 'payment.received',
+              {'amount_cents': total, 'kind': session['payment_kind']}, True)
+    conn.execute(
+        "UPDATE custom_checkout_sessions SET status='paid',stripe_id=? WHERE id=?",
+        (data['id'], session['id'])
+    )
+    return True
+
+
 def reconcile_paid(conn, session, data, event_id, live):
     from .domain import get_job
     order = conn.execute('SELECT * FROM checkout_orders WHERE id=?',(session['order_id'],)).fetchone()
@@ -302,14 +518,23 @@ def process_event(conn, event, gateway):
         return {'received':True,'duplicate':True}
     kind, data = event.get('type',''), event['data']['object']
     if kind in ('checkout.session.completed','checkout.session.async_payment_succeeded','checkout.session.expired'):
-        key = (data.get('metadata') or {}).get('checkout_id','')
-        session = conn.execute('SELECT * FROM checkout_sessions WHERE id=?',(key,)).fetchone()
+        metadata = data.get('metadata') or {}
+        key = metadata.get('checkout_id','')
+        custom_key = metadata.get('custom_checkout_id','')
+        session = conn.execute('SELECT * FROM checkout_sessions WHERE id=?',(key,)).fetchone() if key else None
+        custom_session = conn.execute('SELECT * FROM custom_checkout_sessions WHERE id=?',(custom_key,)).fetchone() if custom_key else None
         if session:
             if kind=='checkout.session.expired':
                 if session['stripe_id']==data.get('id'):
                     conn.execute("UPDATE checkout_sessions SET status='expired' WHERE id=? AND status IN ('creating','open')",(key,))
             elif data.get('payment_status')=='paid':
                 reconcile_paid(conn,session,data,event['id'],gateway.live)
+        elif custom_session:
+            if kind=='checkout.session.expired':
+                if custom_session['stripe_id']==data.get('id'):
+                    conn.execute("UPDATE custom_checkout_sessions SET status='expired' WHERE id=? AND status IN ('creating','open')",(custom_key,))
+            elif data.get('payment_status')=='paid':
+                reconcile_custom_paid(conn,custom_session,data,event['id'],gateway.live)
     elif kind in ('charge.refunded','charge.dispute.created','charge.dispute.closed'):
         intent = data.get('payment_intent')
         if isinstance(intent,str) and intent.startswith('pi_'):

@@ -25,12 +25,10 @@ def test_owner_report_is_private_filterable_and_exportable(env):
     assert exported.text.startswith('Order,Date,Customer,Project,Booked,Revenue')
 
 
-def test_frontend_exposes_reports_contour_proofs_and_product_icons():
+def test_frontend_exposes_reports_and_product_icons_without_contour_designer():
     app_js = open('app/static/app.js', encoding='utf-8').read()
     shop_js = open('app/static/shop.js', encoding='utf-8').read()
     assert "['reports','chart','Revenue & reports']" in app_js
     assert "'/api/admin/reports'" in app_js
     assert 'product-catalog-card' in shop_js
-    assert 'Create live contour-cut proof' in shop_js
-    assert 'customer-contour-proof.png' in shop_js
-    assert 'production-art-' in shop_js
+    assert 'Create live contour-cut proof' not in shop_js

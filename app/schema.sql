@@ -183,3 +183,20 @@ CREATE TABLE IF NOT EXISTS canva_tokens (
  updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS canva_oauth_expiry ON canva_oauth_states(expires_at);
+
+
+-- Version 7: Stripe checkout sessions for accepted custom quotes.
+CREATE TABLE IF NOT EXISTS custom_checkout_sessions (
+ id TEXT PRIMARY KEY,
+ job_id INTEGER NOT NULL REFERENCES jobs(id),
+ quote_version INTEGER NOT NULL,
+ payment_kind TEXT NOT NULL CHECK(payment_kind IN ('deposit','total')),
+ amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
+ stripe_id TEXT UNIQUE,
+ url TEXT,
+ status TEXT NOT NULL DEFAULT 'creating',
+ request_body TEXT,
+ expires_at REAL NOT NULL,
+ created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS custom_checkout_job_sessions ON custom_checkout_sessions(job_id,created_at);
