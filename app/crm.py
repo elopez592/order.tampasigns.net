@@ -66,7 +66,6 @@ CREATE TABLE IF NOT EXISTS crm_reminders (
  created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS crm_reminders_contact ON crm_reminders(contact_id,id);
-CREATE INDEX IF NOT EXISTS crm_reminders_key ON crm_reminders(reminder_key,status);
 """
 
 
