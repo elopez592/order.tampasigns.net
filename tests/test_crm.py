@@ -65,3 +65,73 @@ def test_crm_create_update_dedupe_and_job_linking(env):
     csv_response = admin.get('/api/admin/crm.csv')
     assert csv_response.status_code == 200
     assert 'Vanguard Commercial Flooring' in csv_response.text
+
+
+
+def test_crm_project_reminder_uses_open_job_and_cooldown(env, monkeypatch):
+    app, admin, employee = env
+    created = admin.post('/api/admin/crm', json={
+        'name': 'Reminder Customer',
+        'email': 'reminder@example.test',
+        'phone': '8135550199',
+        'status': 'quote_sent',
+    })
+    assert created.status_code == 200, created.text
+    contact = created.json()
+
+    job = admin.post('/api/staff/jobs', json={
+        'title': 'Storefront door graphics',
+        'customer_name': 'Reminder Customer',
+        'customer_email': 'reminder@example.test',
+        'phone': '8135550199',
+        'items': [{'product_id': 4, 'width': '72', 'height': '36', 'quantity': 1}],
+        'workflow_id': 2,
+    })
+    assert job.status_code == 200, job.text
+
+    sent = {}
+    from app import crm as crm_module
+
+    def fake_notify(database, job_id, event_key, recipient, audience, subject, title,
+                    message, action_url=None, action_label='View order', force=False):
+        sent.update({
+            'job_id': job_id,
+            'recipient': recipient,
+            'subject': subject,
+            'title': title,
+            'message': message,
+            'action_url': action_url,
+            'action_label': action_label,
+        })
+        return True
+
+    monkeypatch.setattr(crm_module, 'notify_one', fake_notify)
+
+    response = admin.post(f"/api/admin/crm/{contact['id']}/remind", json={})
+    assert response.status_code == 200, response.text
+    assert sent['recipient'] == 'reminder@example.test'
+    assert sent['title'] == 'Don’t forget about your project'
+    assert 'Storefront door graphics' in sent['message']
+    assert sent['action_label'] == 'Continue my project'
+    assert '/portal#token=' in sent['action_url']
+
+    detail = admin.get(f"/api/admin/crm/{contact['id']}")
+    assert detail.status_code == 200
+    assert detail.json()['reminders'][0]['status'] == 'sent'
+    assert detail.json()['can_remind'] is True
+
+    repeated = admin.post(f"/api/admin/crm/{contact['id']}/remind", json={})
+    assert repeated.status_code == 429
+
+
+def test_crm_reminder_blocks_completed_or_missing_email(env):
+    app, admin, employee = env
+    completed = admin.post('/api/admin/crm', json={
+        'name': 'Completed Customer',
+        'email': 'completed-reminder@example.test',
+        'phone': '8135550188',
+        'status': 'completed',
+    })
+    assert completed.status_code == 200
+    response = admin.post(f"/api/admin/crm/{completed.json()['id']}/remind", json={})
+    assert response.status_code == 409

@@ -101,7 +101,6 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     app.state.initial_credentials = credentials
     app.state.public_url = public_url
     marketing.install(app, database, public_url, production, require_admin)
-    crm.install(app, database, require_admin)
 
     def seo_html(title: str, description: str, canonical: str, product=None) -> str:
         source = (STATIC / 'index.html').read_text()
@@ -1468,6 +1467,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     def api_schema(request: Request, user=Depends(require_admin)):
         return app.openapi()
 
+    crm.install(app, database, require_admin, issue_email_portal)
     from .customers import install as install_customers
     install_customers(app, database, production, throttle, issue_portal)
 

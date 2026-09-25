@@ -5,13 +5,14 @@ import csv
 import io
 import json
 import sqlite3
-from datetime import date
+from datetime import date, datetime, timezone
 
 from fastapi import Body, Depends, HTTPException, Request
 from fastapi.responses import Response
 
 from .db import audit, now, transaction
 from .security import email, text
+from .mailer import notify_one
 
 STATUSES = (
     "new_lead",
@@ -47,6 +48,17 @@ CREATE TABLE IF NOT EXISTS crm_contact_jobs (
  PRIMARY KEY(contact_id,job_id)
 );
 CREATE INDEX IF NOT EXISTS crm_contact_jobs_contact ON crm_contact_jobs(contact_id,job_id);
+CREATE TABLE IF NOT EXISTS crm_reminders (
+ id INTEGER PRIMARY KEY,
+ contact_id INTEGER NOT NULL REFERENCES crm_contacts(id) ON DELETE CASCADE,
+ job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+ recipient TEXT NOT NULL,
+ status TEXT NOT NULL CHECK(status IN ('sent','failed')),
+ error TEXT NOT NULL DEFAULT '',
+ sent_by INTEGER REFERENCES users(id),
+ created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS crm_reminders_contact ON crm_reminders(contact_id,id);
 """
 
 
@@ -223,6 +235,17 @@ def _snapshot(conn):
     return contacts
 
 
+def _open_job(conn, contact_id: int):
+    return conn.execute(
+        """SELECT j.* FROM crm_contact_jobs cj
+           JOIN jobs j ON j.id=cj.job_id
+           WHERE cj.contact_id=? AND j.archived=0
+             AND EXISTS (SELECT 1 FROM tasks t WHERE t.job_id=j.id AND t.status!='done')
+           ORDER BY j.id DESC LIMIT 1""",
+        (contact_id,),
+    ).fetchone()
+
+
 def _detail(conn, contact_id: int):
     sync_jobs(conn)
     row = conn.execute("SELECT * FROM crm_contacts WHERE id=?", (contact_id,)).fetchone()
@@ -263,10 +286,18 @@ def _detail(conn, contact_id: int):
     contact["quoted_cents"] = sum(j["total_cents"] for j in jobs)
     contact["paid_cents"] = sum(j["paid_cents"] for j in jobs)
     contact["balance_cents"] = sum(j["balance_cents"] for j in jobs)
+    open_job = _open_job(conn, contact_id)
+    contact["reminder_job_id"] = open_job["id"] if open_job else None
+    contact["can_remind"] = bool(contact["email"] and open_job and contact["status"] not in {"completed", "lost"})
+    contact["reminders"] = [dict(row) for row in conn.execute(
+        """SELECT id,job_id,recipient,status,error,created_at
+           FROM crm_reminders WHERE contact_id=? ORDER BY id DESC LIMIT 20""",
+        (contact_id,),
+    )]
     return contact
 
 
-def install(app, database, require_admin):
+def install(app, database, require_admin, issue_email_portal):
     with transaction(database, True) as conn:
         conn.executescript(SCHEMA)
         sync_jobs(conn)
@@ -319,6 +350,58 @@ def install(app, database, require_admin):
             "paid_cents": sum(item["paid_cents"] for item in all_contacts),
         }
         return {"contacts": all_contacts[:1000], "totals": totals, "statuses": list(STATUSES)}
+
+    @app.get("/api/admin/crm.csv")
+    def crm_csv(request: Request, user=Depends(require_admin)):
+        with transaction(database, True) as conn:
+            contacts = _snapshot(conn)
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(
+            [
+                "Name",
+                "Company",
+                "Email",
+                "Phone",
+                "Status",
+                "Source",
+                "Tags",
+                "Follow up",
+                "Jobs",
+                "Quoted",
+                "Paid",
+                "Balance",
+                "Last activity",
+                "Internal notes",
+            ]
+        )
+        for item in contacts:
+            writer.writerow(
+                [
+                    item["name"],
+                    item["company"],
+                    item["email"],
+                    item["phone"],
+                    item["status"],
+                    item["source"],
+                    ", ".join(item["tags"]),
+                    item["follow_up_date"] or "",
+                    item["order_count"],
+                    f'{item["quoted_cents"] / 100:.2f}',
+                    f'{item["paid_cents"] / 100:.2f}',
+                    f'{item["balance_cents"] / 100:.2f}',
+                    item["last_activity"] or "",
+                    item["notes"],
+                ]
+            )
+        return Response(
+            output.getvalue(),
+            media_type="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition": 'attachment; filename="tampa-signs-crm.csv"',
+                "Cache-Control": "no-store",
+            },
+        )
 
     @app.get("/api/admin/crm/{contact_id}")
     def crm_detail(contact_id: int, request: Request, user=Depends(require_admin)):
@@ -428,54 +511,72 @@ def install(app, database, require_admin):
             )
             return _detail(conn, contact_id)
 
-    @app.get("/api/admin/crm.csv")
-    def crm_csv(request: Request, user=Depends(require_admin)):
+    @app.post("/api/admin/crm/{contact_id}/remind")
+    def crm_remind(contact_id: int, request: Request, user=Depends(require_admin)):
         with transaction(database, True) as conn:
-            contacts = _snapshot(conn)
-        output = io.StringIO()
-        writer = csv.writer(output)
-        writer.writerow(
-            [
-                "Name",
-                "Company",
-                "Email",
-                "Phone",
-                "Status",
-                "Source",
-                "Tags",
-                "Follow up",
-                "Jobs",
-                "Quoted",
-                "Paid",
-                "Balance",
-                "Last activity",
-                "Internal notes",
-            ]
-        )
-        for item in contacts:
-            writer.writerow(
-                [
-                    item["name"],
-                    item["company"],
-                    item["email"],
-                    item["phone"],
-                    item["status"],
-                    item["source"],
-                    ", ".join(item["tags"]),
-                    item["follow_up_date"] or "",
-                    item["order_count"],
-                    f'{item["quoted_cents"] / 100:.2f}',
-                    f'{item["paid_cents"] / 100:.2f}',
-                    f'{item["balance_cents"] / 100:.2f}',
-                    item["last_activity"] or "",
-                    item["notes"],
-                ]
+            sync_jobs(conn)
+            contact = conn.execute("SELECT * FROM crm_contacts WHERE id=?", (contact_id,)).fetchone()
+            if not contact:
+                raise HTTPException(404, "CRM contact not found.")
+            if contact["status"] in ("completed", "lost"):
+                raise HTTPException(409, "This contact is completed or lost; no project reminder was sent.")
+            if not contact["email"]:
+                raise HTTPException(422, "Add an email address before sending a project reminder.")
+            job = _open_job(conn, contact_id)
+            if not job:
+                raise HTTPException(409, "There is no open project to remind this customer about.")
+            previous = conn.execute(
+                "SELECT created_at FROM crm_reminders WHERE contact_id=? AND status='sent' ORDER BY id DESC LIMIT 1",
+                (contact_id,),
+            ).fetchone()
+            if previous:
+                try:
+                    sent_at = datetime.fromisoformat(previous["created_at"])
+                    if sent_at.tzinfo is None:
+                        sent_at = sent_at.replace(tzinfo=timezone.utc)
+                    if (datetime.now(timezone.utc) - sent_at).total_seconds() < 6 * 3600:
+                        raise HTTPException(429, "A project reminder was already sent to this contact within the last 6 hours.")
+                except ValueError:
+                    pass
+            portal_url = issue_email_portal(conn, job["id"], days=14)
+            recipient = contact["email"]
+            first_name = (contact["name"] or "there").strip().split()[0]
+            title = "Don’t forget about your project"
+            subject = "Your Tampa Signs project is still open"
+            message = (
+                f"Hi {first_name},\n\n"
+                f"Just a quick reminder that your project “{job['title']}” is still open with Tampa Signs and Stickers. "
+                "You can review your quote, proof, payment status, or continue your project anytime using the link below.\n\n"
+                "If you have any questions or want to make changes, just reply to this email."
             )
-        return Response(
-            output.getvalue(),
-            media_type="text/csv; charset=utf-8",
-            headers={
-                "Content-Disposition": 'attachment; filename="tampa-signs-crm.csv"',
-                "Cache-Control": "no-store",
-            },
+        event_key = f"crm.project_reminder.{contact_id}.{job['id']}.{int(datetime.now(timezone.utc).timestamp())}"
+        ok = notify_one(
+            database,
+            job["id"],
+            event_key,
+            recipient,
+            "customer",
+            subject,
+            title,
+            message,
+            portal_url,
+            "Continue my project",
         )
+        with transaction(database, True) as conn:
+            cursor = conn.execute(
+                """INSERT INTO crm_reminders(contact_id,job_id,recipient,status,error,sent_by,created_at)
+                   VALUES(?,?,?,?,?,?,?)""",
+                (contact_id, job["id"], recipient, "sent" if ok else "failed",
+                 "" if ok else "Email delivery was not accepted.", user["id"], now()),
+            )
+            audit(
+                conn,
+                job["id"],
+                f'{user["name"]} (staff #{user["id"]})',
+                "crm.project_reminder_sent" if ok else "crm.project_reminder_failed",
+                {"contact_id": contact_id, "reminder_id": cursor.lastrowid, "recipient": recipient},
+            )
+        if not ok:
+            raise HTTPException(503, "The reminder could not be sent. Check email delivery settings and try again.")
+        return {"ok": True, "message": "Project reminder sent.", "job_id": job["id"]}
+
