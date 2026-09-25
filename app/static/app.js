@@ -599,7 +599,7 @@ const forms = {
 };
 
 const marketingDashboard=createMarketingDashboard({api,staffShell,esc,money,forms,toast});
-shop=createShop({state,app,api,esc,money,input,select,formFooter,showModal,closeModal,toast,publicHeader,publicProductName,productPath,setPublicSeo,storefrontProductsFor,productIcon,calculatorView,recalculate,currentItems,orderModal,actions,forms});
+shop=createShop({state,app,api,esc,money,input,select,formFooter,showModal,closeModal,toast,publicHeader,publicProductName,productPath,setPublicSeo,storefrontProductsFor,productIcon,productImage,calculatorView,recalculate,currentItems,orderModal,actions,forms});
 
 document.addEventListener('click',async event=>{
   const button=event.target.closest('[data-action]');if(!button||button.disabled)return;
