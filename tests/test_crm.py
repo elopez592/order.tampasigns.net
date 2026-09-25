@@ -1,4 +1,7 @@
-from tests.conftest import create_banner
+from datetime import datetime, timedelta, timezone
+
+from app.db import transaction
+from tests.conftest import create_banner, finalize, portal, accept, proof, approve
 
 
 def test_crm_backfills_jobs_and_is_admin_only(env):
@@ -135,3 +138,146 @@ def test_crm_reminder_blocks_completed_or_missing_email(env):
     assert completed.status_code == 200
     response = admin.post(f"/api/admin/crm/{completed.json()['id']}/remind", json={})
     assert response.status_code == 409
+
+
+
+def _age(timestamp_days):
+    return (datetime.now(timezone.utc) - timedelta(days=timestamp_days)).isoformat(timespec='seconds')
+
+
+def _capture_reminders(monkeypatch):
+    sent = []
+    from app import crm as crm_module
+
+    def fake_notify(database, job_id, event_key, recipient, audience, subject, title,
+                    message, action_url=None, action_label='View order', force=False):
+        sent.append({
+            'job_id': job_id, 'event_key': event_key, 'recipient': recipient,
+            'subject': subject, 'title': title, 'message': message,
+            'action_url': action_url, 'action_label': action_label,
+        })
+        return True
+
+    monkeypatch.setattr(crm_module, 'notify_one', fake_notify)
+    return sent
+
+
+def test_automatic_quote_reminder_after_three_days_only_once(env, monkeypatch):
+    app, admin, employee = env
+    job_id = admin.post('/api/staff/jobs', json={
+        'title': 'Automatic quote follow-up',
+        'customer_name': 'Quote Reminder',
+        'customer_email': 'auto-quote@example.test',
+        'phone': '8135550111',
+        'items': [{'product_id': 4, 'width': '72', 'height': '36', 'quantity': 1}],
+        'workflow_id': 2,
+    }).json()['job_id']
+    finalize(admin, job_id)
+    with transaction(app.state.database, True) as conn:
+        conn.execute("UPDATE events SET created_at=? WHERE job_id=? AND action='quote.published'",
+                     (_age(4), job_id))
+
+    sent = _capture_reminders(monkeypatch)
+    response = admin.post('/api/admin/crm/reminders/run', json={})
+    assert response.status_code == 200, response.text
+    assert response.json()['sent'] == 1
+    assert response.json()['items'][0]['kind'] == 'quote'
+    assert sent[0]['title'] == 'Don’t forget about your project'
+    assert sent[0]['action_label'] == 'Review my quote'
+
+    repeated = admin.post('/api/admin/crm/reminders/run', json={})
+    assert repeated.status_code == 200
+    assert repeated.json()['sent'] == 0
+    assert len(sent) == 1
+
+
+def test_automatic_proof_reminder_after_three_days(env, monkeypatch):
+    app, admin, employee = env
+    job_id = admin.post('/api/staff/jobs', json={
+        'title': 'Automatic proof follow-up',
+        'customer_name': 'Proof Reminder',
+        'customer_email': 'auto-proof@example.test',
+        'phone': '8135550112',
+        'items': [{'product_id': 4, 'width': '72', 'height': '36', 'quantity': 1}],
+        'workflow_id': 2,
+    }).json()['job_id']
+    finalize(admin, job_id)
+    customer = portal(app, admin, job_id)
+    accept(customer)
+    proof_id = proof(admin, job_id)
+    with transaction(app.state.database, True) as conn:
+        conn.execute('UPDATE proofs SET created_at=? WHERE id=?', (_age(4), proof_id))
+
+    sent = _capture_reminders(monkeypatch)
+    response = admin.post('/api/admin/crm/reminders/run', json={})
+    assert response.status_code == 200, response.text
+    assert response.json()['sent'] == 1
+    assert response.json()['items'][0]['kind'] == 'proof'
+    assert sent[0]['title'] == 'Your proof is waiting for approval'
+    assert sent[0]['action_label'] == 'Review my proof'
+
+
+def test_automatic_deposit_reminder_after_seven_days(env, monkeypatch):
+    app, admin, employee = env
+    job_id = admin.post('/api/staff/jobs', json={
+        'title': 'Automatic deposit follow-up',
+        'customer_name': 'Deposit Reminder',
+        'customer_email': 'auto-deposit@example.test',
+        'phone': '8135550113',
+        'items': [{'product_id': 4, 'width': '72', 'height': '36', 'quantity': 1}],
+        'workflow_id': 2,
+    }).json()['job_id']
+    finalize(admin, job_id)
+    customer = portal(app, admin, job_id)
+    accept(customer)
+    proof_id = proof(admin, job_id)
+    approve(customer, proof_id)
+    with transaction(app.state.database, True) as conn:
+        conn.execute("UPDATE proof_decisions SET created_at=? WHERE proof_id=? AND action='approve'",
+                     (_age(8), proof_id))
+
+    sent = _capture_reminders(monkeypatch)
+    response = admin.post('/api/admin/crm/reminders/run', json={})
+    assert response.status_code == 200, response.text
+    assert response.json()['sent'] == 1
+    assert response.json()['items'][0]['kind'] == 'payment'
+    assert sent[0]['title'] == 'Ready to keep your project moving?'
+    assert 'required deposit' in sent[0]['message'].lower()
+
+
+def test_automatic_reminders_can_be_paused_per_contact(env, monkeypatch):
+    app, admin, employee = env
+    job_id = admin.post('/api/staff/jobs', json={
+        'title': 'Paused follow-up',
+        'customer_name': 'Paused Reminder',
+        'customer_email': 'paused-reminder@example.test',
+        'phone': '8135550114',
+        'items': [{'product_id': 4, 'width': '72', 'height': '36', 'quantity': 1}],
+        'workflow_id': 2,
+    }).json()['job_id']
+    finalize(admin, job_id)
+    with transaction(app.state.database, True) as conn:
+        conn.execute("UPDATE events SET created_at=? WHERE job_id=? AND action='quote.published'",
+                     (_age(4), job_id))
+
+    contacts = admin.get('/api/admin/crm').json()['contacts']
+    contact = next(x for x in contacts if x['email'] == 'paused-reminder@example.test')
+    updated = admin.patch(f"/api/admin/crm/{contact['id']}", json={'auto_reminders': False})
+    assert updated.status_code == 200
+    assert updated.json()['auto_reminders'] is False
+
+    sent = _capture_reminders(monkeypatch)
+    response = admin.post('/api/admin/crm/reminders/run', json={})
+    assert response.status_code == 200
+    assert response.json()['sent'] == 0
+    assert sent == []
+
+
+def test_internal_reminder_endpoint_requires_scheduler_secret(env, monkeypatch):
+    app, admin, employee = env
+    monkeypatch.setenv('REMINDER_CRON_SECRET', 'test-reminder-cron-secret')
+    missing = admin.post('/api/internal/crm-reminders/run', json={})
+    assert missing.status_code == 401
+    good = admin.post('/api/internal/crm-reminders/run', json={},
+                      headers={'Authorization': 'Bearer test-reminder-cron-secret'})
+    assert good.status_code == 200, good.text
