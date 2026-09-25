@@ -514,6 +514,7 @@ def install(app, database, require_admin, issue_email_portal):
     @app.post("/api/admin/crm/{contact_id}/remind")
     def crm_remind(contact_id: int, request: Request, user=Depends(require_admin)):
         with transaction(database, True) as conn:
+            sync_jobs(conn)
             contact = conn.execute("SELECT * FROM crm_contacts WHERE id=?", (contact_id,)).fetchone()
             if not contact:
                 raise HTTPException(404, "CRM contact not found.")
