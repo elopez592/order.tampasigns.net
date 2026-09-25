@@ -63,11 +63,12 @@ export function createCrmDashboard({api,staffShell,esc,money,showModal,closeModa
     current=await api('/api/admin/crm/'+id);
     const c=current;
     showModal(c.company||c.name,`<div class="stack">
-      <div class="row between wrap"><div><div class="eyebrow">${esc(labels[c.status]||c.status)}</div><h2>${esc(c.name)}</h2><p class="muted">${esc(c.email||'')}${c.email&&c.phone?' · ':''}${esc(c.phone||'')}</p></div><button class="btn light" data-action="crm-edit">Edit contact</button></div>
+      <div class="row between wrap"><div><div class="eyebrow">${esc(labels[c.status]||c.status)}</div><h2>${esc(c.name)}</h2><p class="muted">${esc(c.email||'')}${c.email&&c.phone?' · ':''}${esc(c.phone||'')}</p></div><div class="row wrap">${c.can_remind?'<button class="btn primary" data-action="crm-remind">Send project reminder</button>':''}<button class="btn light" data-action="crm-edit">Edit contact</button></div></div>
       <div class="kpis crm-mini-kpis"><section class="kpi"><div class="eyebrow">JOBS</div><div class="metric">${number(c.order_count)}</div></section><section class="kpi"><div class="eyebrow">QUOTED</div><div class="metric">${money(c.quoted_cents)}</div></section><section class="kpi"><div class="eyebrow">PAID</div><div class="metric">${money(c.paid_cents)}</div></section><section class="kpi last"><div class="eyebrow">BALANCE</div><div class="metric">${money(c.balance_cents)}</div></section></div>
       <div class="fields"><div><strong>Lead source</strong><p class="muted">${esc(c.source||'Not set')}</p></div><div><strong>Follow-up</strong><p class="muted">${esc(c.follow_up_date||'Not set')}</p></div></div>
       ${c.tags?.length?'<div><strong>Tags</strong><p class="muted">'+c.tags.map(x=>esc(x)).join(' · ')+'</p></div>':''}
       ${c.notes?'<div><strong>Internal notes</strong><p style="white-space:pre-wrap">'+esc(c.notes)+'</p></div>':''}
+      ${c.reminders?.length?'<div class="notice info"><strong>Last project reminder</strong><br>'+esc(localDate(c.reminders[0].created_at))+' · '+esc(c.reminders[0].status==='sent'?'Sent to '+c.reminders[0].recipient:'Delivery failed')+'</div>':''}
       <div class="divider"></div><h3>Order & quote history</h3>
       <div class="table-wrap"><table><thead><tr><th>Job</th><th>Date</th><th>Status</th><th class="right">Total</th><th class="right">Paid</th></tr></thead><tbody>
         ${c.jobs.map(j=>`<tr><td><a class="link" href="/staff#job/${j.id}">${esc(j.number)} · ${esc(j.title)}</a></td><td>${esc(localDate(j.created_at))}</td><td>${esc(j.state)}</td><td class="right money">${money(j.total_cents)}</td><td class="right money">${money(j.paid_cents)}</td></tr>`).join('')||'<tr><td colspan="5">No jobs attached yet.</td></tr>'}
@@ -78,6 +79,13 @@ export function createCrmDashboard({api,staffShell,esc,money,showModal,closeModa
   actions['crm-new']=()=>{current=null;showModal('Add CRM contact',contactForm(),true);};
   actions['crm-open']=b=>open(Number(b.dataset.id));
   actions['crm-edit']=()=>{if(current)showModal('Edit CRM contact',contactForm(current),true);};
+  actions['crm-remind']=async()=>{
+    if(!current)return;
+    if(!confirm('Send a friendly “Don’t forget about your project” reminder to '+(current.email||'this contact')+'?'))return;
+    const result=await api('/api/admin/crm/'+current.id+'/remind','POST',{});
+    toast(result.message||'Project reminder sent.');
+    await open(current.id);
+  };
   forms['crm-filter']=async(_f,d)=>render({status:d.status||'all',q:d.q||''});
   forms['crm-contact']=async(_f,d)=>{
     const payload={...d,tags:d.tags||''};
