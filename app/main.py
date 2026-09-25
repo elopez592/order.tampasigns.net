@@ -254,7 +254,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                         user = conn.execute('SELECT id,name,email,role FROM users WHERE id=? AND active=1', (row['user_id'],)).fetchone()
                         if user:
                             request.state.user = dict(user)
-        if request.url.path.startswith('/api/') and request.url.path not in ('/api/payments/stripe/webhook','/api/marketing/event') and request.method not in ('GET', 'HEAD', 'OPTIONS'):
+        if request.url.path.startswith('/api/') and request.url.path not in ('/api/payments/stripe/webhook','/api/marketing/event','/api/internal/crm-reminders/run') and request.method not in ('GET', 'HEAD', 'OPTIONS'):
             sess = request.state.session
             csrf = request.headers.get('x-csrf-token', '')
             if not sess or not hmac.compare_digest(sess['csrf'], csrf):
