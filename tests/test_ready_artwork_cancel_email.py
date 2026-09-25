@@ -17,6 +17,28 @@ def test_shop_minimum_is_acceptance_gate_not_price_floor(env):
     assert data['minimum_order_adjustment_cents'] == 0
 
 
+def test_decal_price_scales_with_size_while_project_minimum_stays_at_checkout(env):
+    app, admin, employee = env
+    client = anonymous(app)
+    decal = next(p for p in client.get('/api/catalog').json()['products'] if p['name'] == 'Decals')
+
+    def decal_item(size, quantity=1):
+        return {'product_id': decal['id'], 'width': size, 'height': size,
+                'quantity': quantity, 'lamination': 'none'}
+
+    small = client.post('/api/calculate', json={'items': [decal_item(6)]})
+    large = client.post('/api/calculate', json={'items': [decal_item(12)]})
+    assert small.status_code == large.status_code == 200
+    assert small.json()['subtotal_cents'] == 1450
+    assert large.json()['subtotal_cents'] == 2800
+    assert small.json()['meets_minimum_order'] is False
+    assert large.json()['meets_minimum_order'] is False
+    combined = client.post('/api/calculate', json={'items': [decal_item(6), decal_item(12, 2)]})
+    assert combined.status_code == 200
+    assert combined.json()['subtotal_cents'] == 6050
+    assert combined.json()['meets_minimum_order'] is True
+
+
 def test_sticker_minimums_are_50_pieces_and_one_inch(env):
     app, admin, employee = env
     client = anonymous(app)
