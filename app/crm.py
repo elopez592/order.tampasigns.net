@@ -525,7 +525,7 @@ def install(app, database, require_admin, issue_email_portal):
             if not job:
                 raise HTTPException(409, "There is no open project to remind this customer about.")
             previous = conn.execute(
-                "SELECT created_at FROM crm_reminders WHERE contact_id=? ORDER BY id DESC LIMIT 1",
+                "SELECT created_at FROM crm_reminders WHERE contact_id=? AND status='sent' ORDER BY id DESC LIMIT 1",
                 (contact_id,),
             ).fetchone()
             if previous:
