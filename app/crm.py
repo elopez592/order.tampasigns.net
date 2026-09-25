@@ -374,7 +374,6 @@ def _auto_candidates(conn, current: datetime | None = None) -> list[dict]:
             reminder_key = f'quote:{job["id"]}:v{job["quote_version"]}'
             if published_at and current - published_at >= timedelta(days=3) and not _sent_for_key(conn, reminder_key):
                 selected_contacts.add(job["contact_id"])
-                selected_contacts.add(job["contact_id"])
                 candidates.append({
                     "contact_id": job["contact_id"], "job_id": job["id"], "recipient": job["email"],
                     "kind": "quote", "reminder_key": reminder_key,
@@ -396,6 +395,7 @@ def _auto_candidates(conn, current: datetime | None = None) -> list[dict]:
             proof_at = _parse_stamp(latest_proof["created_at"])
             reminder_key = f'proof:{latest_proof["id"]}:v{latest_proof["version"]}'
             if proof_at and current - proof_at >= timedelta(days=3) and not _sent_for_key(conn, reminder_key):
+                selected_contacts.add(job["contact_id"])
                 candidates.append({
                     "contact_id": job["contact_id"], "job_id": job["id"], "recipient": job["email"],
                     "kind": "proof", "reminder_key": reminder_key,
