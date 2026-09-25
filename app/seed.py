@@ -19,6 +19,17 @@ DEFAULT_SETTINGS = {
  'checkout_terms': 'I confirm the product, size and quantity. I will review and approve a proof before production. Tax and any selected delivery charge are shown at secure checkout.',
 }
 
+ACM_DESCRIPTION = ('Single-sided printed ACM sign in 3 mm or 6 mm thickness. '
+                   'Choose optional laminate; installation priced separately.')
+# A $3.50/sq ft cost increase covers the observed 4x8 sheet price difference
+# between 3 mm and 6 mm stock, including the higher-priced supplier benchmark.
+ACM_MATERIAL_OPTIONS = [
+    {'id': '3mm', 'label': '3 mm ACM (standard)',
+     'sell_per_sqft_adjustment': '0', 'cost_per_sqft_adjustment': '0', 'default': True},
+    {'id': '6mm', 'label': '6 mm ACM (+$6/sq ft)',
+     'sell_per_sqft_adjustment': '6', 'cost_per_sqft_adjustment': '3.5', 'default': False},
+]
+
 
 def steps_for(production):
     base = [
@@ -86,6 +97,15 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             cfg.setdefault('min_width', '0.1')
             cfg.setdefault('min_height', '0.1')
             cfg.setdefault('self_approve_artwork', False)
+
+            acm_changed = False
+            if old['name'].lower() in ('acm signs', 'acm sign - single sided'):
+                if not cfg['material_options']:
+                    cfg['material_options'] = ACM_MATERIAL_OPTIONS
+                    acm_changed = True
+                if cfg.get('description') == 'Printed graphic on 3mm ACM. Installation priced separately.':
+                    cfg['description'] = ACM_DESCRIPTION
+                    acm_changed = True
 
             lname = (old['name'] + ' ' + old['category']).lower()
             product_name = old['name'].lower()
@@ -329,6 +349,8 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             if old['category'].lower() == 'windows' and old['name'] != 'Window Graphics':
                 conn.execute("UPDATE products SET name='Window Graphics' WHERE id=?", (old['id'],))
             conn.execute('UPDATE products SET config=? WHERE id=?', (json.dumps(cfg), old['id']))
+            if acm_changed:
+                conn.execute('UPDATE products SET version=version+1,updated_at=? WHERE id=?', (now(), old['id']))
         print_wrap = conn.execute("SELECT * FROM products WHERE name IN ('Cast wrap film - print and laminate','Vehicle Wraps') ORDER BY id LIMIT 1").fetchone()
         installed_wrap = conn.execute("SELECT * FROM products WHERE name='Vehicle wrap - installed estimate' ORDER BY id LIMIT 1").fetchone()
         if print_wrap:
@@ -374,7 +396,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
               ('Labels', 'Labels', 1, 'piece', '18', '3', '30', '10', '45', 50, 2, 2, 12, 12, True, 'Example label configuration; confirm roll direction and packaging.'),
               ('Magnets', 'Magnets', 1, 'piece', '18', '5', '20', '8', '50', 1, 18, 12, 48, 48, True, 'Printed magnetic stock. Thickness and suitability require confirmation.'),
               ('Banners', 'Banners', 2, 'sqft', '5', '1.5', '10', '4', '45', 1, 72, 36, 120, 1200, True, 'Single-sided banner, standard hem and grommets.'),
-              ('ACM signs', 'Signs', 3, 'sqft', '14', '5', '20', '8', '65', 1, 24, 18, 48, 96, True, 'Printed graphic on 3mm ACM. Installation priced separately.'),
+              ('ACM signs', 'Signs', 3, 'sqft', '14', '5', '20', '8', '65', 1, 24, 18, 48, 96, True, ACM_DESCRIPTION),
               ('Yard signs', 'Signs', 3, 'piece', '8', '2.5', '15', '5', '30', 1, 24, 18, 48, 96, True, '4mm corrugated plastic; hardware and installation not included.'),
               ('Window Graphics', 'Windows', 3, 'sqft', '10.5', '4.25', '0', '0', '75', 1, 44, 92, 54, 1200, False, 'Window graphics with your choice of perforated window vinyl or standard opaque vinyl. Add each window or panel size separately. Lamination is not included.'),
               ('Acrylic sign face replacement', 'Signs', 3, 'sqft', '22', '12', '0', '0', '150', 1, 120, 30.5, 120, 96, False, 'Review thickness, full-sheet purchase, print type, retainers and installation labor.'),
@@ -437,7 +459,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     'material_options': (
                         [{'id':'perforated','label':'Perforated window vinyl','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','default':True},
                          {'id':'opaque','label':'Standard opaque vinyl','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','default':False}]
-                        if category.lower() == 'windows' else []
+                        if category.lower() == 'windows' else ACM_MATERIAL_OPTIONS if name == 'ACM signs' else []
                     ),
                     'tiers': [{'from': 1, 'multiplier': '1'}, {'from': 100, 'multiplier': '.90'},
                               {'from': 500, 'multiplier': '.80'}, {'from': 1000, 'multiplier': '.70'}] if unit == 'piece'
