@@ -349,6 +349,7 @@ def _auto_candidates(conn, current: datetime | None = None) -> list[dict]:
     current = current or datetime.now(timezone.utc)
     sync_jobs(conn)
     candidates = []
+    selected_contacts = set()
     rows = conn.execute(
         """SELECT cj.contact_id,c.name,c.email,c.status,c.auto_reminders,j.*
            FROM crm_contact_jobs cj
@@ -357,9 +358,11 @@ def _auto_candidates(conn, current: datetime | None = None) -> list[dict]:
            WHERE j.archived=0 AND c.auto_reminders=1 AND c.email<>''
              AND c.status NOT IN ('completed','lost')
              AND NOT EXISTS (SELECT 1 FROM checkout_orders co WHERE co.job_id=j.id)
-           ORDER BY j.id"""
+           ORDER BY j.id DESC"""
     ).fetchall()
     for job in rows:
+        if job["contact_id"] in selected_contacts:
+            continue
         if not conn.execute(
             "SELECT 1 FROM tasks WHERE job_id=? AND status!='done' LIMIT 1", (job["id"],)
         ).fetchone():
@@ -370,6 +373,8 @@ def _auto_candidates(conn, current: datetime | None = None) -> list[dict]:
             published_at = _latest_event_time(conn, job["id"], "quote.published")
             reminder_key = f'quote:{job["id"]}:v{job["quote_version"]}'
             if published_at and current - published_at >= timedelta(days=3) and not _sent_for_key(conn, reminder_key):
+                selected_contacts.add(job["contact_id"])
+                selected_contacts.add(job["contact_id"])
                 candidates.append({
                     "contact_id": job["contact_id"], "job_id": job["id"], "recipient": job["email"],
                     "kind": "quote", "reminder_key": reminder_key,
@@ -416,6 +421,7 @@ def _auto_candidates(conn, current: datetime | None = None) -> list[dict]:
                 approval_at = _parse_stamp(approved["created_at"]) if approved else _parse_stamp(latest_proof["created_at"])
                 reminder_key = f'payment:{job["id"]}:q{job["quote_version"]}:p{latest_proof["id"]}'
                 if approval_at and current - approval_at >= timedelta(days=7) and not _sent_for_key(conn, reminder_key):
+                    selected_contacts.add(job["contact_id"])
                     candidates.append({
                         "contact_id": job["contact_id"], "job_id": job["id"], "recipient": job["email"],
                         "kind": "payment", "reminder_key": reminder_key,
@@ -595,6 +601,42 @@ def install(app, database, require_admin, issue_email_portal):
                 "Cache-Control": "no-store",
             },
         )
+
+    @app.get("/api/admin/crm/reminders/preview")
+    def crm_reminder_preview(request: Request, user=Depends(require_admin)):
+        with transaction(database, True) as conn:
+            candidates = _auto_candidates(conn)
+        return {
+            "eligible": len(candidates),
+            "items": [
+                {
+                    "contact_id": item["contact_id"],
+                    "job_id": item["job_id"],
+                    "kind": item["kind"],
+                    "recipient": item["recipient"],
+                }
+                for item in candidates
+            ],
+        }
+
+    @app.post("/api/admin/crm/reminders/run")
+    def crm_reminder_run(request: Request, user=Depends(require_admin)):
+        result = run_auto_reminders(database, issue_email_portal)
+        with transaction(database, True) as conn:
+            audit(conn, None, f'{user["name"]} (staff #{user["id"]})', "crm.auto_reminders_run",
+                  {"eligible": result["eligible"], "sent": result["sent"], "failed": result["failed"]})
+        return result
+
+    @app.post("/api/internal/crm-reminders/run")
+    def crm_reminder_cron(request: Request):
+        secret = os.getenv("REMINDER_CRON_SECRET", "").strip()
+        supplied = request.headers.get("authorization", "")
+        expected = "Bearer " + secret
+        if not secret:
+            raise HTTPException(503, "Automatic reminder scheduler is not configured.")
+        if len(supplied) != len(expected) or not hmac.compare_digest(supplied, expected):
+            raise HTTPException(401, "Invalid scheduler credential.")
+        return run_auto_reminders(database, issue_email_portal)
 
     @app.get("/api/admin/crm/{contact_id}")
     def crm_detail(contact_id: int, request: Request, user=Depends(require_admin)):
