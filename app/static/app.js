@@ -237,25 +237,6 @@ function vehicleDetailsCustomizer(cfg){
   const packages=cfg.tint_package_selector&&cfg.coverage_options?.length?cfg.coverage_options.map(o=>[o.id,o.label]):[['standard','Standard — 4 side windows + front and rear windshields'],['large_extra','Large glass or extra windows — final price reviewed']];
   return '<div class="vehicle-details-config"><div class="row mb"><span class="step-number">1</span><div><h3>Tell us about the vehicle</h3><p class="field-hint">Year, make and model are required so we can confirm the glass and final fit.</p></div></div><div class="fields three">'+input('vehicle_year','Vehicle year','','number','min="1900" max="2100" step="1" required placeholder="2024"')+input('vehicle_make','Vehicle make','','text','required maxlength="50" placeholder="Ford"')+input('vehicle_model','Vehicle model','','text','required maxlength="60" placeholder="Transit"')+'</div>'+select('window_package','Tint package',packages,packages[0][0])+'</div><div class="divider"></div>';
 }
-function updateUsdotPreview(){
-  const form=$('#calculator'),preview=$('#usdot-preview');if(!form||!preview)return;
-  const company=(form.elements.company_name?.value||'YOUR COMPANY').toUpperCase();
-  const phone=(form.elements.phone_line?.value||'').toUpperCase();
-  const number=(form.elements.usdot_number?.value||'1234567').toUpperCase().replace(/^USDOT\s*/,'');
-  const licenses=(form.elements.license_line?.value||'').toUpperCase();
-  const location=(form.elements.location_line?.value||'').toUpperCase();
-  preview.dataset.style=form.elements.usdot_style?.value||'bold';
-  const pointSizes={company:Number(form.elements.usdot_company_points?.value)||56,phone:Number(form.elements.usdot_phone_points?.value)||30,number:Number(form.elements.usdot_number_points?.value)||72,licenses:Number(form.elements.usdot_license_points?.value)||30,location:Number(form.elements.usdot_location_points?.value)||32};
-  preview.style.color=form.elements.usdot_text_color?.value||'#111111';
-  [['.usdot-preview-company','company'],['.usdot-preview-number','number'],['.usdot-preview-phone','phone'],['.usdot-preview-licenses','licenses'],['.usdot-preview-location','location']].forEach(([selector,key])=>{$(selector,preview).style.fontSize=(Math.max(8,Math.min(300,pointSizes[key]))*.42)+'px';});
-  const width=Math.max(1,Number(form.elements.width?.value)||18),height=Math.max(1,Number(form.elements.height?.value)||12);
-  preview.style.aspectRatio=width+' / '+height;
-  $('.usdot-preview-company',preview).textContent=company;
-  $('.usdot-preview-phone',preview).textContent=phone;$('.usdot-preview-phone',preview).hidden=!phone;
-  $('.usdot-preview-number',preview).textContent='USDOT '+number;
-  $('.usdot-preview-licenses',preview).textContent=licenses;$('.usdot-preview-licenses',preview).hidden=!licenses;
-  $('.usdot-preview-location',preview).textContent=location;$('.usdot-preview-location',preview).hidden=!location;
-}
 function coverageIcon(id,trailer=false,vehicleType=''){
   const options=trailer?['lettering','partial','sides','sides_rear','three_quarter','full']:['spot','doors','hood','roof','half','three_quarter','full'];
   const index=Math.max(0,options.indexOf(id)),rows=trailer?2:3;
