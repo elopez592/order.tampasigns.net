@@ -1,4 +1,8 @@
 from .conftest import anonymous
+import json
+
+from app.db import transaction
+from app.seed import bootstrap
 
 
 def catalog_by_name(client):
@@ -16,6 +20,48 @@ def test_storefront_category_metadata_and_duplicates(env):
     assert products['Transfer stickers']['config']['storefront_categories'] == ['Stickers']
     assert set(products['Vehicle Wraps']['config']['storefront_categories']) == {'Vehicles', 'Fleet Services'}
     assert products['Die-cut stickers']['config']['storefront_categories'] == ['Stickers']
+
+
+def test_acm_thickness_prices_and_existing_catalog_upgrade(env):
+    app, admin, employee = env
+    client = anonymous(app)
+    product = catalog_by_name(client)['ACM signs']
+    cfg = product['config']
+    assert [(o['id'], o['sell_per_sqft_adjustment'], o['cost_per_sqft_adjustment'])
+            for o in cfg['material_options']] == [('3mm', '0', '0'), ('6mm', '6', '3.5')]
+    assert cfg['material_options'][0]['default'] is True
+
+    def price(width, height, material=None, lamination='none'):
+        item = {'product_id': product['id'], 'width': width, 'height': height,
+                'quantity': 1, 'lamination': lamination}
+        if material:
+            item['material'] = material
+        response = client.post('/api/calculate', json={'items': [item]})
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    assert price(24, 36)['subtotal_cents'] == 10400
+    thicker = price(24, 36, '6mm')
+    assert thicker['subtotal_cents'] == 14000
+    assert thicker['lines'][0]['material_label'] == '6 mm ACM (+$6/sq ft)'
+    assert price(24, 36, '6mm', 'gloss')['subtotal_cents'] == 15200
+    assert price(48, 96, '3mm')['subtotal_cents'] == 46800
+    assert price(48, 96, '6mm')['subtotal_cents'] == 66000
+
+    # Production already has this product, so verify the startup upgrade path too.
+    with transaction(app.state.database, True) as conn:
+        row = conn.execute('SELECT config FROM products WHERE id=?', (product['id'],)).fetchone()
+        old_cfg = json.loads(row['config'])
+        old_cfg['material_options'] = []
+        old_cfg['description'] = 'Printed graphic on 3mm ACM. Installation priced separately.'
+        conn.execute('UPDATE products SET config=? WHERE id=?', (json.dumps(old_cfg), product['id']))
+    bootstrap(app.state.database)
+    bootstrap(app.state.database)
+    upgraded = catalog_by_name(client)['ACM signs']['config']
+    assert catalog_by_name(client)['ACM signs']['version'] == product['version'] + 1
+    assert [o['id'] for o in upgraded['material_options']] == ['3mm', '6mm']
+    assert '3 mm or 6 mm' in upgraded['description']
+    assert price(48, 96, '6mm')['subtotal_cents'] == 66000
 
 
 def test_magnet_standard_sizes_and_orientation_independent_limit(env):
