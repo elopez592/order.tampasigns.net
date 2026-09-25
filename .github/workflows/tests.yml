@@ -14,5 +14,11 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: pip install -r requirements-dev.txt
       - run: python -m compileall -q app
-      - run: node --check app/static/app.js
+      - name: Check browser JavaScript as ES modules
+        run: |
+          for file in app/static/*.js; do
+            tmp="/tmp/$(basename "$file" .js).mjs"
+            cp "$file" "$tmp"
+            node --check "$tmp"
+          done
       - run: pytest -q

@@ -288,4 +288,4 @@ def test_usdot_custom_measurements_and_font_size_ui(env):
     assert 'background_color' not in shop
     assert 'strokeRect' not in shop[shop.index('async function usdotPrintFile'):shop.index('async function designFiles')]
     assert 'const location=(form.elements.location_line?.value||\'\')' in js
-    assert "$('.usdot-preview-location',preview).hidden=!location" in js
+    assert "['phone','licenses','location'].includes(key)&&!value" in js
