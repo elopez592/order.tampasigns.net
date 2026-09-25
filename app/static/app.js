@@ -198,7 +198,12 @@ async function loadUsdotLogo(file){
   if(!file){usdotLogoDraft=null;updateUsdotPreview();return;}
   if(!['image/png','image/jpeg','image/webp'].includes(file.type))throw new Error('Upload a PNG, JPG, or WebP logo.');
   if(file.size>10*1024*1024)throw new Error('Logo files must be 10 MB or smaller.');
-  const dataUrl=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('Unable to read that logo.'));reader.readAsDataURL(file);});
+  const raw=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('Unable to read that logo.'));reader.readAsDataURL(file);});
+  const image=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('Unable to open that logo image.'));im.src=raw;});
+  const maxSide=1200,scale=Math.min(1,maxSide/Math.max(image.width,image.height)),canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(image.width*scale));canvas.height=Math.max(1,Math.round(image.height*scale));
+  canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);
+  const dataUrl=canvas.toDataURL(file.type==='image/jpeg'?'image/jpeg':'image/png',.92);
   usdotLogoDraft={id:crypto.randomUUID(),name:file.name,type:file.type,data_url:dataUrl};
   updateUsdotPreview();
 }
@@ -327,7 +332,7 @@ function currentItems(){
   const lamination=f.elements.lamination?.value||'',material=f.elements.material?.value||'',coverageInput=f.querySelector('input[name="coverage_option"]:checked'),coverageSelect=f.elements.window_package,coverage=coverageInput?.value||coverageSelect?.value||'',vehicleType=f.elements.vehicle_type?.value||'',coverageLabel=coverageInput?.closest('.coverage-card')?.querySelector('strong')?.textContent||coverageSelect?.selectedOptions?.[0]?.textContent||'',vehicleLabel=f.elements.vehicle_type?.selectedOptions?.[0]?.textContent||'',approxW=f.elements.approx_width?.value||'',approxH=f.elements.approx_height?.value||'',placementLabel=f.elements.placement?.value==='custom'?'Custom size':(f.elements.placement?.selectedOptions?.[0]?.textContent||'');
   const includeRoof=!!f.elements.include_roof_wrap?.checked;
   const wrapDesc=coverage?('Coverage: '+coverageLabel+(includeRoof?' + roof wrap':'')+(vehicleLabel?' | Type: '+vehicleLabel:'')+(approxW||approxH?' | Approx: '+(approxW||'?')+' x '+(approxH||'?')+' in':'')):'',tintDesc=product?.config.vehicle_details_required?('Vehicle: '+(f.elements.vehicle_year?.value||'')+' '+(f.elements.vehicle_make?.value||'')+' '+(f.elements.vehicle_model?.value||'')+' | Tint package: '+coverageLabel):'';
-  const usdot=product?.config.usdot_customizer?{identity:usdotIdentity(),company:f.elements.company_name?.value||'',phone:f.elements.phone_line?.value||'',number:f.elements.usdot_number?.value||'',licenses:f.elements.license_line?.value||'',location:f.elements.location_line?.value||'',style:f.elements.usdot_style?.value||'bold',font_sizes:{company:f.elements.usdot_company_points?.value||'56',phone:f.elements.usdot_phone_points?.value||'30',number:f.elements.usdot_number_points?.value||'72',licenses:f.elements.usdot_license_points?.value||'30',location:f.elements.usdot_location_points?.value||'32'},positions:structuredClone(usdotPositions),logo_id:usdotLogoDraft?.id||'',logo_name:usdotLogoDraft?.name||'',logo_width:f.elements.usdot_logo_width?.value||'42',text_color:f.elements.usdot_text_color?.value||'#111111'}:null;
+  const usdot=product?.config.usdot_customizer?{identity:usdotIdentity(),company:f.elements.company_name?.value||'',phone:f.elements.phone_line?.value||'',number:f.elements.usdot_number?.value||'',licenses:f.elements.license_line?.value||'',location:f.elements.location_line?.value||'',style:f.elements.usdot_style?.value||'bold',font_sizes:{company:f.elements.usdot_company_points?.value||'56',phone:f.elements.usdot_phone_points?.value||'30',number:f.elements.usdot_number_points?.value||'72',licenses:f.elements.usdot_license_points?.value||'30',location:f.elements.usdot_location_points?.value||'32'},positions:structuredClone(usdotPositions),logo_id:usdotLogoDraft?.id||'',logo_name:usdotLogoDraft?.name||'',logo_data_url:usdotLogoDraft?.data_url||'',logo_width:f.elements.usdot_logo_width?.value||'42',text_color:f.elements.usdot_text_color?.value||'#111111'}:null;
   const usdotDesc=usdot?[usdot.identity==='logo'?('Logo: '+(usdot.logo_name||'uploaded')):('Company: '+usdot.company),usdot.phone&&'Phone: '+usdot.phone,'USDOT '+usdot.number,usdot.licenses&&'Licenses: '+usdot.licenses,usdot.location,`Style: ${usdot.style}`,`Sizes: company ${usdot.font_sizes.company}pt / USDOT ${usdot.font_sizes.number}pt / secondary ${usdot.font_sizes.phone}pt`,`Letter color: ${usdot.text_color}`].filter(Boolean).join(' | '):'';
   const scopeDesc=usdotDesc||tintDesc||wrapDesc||(placementLabel?'Placement: '+placementLabel:'');
   const desc=[scopeDesc,designRequested?'Design quote requested':''].filter(Boolean).join(' | ');
@@ -532,6 +537,7 @@ function showWholesaleCredentials(username,password){
 
 /* Every mutating action calls the backend; the DOM is never the price authority. */
 const actions = {
+ 'usdot-reset-layout':()=>{resetUsdotPositions();recalculate();},
  'online-pay':async()=>{const r=await api('/api/portal/checkout','POST',{});location.href=r.url;},
  'custom-pay':()=>{const c=state.portalJob.custom_checkout,options=[];if(c?.can_pay_deposit&&c.deposit_cents<c.balance_cents)options.push(['deposit','Required deposit - '+money(c.deposit_cents)]);if(c?.can_pay_total)options.push(['total','Pay remaining balance - '+money(c.balance_cents)]);if(!options.length)throw new Error('No card payment is currently due.');showModal('Approve & Pay',`<form data-form="custom-payment" class="stack"><div class="notice info">Your current quote is approved. Choose how much you want to pay now. You will complete payment on Stripe's secure checkout page.</div>${select('payment_kind','Payment amount',options,options[0][0])}<p class="field-hint">A deposit reduces the remaining balance. Paying the total clears the current balance. Artwork approval remains a separate production step.</p>${formFooter('Continue to secure payment')}</form>`);},
  close:()=>closeModal(),
@@ -692,12 +698,27 @@ document.addEventListener('input',event=>{
   if(event.target.closest('#calculator')&&['width','height'].includes(event.target.name))updateUsdotPreview();
 });
 document.addEventListener('change',event=>{
+  if(event.target.id==='usdot-logo-file'){loadUsdotLogo(event.target.files?.[0]).then(()=>recalculate()).catch(e=>toast(e.message,true));return;}
+  if(event.target.name==='usdot_identity'){updateUsdotPreview();recalculate();}
   if(event.target.name==='coverage_option'){all('.coverage-card').forEach(card=>card.classList.toggle('selected',card.contains(event.target)));updateCoverageVisuals();recalculate();}
   if(event.target.name==='vehicle_type'&&event.target.closest('#calculator')){updateCoverageVisuals();recalculate();}
   if(event.target.matches('[data-line-product]')){const row=event.target.closest('[data-quote-line]'),p=state.products.find(p=>p.id===Number(event.target.value));const w=$('[data-line-width]',row),h=$('[data-line-height]',row),q=$('[data-line-quantity]',row);w.value=p.config.default_width;w.min=p.config.min_width||0.1;h.value=p.config.default_height;h.min=p.config.min_height||0.1;q.value=p.config.min_quantity;q.min=p.config.min_quantity;}
   if(event.target.name==='size_preset'&&event.target.closest('#calculator')){const form=$('#calculator');if(event.target.value!=='custom'){const parts=event.target.value.split('|');form.elements.width.value=parts[0];form.elements.height.value=parts[1];}form.elements.width.readOnly=event.target.value!=='custom';form.elements.height.readOnly=event.target.value!=='custom';updateUsdotPreview();recalculate();}
   if(event.target.name==='placement'&&event.target.closest('#calculator')){const form=$('#calculator'),product=state.catalog.products.find(p=>p.id===state.selectedProduct),choice=(product?.config.placement_options||[]).find(x=>x.id===event.target.value);if(choice){form.elements.width.value=choice.width;form.elements.height.value=choice.height;}form.elements.width.readOnly=event.target.value!=='custom';form.elements.height.readOnly=event.target.value!=='custom';recalculate();}
   if(event.target.name==='usdot_style'||event.target.name?.startsWith('usdot_')&&event.target.name.endsWith('_points'))updateUsdotPreview();
+});
+let usdotDrag=null;
+document.addEventListener('pointerdown',event=>{
+  const item=event.target.closest('[data-usdot-key]'),preview=item?.closest('#usdot-preview');if(!item||!preview)return;
+  event.preventDefault();item.setPointerCapture?.(event.pointerId);usdotDrag={item,preview,key:item.dataset.usdotKey,pointerId:event.pointerId};
+});
+document.addEventListener('pointermove',event=>{
+  if(!usdotDrag)return;const rect=usdotDrag.preview.getBoundingClientRect();
+  const x=Math.max(0,Math.min(100,(event.clientX-rect.left)/rect.width*100)),y=Math.max(0,Math.min(100,(event.clientY-rect.top)/rect.height*100));
+  usdotPositions[usdotDrag.key]={x:Number(x.toFixed(1)),y:Number(y.toFixed(1))};updateUsdotPreview();
+});
+document.addEventListener('pointerup',()=>{
+  if(!usdotDrag)return;usdotDrag=null;recalculate();
 });
 window.addEventListener('hashchange',()=>route().catch(e=>toast(e.message,true)));
 window.addEventListener('popstate',()=>route().catch(e=>toast(e.message,true)));
