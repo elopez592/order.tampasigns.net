@@ -29,6 +29,9 @@ function dominantColors(canvas) {
 }
 
 const toRgb = hex => [1,3,5].map(i => parseInt(hex.slice(i,i+2),16));
+const shade = (hex, amount) => '#' + toRgb(hex).map(value =>
+  clamp(Math.round(amount >= 0 ? value + (255-value)*amount : value*(1+amount)),0,255)
+    .toString(16).padStart(2,'0')).join('');
 function drawThread(context, image, width, height, colors, x, y) {
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(width)); canvas.height = Math.max(1, Math.round(height));
@@ -62,7 +65,7 @@ function drawThread(context, image, width, height, colors, x, y) {
 
 function garment(context, kind, color, placement) {
   const c=context, gradient=c.createLinearGradient(160,130,630,640);
-  gradient.addColorStop(0,'#ffffff32');gradient.addColorStop(.42,color);gradient.addColorStop(1,'#00000042');
+  gradient.addColorStop(0,shade(color,.14));gradient.addColorStop(.42,color);gradient.addColorStop(1,shade(color,-.2));
   c.lineJoin='round';c.lineCap='round';c.shadowColor='#15233045';c.shadowBlur=25;c.shadowOffsetY=14;
   if(kind==='embroidered_hat') {
     c.fillStyle=gradient;c.strokeStyle='#15222c66';c.lineWidth=3;
@@ -180,7 +183,10 @@ export function createEmbroidery(ctx) {
     if(currentId!==p.id || !$('#embroidery-canvas'))return;
     draft=saved||{id:idFor(p.id),kind:'embroidery-preview',product_id:p.id,original:null,design:defaultDesign(p)};
     try {image=draft.original?await imageFrom(draft.original):null;} catch {image=null;draft.original=null;toast('Saved logo could not be opened. Upload it again.',true);}
+    const selected=[...f.querySelectorAll('input[name="print_locations"]')].find(input=>input.value===draft.design.placement);
+    if(selected)selected.checked=true;
     sync(p);
+    onChange();
     $('#embroidery-upload').onchange=async event=>{
       try {
         const file=event.target.files[0];if(!file)return;fileCheck(file);
