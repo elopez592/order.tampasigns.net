@@ -69,7 +69,12 @@ def test_new_sign_products_have_prices_sizes_and_material_options(env):
     construction = catalog['Aluminum Composite Signs']['config']
     assert [x['label'] for x in construction['size_options']] == ['2 × 4 ft', '3 × 6 ft', '4 × 8 ft', '5 × 10 ft']
     assert '3mm aluminum composite' in construction['description']
-    assert catalog['High-Density Board Signs']['config']['quote_only'] is True
+    hdu = catalog['High-Density Board Signs']['config']
+    assert hdu['quote_only'] is False
+    assert hdu['sell_per_sqft'] == '20'
+    assert hdu['minimum_price'] == '85'
+    assert [x['label'] for x in hdu['size_options']] == ['2 × 4 ft', '3 × 6 ft', '4 × 8 ft']
+    assert '1/2-inch high-density urethane board' in hdu['description']
 
 
 def test_finished_shirts_validate_options_and_reward_quantity(env):
