@@ -72,16 +72,22 @@ def test_new_sign_products_have_prices_sizes_and_material_options(env):
     hdu_product = catalog['High-Density Board Signs']
     hdu = hdu_product['config']
     assert hdu['quote_only'] is False
-    assert [x['label'] for x in hdu['size_options']] == ['2 × 4 ft', '3 × 6 ft', '4 × 8 ft']
+    assert [x['label'] for x in hdu['size_options']] == ['3 × 4 ft', '4 × 6 ft', '4 × 8 ft']
+    assert hdu['min_short_axis'] == '36' and hdu['min_long_axis'] == '48'
     assert '1/2-inch high-density urethane board' in hdu['description']
     standard_hdu = client.post('/api/calculate', json={'items':[{
+        'product_id': hdu_product['id'], 'width': 36, 'height': 48, 'quantity': 1
+    }]})
+    assert standard_hdu.status_code == 200, standard_hdu.text
+    assert standard_hdu.json()['subtotal_cents'] == 24000
+    landscape_hdu = client.post('/api/calculate', json={'items':[{
+        'product_id': hdu_product['id'], 'width': 48, 'height': 36, 'quantity': 1
+    }]})
+    assert landscape_hdu.status_code == 200, landscape_hdu.text
+    too_small_hdu = client.post('/api/calculate', json={'items':[{
         'product_id': hdu_product['id'], 'width': 24, 'height': 48, 'quantity': 1
-    }]}).json()
-    assert standard_hdu['subtotal_cents'] == 16000
-    minimum_hdu = client.post('/api/calculate', json={'items':[{
-        'product_id': hdu_product['id'], 'width': 12, 'height': 12, 'quantity': 1
-    }]}).json()
-    assert minimum_hdu['subtotal_cents'] == 8500
+    }]})
+    assert too_small_hdu.status_code == 422
 
 
 def test_finished_shirts_validate_options_and_reward_quantity(env):

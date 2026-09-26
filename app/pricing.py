@@ -119,6 +119,7 @@ def validate_config(cfg: dict) -> dict:
         ('price_table_base_height', '3', '0.1', '10000'),
         ('price_table_size_weight', '0.45', '0', '1'),
         ('max_short_axis', '10000', '0.1', '10000'), ('max_long_axis', '10000', '0.1', '10000'),
+        ('min_short_axis', '0.1', '0.1', '10000'), ('min_long_axis', '0.1', '0.1', '10000'),
         ('min_width', '0.1', '0.1', '10000'), ('min_height', '0.1', '0.1', '10000'),
         ('max_width', '120', '0.1', '10000'), ('max_height', '1200', '0.1', '10000'),
         ('min_quantity', '1', '1', '100000'), ('max_quantity', '100000', '1', '100000'),
@@ -444,6 +445,8 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
         width = number(item.get('width'), 'Width in inches', cfg.get('min_width', '0.1'), '10000')
         height = number(item.get('height'), 'Height in inches', cfg.get('min_height', '0.1'), '10000')
         short_axis, long_axis = sorted((width, height))
+        if short_axis < D(cfg.get('min_short_axis', '0.1')) or long_axis < D(cfg.get('min_long_axis', '0.1')):
+            raise HTTPException(422, f'Finished size must be at least {cfg.get("min_short_axis", "0.1")} x {cfg.get("min_long_axis", "0.1")} inches in either orientation.')
         if short_axis > D(cfg.get('max_short_axis', '10000')) or long_axis > D(cfg.get('max_long_axis', '10000')):
             raise HTTPException(422, f'Finished size cannot exceed {cfg.get("max_short_axis", "10000")} x {cfg.get("max_long_axis", "10000")} inches in either orientation.')
         area = width * height / 144

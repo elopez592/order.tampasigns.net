@@ -472,3 +472,11 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
   .business-profile-details>summary{align-items:flex-start}
   .photo-mockup-steps{grid-template-columns:1fr}
 }
+
+/* Outdoor product photography for rigid construction signs */
+.product-photo-aluminum-composite-signs .product-example-photo{background-image:url('/static/products/aluminum-composite-signs.webp?v=20260926-rigid-signs-1');background-position:center}
+.product-photo-high-density-board-signs .product-example-photo{background-image:url('/static/products/high-density-board-signs.webp?v=20260926-rigid-signs-1');background-position:center}
+.product-example-catalog.product-photo-aluminum-composite-signs .product-example-photo,
+.product-example-catalog.product-photo-high-density-board-signs .product-example-photo{background-size:cover}
+.product-example-detail.product-photo-aluminum-composite-signs .product-example-photo,
+.product-example-detail.product-photo-high-density-board-signs .product-example-photo{background-size:contain}
