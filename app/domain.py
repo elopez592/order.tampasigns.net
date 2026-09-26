@@ -127,7 +127,7 @@ def create_job(conn, payload, source='staff', actor='staff'):
     workflow = conn.execute('SELECT * FROM workflows WHERE id=?', (workflow_id,)).fetchone()
     if not workflow:
         raise HTTPException(422, 'Workflow not found.')
-    priority = payload.get('priority', 'normal') if source == 'staff' else 'normal'
+    priority = payload.get('priority', 'normal') if source == 'staff' else ('rush' if payload.get('rush_requested') in (True, 'true', 'on', '1', 1) else 'normal')
     if priority not in ('normal', 'rush'):
         raise HTTPException(422, 'Priority must be normal or rush.')
     cursor = conn.execute('''INSERT INTO jobs(title,customer_name,customer_email,phone,notes,source,created_at,
@@ -226,7 +226,8 @@ def serialize_job(conn, job, audience='admin', detail=True, gateway=None):
             'proof.request_changes': ('proof_version','comment'),
             'payment.received': ('amount_cents',), 'payment.verified': ('amount_cents',),
             'payment.updated': ('refunded_cents','under_review'),
-            'payment.customer_reported': ('reference','verified')}
+            'payment.customer_reported': ('reference','verified'),
+            'appointment.requested': ('kind','requested_date','window')}
         visible = []
         for event in result['events']:
             if event['action'] not in allowed:

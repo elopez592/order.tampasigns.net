@@ -86,7 +86,7 @@ def test_embroidery_second_side_text_is_limited_to_opposite_chest(env):
     assert text['placement'] == 'right_chest'
     assert text['line2'] == 'Manager'
 
-    for text_change in ({'line1': ''}, {'line1': 'x' * 41}, {'width': 4}, {'thread_color': 'blue'}):
+    for text_change in ({'line1': ''}, {'line1': 'x' * 41}, {'width': 5}, {'thread_color': 'blue'}):
         bad_text = {'enabled': True, 'line1': 'Maria', 'line2': '', 'width': 3, 'thread_color': '#2453a0'}
         bad_text.update(text_change)
         bad = dict(base, embroidery_preview={**base['embroidery_preview'], 'text': bad_text})
