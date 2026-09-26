@@ -435,10 +435,11 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
         qty = int(qty)
         garment_price = None
         garment_fee = 0
+        garment_text_lines = 0
         embroidery_preview = None
         if cfg.get('finished_apparel'):
             from .storefront import garment_selection
-            garment_price, garment_fee, garment_description, embroidery_preview = garment_selection(item, qty, cfg, row['name'])
+            garment_price, garment_fee, garment_description, embroidery_preview, garment_text_lines = garment_selection(item, qty, cfg, row['name'])
             item = dict(item, width=12, height=12, description=garment_description)
         width = number(item.get('width'), 'Width in inches', cfg.get('min_width', '0.1'), '10000')
         height = number(item.get('height'), 'Height in inches', cfg.get('min_height', '0.1'), '10000')
@@ -547,12 +548,15 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
         if include_roof_wrap:
             sell = cent_round(D(sell) * D('1.20'))
             cost = cent_round(D(cost) * D('1.20'))
+        embroidery_text_fee = garment_text_lines * 700 * qty
         if garment_price is not None:
-            sell = cent_round(D(garment_price) * 100 * weighted_quantity(qty, cfg['tiers']) + D(garment_fee) * 100)
+            sell = cent_round(D(garment_price) * 100 * weighted_quantity(qty, cfg['tiers'])
+                              + D(garment_fee) * 100 + D(embroidery_text_fee))
         retail_sell = sell
         wholesale_discount = product_discounts.get(row['id'], wholesale_default)
         if wholesale and wholesale_discount > 0:
-            protected_fee = min(sell, cents(cfg.get('digitizing_fee', 0) if cfg.get('finished_apparel') else cfg['setup_price']) + usdot_logo_fee)
+            protected_fee = min(sell, cents(cfg.get('digitizing_fee', 0) if cfg.get('finished_apparel') else cfg['setup_price'])
+                                + usdot_logo_fee + embroidery_text_fee)
             if row['category'] == 'Custom' or any(word in row['name'].lower() for word in ('design', 'digitiz')):
                 protected_fee = sell
             discounted = protected_fee + cent_round(D(sell - protected_fee) * (D(1) - wholesale_discount / 100))
@@ -573,6 +577,8 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             'print_locations': item.get('print_locations', []) if garment_price is not None else [],
             'embroidery_preview': embroidery_preview,
             'digitizing_fee_cents': garment_fee * 100,
+            'embroidery_text_line_count': garment_text_lines,
+            'embroidery_text_fee_cents': embroidery_text_fee,
             'usdot_logo_fee_cents': usdot_logo_fee,
             'quote_only': bool(cfg.get('quote_only')) or design_requested,
             'category': row['category'], 'description': str(item.get('description', ''))[:200],
