@@ -14,8 +14,9 @@ def test_storefront_category_metadata_and_duplicates(env):
     products = catalog_by_name(anonymous(app))
 
     assert products['Window Graphics']['config']['storefront_categories'] == ['Storefront']
-    assert set(products['Banners']['config']['storefront_categories']) == {'Storefront', 'Signs', 'Events', 'Construction signs'}
-    assert set(products['ACM signs']['config']['storefront_categories']) == {'Storefront', 'Signs'}
+    assert set(products['Banners']['config']['storefront_categories']) == {'Storefront', 'Signs', 'Events', 'Construction & Site Signs'}
+    assert set(products['Aluminum Composite Signs']['config']['storefront_categories']) == {'Construction & Site Signs', 'Storefront', 'Signs'}
+    assert 'ACM signs' not in products
     assert set(products['Magnets']['config']['storefront_categories']) == {'Vehicles', 'Fleet Services', 'Signs'}
     assert products['Transfer stickers']['config']['storefront_categories'] == ['Stickers']
     assert set(products['Vehicle Wraps']['config']['storefront_categories']) == {'Vehicles', 'Fleet Services'}
@@ -25,7 +26,7 @@ def test_storefront_category_metadata_and_duplicates(env):
 def test_acm_thickness_prices_and_existing_catalog_upgrade(env):
     app, admin, employee = env
     client = anonymous(app)
-    product = catalog_by_name(client)['ACM signs']
+    product = catalog_by_name(client)['Aluminum Composite Signs']
     cfg = product['config']
     assert [(o['id'], o['sell_per_sqft_adjustment'], o['cost_per_sqft_adjustment'])
             for o in cfg['material_options']] == [('3mm', '0', '0'), ('6mm', '6', '3.5')]
@@ -40,28 +41,27 @@ def test_acm_thickness_prices_and_existing_catalog_upgrade(env):
         assert response.status_code == 200, response.text
         return response.json()
 
-    assert price(24, 36)['subtotal_cents'] == 10400
+    assert price(24, 36)['subtotal_cents'] == 8400
     thicker = price(24, 36, '6mm')
-    assert thicker['subtotal_cents'] == 14000
+    assert thicker['subtotal_cents'] == 12000
     assert thicker['lines'][0]['material_label'] == '6 mm ACM (+$6/sq ft)'
-    assert price(24, 36, '6mm', 'gloss')['subtotal_cents'] == 15200
-    assert price(48, 96, '3mm')['subtotal_cents'] == 46800
-    assert price(48, 96, '6mm')['subtotal_cents'] == 66000
+    assert price(48, 96, '3mm')['subtotal_cents'] == 44800
+    assert price(48, 96, '6mm')['subtotal_cents'] == 64000
 
     # Production already has this product, so verify the startup upgrade path too.
     with transaction(app.state.database, True) as conn:
         row = conn.execute('SELECT config FROM products WHERE id=?', (product['id'],)).fetchone()
         old_cfg = json.loads(row['config'])
         old_cfg['material_options'] = []
-        old_cfg['description'] = 'Printed graphic on 3mm ACM. Installation priced separately.'
+        old_cfg['description'] = 'Temporary legacy ACM description.'
         conn.execute('UPDATE products SET config=? WHERE id=?', (json.dumps(old_cfg), product['id']))
     bootstrap(app.state.database)
     bootstrap(app.state.database)
-    upgraded = catalog_by_name(client)['ACM signs']['config']
-    assert catalog_by_name(client)['ACM signs']['version'] == product['version'] + 1
+    upgraded = catalog_by_name(client)['Aluminum Composite Signs']['config']
+    assert catalog_by_name(client)['Aluminum Composite Signs']['version'] == product['version'] + 1
     assert [o['id'] for o in upgraded['material_options']] == ['3mm', '6mm']
-    assert '3 mm or 6 mm' in upgraded['description']
-    assert price(48, 96, '6mm')['subtotal_cents'] == 66000
+    assert '3 mm standard or optional 6 mm' in upgraded['description']
+    assert price(48, 96, '6mm')['subtotal_cents'] == 64000
 
 
 def test_magnet_standard_sizes_and_orientation_independent_limit(env):
@@ -159,13 +159,13 @@ def test_decals_usdot_and_apparel_listings(env):
     assert hat_quote.json()['review_required'] is True
 
 
-def test_fleet_window_tint_is_fleet_only_and_retail_first(env):
+def test_vehicle_window_tint_is_separate_from_storefront_tint(env):
     app, admin, employee = env
     client = anonymous(app)
     products = catalog_by_name(client)
     tint = products['Fleet Window Tinting']
     cfg = tint['config']
-    assert cfg['storefront_categories'] == ['Fleet Services']
+    assert cfg['storefront_categories'] == ['Vehicles', 'Fleet Services']
     assert cfg['quantity_only'] is True
     assert cfg['quantity_presets'][:4] == [1, 2, 5, 10]
     assert cfg['instant'] is False
