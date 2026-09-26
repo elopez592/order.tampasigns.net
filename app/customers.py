@@ -59,6 +59,24 @@ def install(app, database, production, throttle, issue_portal, uploads):
             tax_exempt_note TEXT NOT NULL DEFAULT '',
             updated_at TEXT NOT NULL DEFAULT ''
         )""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS customer_reviews(
+            id INTEGER PRIMARY KEY,
+            job_id INTEGER NOT NULL UNIQUE REFERENCES jobs(id),
+            rating INTEGER NOT NULL,
+            comment TEXT NOT NULL DEFAULT '',
+            display_name TEXT NOT NULL DEFAULT 'Verified customer',
+            product_ids TEXT NOT NULL DEFAULT '[]',
+            visible INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS public_status_links(
+            token_hash TEXT PRIMARY KEY,
+            job_id INTEGER NOT NULL REFERENCES jobs(id),
+            expires_at REAL NOT NULL,
+            created_at TEXT NOT NULL
+        )""")
+        conn.execute('CREATE INDEX IF NOT EXISTS public_status_links_job ON public_status_links(job_id,expires_at)')
 
     def require_customer(conn, request):
         who = customer(conn, request)
