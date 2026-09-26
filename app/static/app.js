@@ -1,6 +1,6 @@
 import {createMarketingDashboard} from './marketing-admin.js?v=20260924-1';
 import {createCrmDashboard} from './crm-admin.js?v=20260925-1';
-import {createShop} from './shop.js?v=20260926-name-fee-1';
+import {createShop} from './shop.js?v=20260926-ux-cleanup-1';
 
 const state = {calcSequence:0, user:null, customer:null, csrf:'', catalog:null, jobs:[], job:null, jobTab:'overview', boardMode:'board',
   products:[], workflows:[], users:[], product:null, quote:null, selectedProduct:1, tasks:[], queueFilter:'available',
@@ -636,15 +636,41 @@ function selfApprovalBox(j,accepted){
 }
 function projectCenterOverview(j,accepted){
   const proof=j.proofs?.[0],balance=j.totals?.balance_cents||0;
-  let next='Shop review in progress',detail='Your project is saved and our team is reviewing the scope.';
-  if(j.published&&!accepted){next='Review your quote';detail='Confirm the current scope and price to keep the project moving.';}
-  else if(accepted&&proof?.status==='pending'){next='Review proof version '+proof.version;detail='Check every panel, dimension and detail, then approve or request changes.';}
-  else if(accepted&&proof?.status==='changes_requested'){next='Proof revision in progress';detail='Your requested changes are recorded. A new version will appear here.';}
-  else if(accepted&&proof?.status==='approved'&&balance>0){next='Payment / production readiness';detail='Artwork is approved. Complete any required payment shown on this page.';}
-  else if(j.stage==='production'){next='In production';detail='Your approved project is moving through production.';}
-  else if(j.stage==='finished'){next='Project complete';detail='Your project is finished. Keep this page for records and reorders.';}
+  let next='We are reviewing your project',detail='Your request is saved. We will publish the next step here as soon as it is ready.',action='';
+  if(j.published&&!accepted){
+    next='Review your quote';
+    detail='Confirm the project scope and price so we can move into artwork and proofing.';
+    action='<a class="btn primary" href="#portal-quote">Review quote</a>';
+  }else if(accepted&&proof?.status==='pending'){
+    next='Approve your proof';
+    detail='Review version '+proof.version+' carefully. Approve it or request changes before production.';
+    action='<a class="btn primary" href="#portal-proof">Review proof</a>';
+  }else if(accepted&&proof?.status==='changes_requested'){
+    next='We are revising your proof';
+    detail='Your requested changes are recorded. A new proof version will appear here when it is ready.';
+  }else if(accepted&&proof?.status==='approved'&&balance>0){
+    next='Complete payment';
+    detail='Your artwork is approved. Complete the required payment to keep production moving.';
+    action='<a class="btn primary" href="#portal-payment">View payment</a>';
+  }else if(j.stage==='production'){
+    next='Your project is in production';
+    detail='Your approved project is moving through production. We will update this page as it progresses.';
+  }else if(j.stage==='finished'){
+    next='Your project is complete';
+    detail='Keep this page for your records, reorders, files and final project details.';
+  }
   const artworkCount=(j.assets||[]).filter(a=>a.kind==='artwork').length;
-  return `<section class="project-center-overview"><article><span>NEXT ACTION</span><strong>${esc(next)}</strong><small>${esc(detail)}</small></article><article><span>ARTWORK / PROOF</span><strong>${proof?('Version '+proof.version+' · '+titleCase(proof.status)):(artworkCount?artworkCount+' artwork file'+(artworkCount===1?'':'s'):'Awaiting artwork / proof')}</strong><small>Proof decisions are tied to the exact stored file.</small></article><article><span>PAYMENT</span><strong>${balance?money(balance)+' balance':'No current balance'}</strong><small>${j.checkout?.status?titleCase(j.checkout.status):accepted?'Quote accepted':'Quote not yet accepted'}</small></article><article><span>SCHEDULE</span><strong>${j.due_date?('Requested '+esc(j.due_date)):'No requested date'}</strong><small>${j.priority==='rush'?'Rush requested · shop confirmation required':'Standard scheduling'}</small></article></section>`;
+  const proofState=proof?('Version '+proof.version+' · '+titleCase(proof.status)):(artworkCount?'Artwork received':'Waiting for artwork / proof');
+  const paymentState=balance?money(balance)+' due':(j.published?'No balance due':'Quote pending');
+  const scheduleState=j.due_date?('Requested '+j.due_date):(j.priority==='rush'?'Rush requested':'Not scheduled');
+  return `<section class="project-center-overview">
+    <article class="project-next-action"><div><span>NEXT STEP</span><h2>${esc(next)}</h2><p>${esc(detail)}</p></div>${action}</article>
+    <div class="project-status-strip">
+      <article><span>PROOF</span><strong>${esc(proofState)}</strong></article>
+      <article><span>PAYMENT</span><strong>${esc(paymentState)}</strong></article>
+      <article><span>SCHEDULE</span><strong>${esc(scheduleState)}</strong></article>
+    </div>
+  </section>`;
 }
 function renderPortal(){
   const j=state.portalJob,accepted=j.accepted_version===j.quote_version,co=j.checkout,custom=j.custom_checkout;
@@ -661,7 +687,41 @@ function renderPortal(){
   else if(custom?.available&&accepted)payment=`${custom.test_mode?'<div class="notice mt">Test checkout / no live payments</div>':''}<button class="btn primary wide mt" data-action="custom-pay">Approve & Pay ${icon('arrow')}</button><p class="field-hint mt-sm">Your quote is approved. Choose the required deposit or pay the full remaining balance securely by card.</p>`;
   else if(j.payment_url&&accepted)payment=`<a href="${esc(j.payment_url)}" target="_blank" rel="noopener noreferrer" class="btn primary wide mt">Pay in QuickBooks ${icon('arrow')}</a><button class="btn light wide mt-sm" data-action="payment-notice">I have made a payment</button><p class="field-hint mt-sm">We verify QuickBooks payments before updating your balance.</p>`;
   else payment='<div class="notice info mt">Approve the current quote to unlock payment options.</div>';
-  app.innerHTML=publicHeader()+`<main class="portal-page"><section class="portal-hero"><div class="row between"><div><div class="eyebrow">PROJECT CENTER / ${esc(j.number)}</div><h1>${esc(j.title)}</h1><p class="muted mt-sm">${esc(j.customer_name)} / ${esc(customerStages[j.stage]||'Order received')}</p></div><button class="btn light small" data-action="portal-refresh">${icon('refresh','icon-sm')} Refresh</button></div><ol class="customer-progress" aria-label="Order progress">${[['received','Order received'],['production','In production'],['finished','Finished']].map(([key,label],i)=>`<li class="${i<=index?'active':''}" ${i===index?'aria-current="step"':''}><span>${i<index?icon('check','icon-sm'):i+1}</span><strong>${label}</strong></li>`).join('')}</ol></section>${projectCenterOverview(j,accepted)}${returning==='received'&&co?.status==='awaiting_payment'?'<div class="notice info mb">We are confirming your payment. Refresh shortly. Please do not pay again while confirmation is pending.</div>':''}${returning==='cancelled'?'<div class="notice mb">Checkout was cancelled. Your order is saved; you can resume payment below.</div>':''}<div class="portal-grid"><div class="stack"><section class="panel"><div class="panel-header"><div><div class="eyebrow">${co?'YOUR ORDER':'YOUR QUOTE'}</div><h2 class="mt-sm">${co?'The details':j.published?'Your project quote':'We have your request'}</h2></div>${badge(accepted?'Confirmed':j.published?'Review quote':'Quote requested',accepted?'green':'orange')}</div>${!j.published?'<div class="notice info mb">Our team is reviewing your project and will publish your quote here.</div>':''}${quoteTable(j)}${j.adjustment_note?'<p class="tiny muted prewrap mt">'+esc(j.adjustment_note)+'</p>':''}${j.published&&!accepted?'<button class="btn primary mt" data-action="accept-quote">Review & accept quote</button>':''}</section><section class="panel"><div class="eyebrow mb">MADE JUST FOR YOU</div><h2 class="mb">Your project proof</h2><p class="muted tiny mb">Review the project details and dimensions before approving. Production begins after approval.</p>${proofCard(j.proofs[0],accepted)}${selfApprovalBox(j,accepted)}</section>${proofHistory(j.proofs)}${acceptsArtwork?`<section class="panel"><div class="panel-header"><h3>Your artwork</h3><button class="btn light small" data-action="portal-artwork">${icon('plus','icon-sm')} Upload artwork</button></div>${assetList(j.assets.filter(a=>a.kind==='artwork'))}</section>`:''}<section class="panel"><h3 class="mb">Order updates</h3>${eventsView(j.events.slice(0,12))}</section></div><aside class="stack"><section class="panel"><div class="eyebrow">${co?.tax_pending?'ORDER + DELIVERY, BEFORE TAX':'ORDER TOTAL'}</div><div class="metric large mt-sm">${!j.published&&j.totals.total_cents===0?'Quote pending':money(j.totals.total_cents)}</div>${co?.tax_pending?'<p class="field-hint mt-sm">Tax is calculated for your shipping address at checkout.</p>':''}${customerTotals(j)}${co?'<p class="tiny muted mt">'+(co.fulfillment==='pickup'?'Local pickup: '+esc(co.pickup_address):'US shipping')+'</p>':''}${payment}</section>${j.payments.length?`<section class="panel"><h3 class="mb">Payments</h3>${paymentTable(j,true)}</section>`:''}<section class="panel"><h3>Schedule the next step</h3><p class="field-hint mt-sm">Request a site survey, consultation, installation window, or pickup coordination. The shop confirms the actual appointment.</p><button class="btn light wide mt" data-action="portal-appointment">Request a time</button></section>${j.stage==='finished'?`<section class="panel"><h3>Rate your completed project</h3><p class="field-hint mt-sm">Reviews submitted here are marked as verified because they come from this completed private project.</p><form data-form="portal-review" class="stack mt">${select('rating','Rating',[['5','5 — Excellent'],['4','4 — Very good'],['3','3 — Good'],['2','2 — Fair'],['1','1 — Poor']],'5')}<label class="field"><span>Review (optional)</span><textarea name="comment" maxlength="1200" placeholder="What went well? Anything future customers should know?"></textarea></label><div class="form-error"></div><button class="btn primary wide">Submit verified review</button></form></section>`:''}<section class="panel"><h3>Shareable job-status QR</h3><p class="field-hint mt-sm">Creates a limited status link with no quote, artwork, proof, payment, or customer details.</p><button class="btn light wide mt" data-action="portal-status-qr">Show status QR</button></section><section class="panel"><h3 class="mb">Need a hand?</h3><p class="field-hint mb">Send a question to the Tampa Signs and Stickers team.</p><form data-form="portal-message" class="stack"><label class="field"><span>Your message</span><textarea name="message" required maxlength="3000"></textarea></label><div class="form-error"></div><button class="btn light wide">Send message ${icon('mail','icon-sm')}</button></form></section><p class="tiny muted">Save your private order link. It provides access to this order and proof approvals; do not share it publicly.</p></aside></div></main>`;
+
+  const projectDetails=`<details class="portal-more-details">
+    <summary><span><strong>More project details</strong><small>Updates, proof history, scheduling, QR status and messages</small></span><span class="details-chevron">⌄</span></summary>
+    <div class="portal-more-grid">
+      ${proofHistory(j.proofs)}
+      <section class="panel"><h3 class="mb">Order updates</h3>${eventsView(j.events.slice(0,12))}</section>
+      <section class="panel"><h3>Schedule the next step</h3><p class="field-hint mt-sm">Request a site survey, consultation, installation window, or pickup coordination.</p><button class="btn light mt" data-action="portal-appointment">Request a time</button></section>
+      <section class="panel"><h3>Shareable job-status QR</h3><p class="field-hint mt-sm">Creates a limited status link without quote, artwork, proof, payment, or customer details.</p><button class="btn light mt" data-action="portal-status-qr">Show status QR</button></section>
+      <section class="panel"><h3 class="mb">Message the shop</h3><form data-form="portal-message" class="stack"><label class="field"><span>Your message</span><textarea name="message" required maxlength="3000" placeholder="Question about this project..."></textarea></label><div class="form-error"></div><button class="btn light">Send message ${icon('mail','icon-sm')}</button></form></section>
+      <p class="tiny muted portal-private-note">Keep your private Project Center link secure. It includes quote and proof access.</p>
+    </div>
+  </details>`;
+
+  app.innerHTML=publicHeader()+`<main class="portal-page">
+    <section class="portal-hero">
+      <div class="row between"><div><div class="eyebrow">PROJECT CENTER / ${esc(j.number)}</div><h1>${esc(j.title)}</h1><p class="muted mt-sm">${esc(j.customer_name)} · ${esc(customerStages[j.stage]||'Order received')}</p></div><button class="btn light small" data-action="portal-refresh">${icon('refresh','icon-sm')} Refresh</button></div>
+      <ol class="customer-progress" aria-label="Order progress">${[['received','Order received'],['production','In production'],['finished','Finished']].map(([key,label],i)=>`<li class="${i<=index?'active':''}" ${i===index?'aria-current="step"':''}><span>${i<index?icon('check','icon-sm'):i+1}</span><strong>${label}</strong></li>`).join('')}</ol>
+    </section>
+    ${projectCenterOverview(j,accepted)}
+    ${returning==='received'&&co?.status==='awaiting_payment'?'<div class="notice info mb">We are confirming your payment. Please do not pay again while confirmation is pending.</div>':''}
+    ${returning==='cancelled'?'<div class="notice mb">Checkout was cancelled. Your project is saved; you can resume payment below.</div>':''}
+    <div class="portal-grid">
+      <div class="stack">
+        <section class="panel portal-primary-panel" id="portal-quote"><div class="panel-header"><div><div class="eyebrow">${co?'YOUR ORDER':'YOUR QUOTE'}</div><h2 class="mt-sm">${co?'Project details':j.published?'Review your quote':'We have your request'}</h2></div>${badge(accepted?'Confirmed':j.published?'Review quote':'Quote requested',accepted?'green':'orange')}</div>${!j.published?'<div class="notice info mb">Our team is reviewing your project and will publish your quote here.</div>':''}${quoteTable(j)}${j.adjustment_note?'<p class="tiny muted prewrap mt">'+esc(j.adjustment_note)+'</p>':''}${j.published&&!accepted?'<button class="btn primary mt" data-action="accept-quote">Review & accept quote</button>':''}</section>
+        <section class="panel portal-primary-panel" id="portal-proof"><div class="eyebrow mb">PROOF</div><h2 class="mb">Your project proof</h2><p class="muted tiny mb">Check artwork, spelling, dimensions and placement. Production follows your approval.</p>${proofCard(j.proofs[0],accepted)}${selfApprovalBox(j,accepted)}</section>
+        ${acceptsArtwork?`<section class="panel"><div class="panel-header"><div><div class="eyebrow">FILES</div><h3>Your artwork</h3></div><button class="btn light small" data-action="portal-artwork">${icon('plus','icon-sm')} Upload artwork</button></div>${assetList(j.assets.filter(a=>a.kind==='artwork'))}</section>`:''}
+        ${projectDetails}
+      </div>
+      <aside class="stack">
+        <section class="panel portal-payment-card" id="portal-payment"><div class="eyebrow">${co?.tax_pending?'ORDER + DELIVERY, BEFORE TAX':'PAYMENT'}</div><div class="metric large mt-sm">${!j.published&&j.totals.total_cents===0?'Quote pending':money(j.totals.total_cents)}</div>${co?.tax_pending?'<p class="field-hint mt-sm">Tax is calculated for your shipping address at checkout.</p>':''}${customerTotals(j)}${co?'<p class="tiny muted mt">'+(co.fulfillment==='pickup'?'Local pickup: '+esc(co.pickup_address):'US shipping')+'</p>':''}${payment}</section>
+        ${j.payments.length?`<section class="panel"><h3 class="mb">Payments</h3>${paymentTable(j,true)}</section>`:''}
+        ${j.stage==='finished'?`<section class="panel"><h3>Rate your completed project</h3><p class="field-hint mt-sm">Your review will be marked as verified.</p><form data-form="portal-review" class="stack mt">${select('rating','Rating',[['5','5 — Excellent'],['4','4 — Very good'],['3','3 — Good'],['2','2 — Fair'],['1','1 — Poor']],'5')}<label class="field"><span>Review (optional)</span><textarea name="comment" maxlength="1200" placeholder="What should future customers know?"></textarea></label><div class="form-error"></div><button class="btn primary wide">Submit review</button></form></section>`:''}
+      </aside>
+    </div>
+  </main>`;
 }
 function customerTotals(j){const t=j.totals;return `<div class="mt"><div class="line-total"><span>Products & services</span><strong>${money(t.merchandise_cents)}</strong></div><div class="line-total"><span>Shipping</span><strong>${money(t.shipping_cents)}</strong></div><div class="line-total"><span>Tax</span><strong>${j.checkout?.tax_pending?'At checkout':money(t.tax_cents)}</strong></div><div class="line-total"><span>Payment received</span><strong>${money(t.paid_cents)}</strong></div><div class="line-total grand"><span>Balance</span><strong>${money(t.balance_cents)}${j.checkout?.tax_pending?' + tax':''}</strong></div></div>`;}
 

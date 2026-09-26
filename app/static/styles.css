@@ -399,3 +399,76 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .product-help-card-featured p{color:#a9bcc4}
 .product-help-card-featured .eyebrow{color:#8bdbd7}
 @media(max-width:900px){.product-help-grid{grid-template-columns:1fr}.product-help-card{min-height:0}.product-help-card .btn{width:100%}}
+
+/* 2026-09 customer journey UX cleanup */
+.project-center-overview{display:block;margin:16px 0 22px}
+.project-center-overview .project-next-action{background:var(--nav);color:#fff;border:0;border-top:4px solid var(--brand-orange);padding:24px 26px;display:flex;align-items:center;justify-content:space-between;gap:24px;border-radius:15px}
+.project-center-overview .project-next-action span{color:#8bdbd7}
+.project-next-action h2{font-size:25px;line-height:1.12;margin:7px 0 7px}
+.project-next-action p{color:#afbec5;font-size:12px;line-height:1.55;max-width:650px}
+.project-next-action .btn{flex-shrink:0}
+.project-status-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:10px}
+.project-center-overview .project-status-strip article{background:#fff;border:1px solid var(--line);padding:13px 15px;border-radius:11px;display:flex;flex-direction:column;gap:5px}
+.project-status-strip strong{font-size:12px!important;line-height:1.4}
+.portal-primary-panel{scroll-margin-top:90px}
+.portal-payment-card{position:sticky;top:18px;scroll-margin-top:90px}
+.portal-more-details{background:#fff;border:1px solid var(--line);border-radius:13px;overflow:hidden}
+.portal-more-details>summary{list-style:none;cursor:pointer;padding:17px 19px;display:flex;align-items:center;justify-content:space-between;gap:18px}
+.portal-more-details>summary::-webkit-details-marker{display:none}
+.portal-more-details>summary span:first-child{display:grid;gap:3px}
+.portal-more-details>summary small{font-size:10px;color:var(--muted);font-weight:400}
+.portal-more-details .details-chevron{font-size:21px;color:var(--muted);transition:transform .18s ease}
+.portal-more-details[open] .details-chevron{transform:rotate(180deg)}
+.portal-more-grid{border-top:1px solid var(--line);padding:14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;background:#f7f9f9}
+.portal-more-grid .panel{margin:0;box-shadow:none}
+.portal-more-grid .proof-history{grid-column:1/-1;background:#fff;border:1px solid var(--line);border-radius:11px;padding:0 14px}
+.portal-private-note{grid-column:1/-1;padding:0 4px}
+
+.account-projects h2{font-size:24px}
+.account-project-card{margin-bottom:11px}
+.account-project-main{display:flex;align-items:center;justify-content:space-between;gap:20px}
+.account-project-main h3{font-size:14px;margin:9px 0 5px}
+.account-project-actions{display:flex;align-items:center;gap:7px;flex-shrink:0}
+.account-business-summary{background:#f7f9f9}
+.business-profile-details{padding:0!important;overflow:hidden}
+.business-profile-details>summary{list-style:none;cursor:pointer;padding:19px 21px;display:flex;justify-content:space-between;align-items:center;gap:20px}
+.business-profile-details>summary::-webkit-details-marker{display:none}
+.business-profile-details>summary span:first-child{display:grid;gap:4px}
+.business-profile-details>summary small{font-size:10px;color:var(--muted);font-weight:400}
+.business-profile-details>form{border-top:1px solid var(--line);padding:21px;margin:0}
+
+.finder-wizard{gap:13px}
+.finder-step{display:grid;grid-template-columns:32px minmax(0,1fr);gap:11px;align-items:start;padding:12px;border:1px solid var(--line);border-radius:11px;background:#fafbfb}
+.finder-step>span{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--nav);color:#fff;font-size:11px;font-weight:800;margin-top:21px}
+.finder-step .field{margin:0}
+.finder-result{display:grid;gap:11px}
+.finder-result h2{font-size:29px}
+.finder-result>p{font-size:13px;line-height:1.55}
+.finder-result-meta{display:flex;gap:7px;flex-wrap:wrap}
+.finder-result-meta span{font-size:10px;background:#eef3f4;border-radius:999px;padding:6px 9px;text-transform:capitalize;color:var(--muted)}
+
+.photo-mockup-steps{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.photo-mockup-stage{margin-top:14px}
+.photo-mockup-canvas{margin-top:0;cursor:grab;touch-action:none;user-select:none}
+.photo-mockup-canvas:active{cursor:grabbing}
+.photo-mockup-tip{text-align:center;font-size:10px;color:var(--muted);margin-top:7px}
+.photo-mockup-adjustments{margin-top:12px;border:1px solid var(--line);border-radius:9px;padding:10px 12px}
+.photo-mockup-adjustments summary{cursor:pointer;font-size:11px;font-weight:700}
+
+@media(max-width:900px){
+  .project-status-strip{grid-template-columns:1fr 1fr 1fr}
+  .portal-more-grid{grid-template-columns:1fr}
+  .portal-more-grid .proof-history,.portal-private-note{grid-column:auto}
+  .account-project-main{align-items:flex-start}
+}
+@media(max-width:650px){
+  .project-center-overview .project-next-action{align-items:flex-start;flex-direction:column;padding:21px}
+  .project-next-action .btn{width:100%}
+  .project-status-strip{grid-template-columns:1fr}
+  .portal-payment-card{position:static}
+  .account-project-main{flex-direction:column}
+  .account-project-actions{width:100%}
+  .account-project-actions .btn{flex:1}
+  .business-profile-details>summary{align-items:flex-start}
+  .photo-mockup-steps{grid-template-columns:1fr}
+}
