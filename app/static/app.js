@@ -377,7 +377,7 @@ function updateCoverageVisuals(){
   const form=$('#calculator');
   if(!form)return;
   const product=state.catalog.products.find(p=>p.id===state.selectedProduct);
-  const trailer=(product?.config.storefront_categories||[]).includes('Trailers / Food Trucks');
+  const trailer=String(product?.name||'').toLowerCase()==='trailer / food truck wraps';
   const vehicleType=form.elements.vehicle_type?.value||'';
   all('.coverage-card',form).forEach(card=>{
     const option=$('input[name="coverage_option"]',card);
@@ -400,7 +400,7 @@ function updateCoverageVisuals(){
 }
 function coverageCustomizer(cfg){
   if(!cfg.coverage_options?.length||cfg.tint_package_selector)return '';
-  const trailer=(cfg.storefront_categories||[]).includes('Trailers / Food Trucks');
+  const trailer=(cfg.vehicle_type_options||[]).some(o=>['small_trailer','large_trailer','food_truck','box_truck'].includes(o.id));
   const defaultType=trailer?(cfg.vehicle_type_options?.[0]?.id||''):(cfg.vehicle_type_options?.find(o=>o.id==='cargo_van')?.id||cfg.vehicle_type_options?.[0]?.id||'');
   const cards=cfg.coverage_options.map((o,i)=>'<label class="coverage-card '+(i===0?'selected':'')+'"><input type="radio" name="coverage_option" value="'+esc(o.id)+'" '+(i===0?'checked':'')+'><span class="coverage-visual">'+coverageIcon(o.id,trailer,defaultType)+'</span><strong>'+esc(o.label)+'</strong><small>'+esc(o.description||'')+'</small></label>').join('');
   const types=cfg.vehicle_type_options?.length?select('vehicle_type',trailer?'Trailer / truck type':'Vehicle type',cfg.vehicle_type_options.map(o=>[o.id,o.label]),defaultType):'';
