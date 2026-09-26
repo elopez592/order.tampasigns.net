@@ -54,3 +54,14 @@ def test_verified_review_requires_finished_project_and_is_product_specific(env):
     assert body['average'] == 5.0
     assert body['reviews'][0]['verified'] is True
     assert body['reviews'][0]['comment'] == 'Great work'
+
+
+def test_customer_photo_mockup_is_saved_as_reference_artwork():
+    from pathlib import Path
+    shop = Path('app/static/shop.js').read_text()
+    uploads = Path('app/static/window-upload.js').read_text()
+    assert 'Preview on your photo' in shop
+    assert 'photo-mockup-save' in shop
+    assert 'Reference mockup only' in shop
+    assert 'addGenerated' in uploads
+    assert 'Customer photo mockup reference' in uploads
