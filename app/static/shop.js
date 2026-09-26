@@ -1,5 +1,5 @@
 import {createWindowUploads, usesDirectArtwork} from './window-upload.js?v=20260925-embroidery-2';
-import {createEmbroidery, embroidered} from './embroidery.js?v=20260926-real-work-embroidery-1';
+import {createEmbroidery, embroidered} from './embroidery.js?v=20260926-embroidery-zoom-text-1';
 
 // Customer project cart and artwork attachments.
 export function createShop(ctx) {

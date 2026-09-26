@@ -257,6 +257,8 @@ def garment_selection(item, qty, cfg, product_name):
     if kind != 'custom_shirt' and item.get('embroidery_preview') is not None:
         preview = validate_embroidery_preview(item['embroidery_preview'], cfg, placements[0])
         description += f' / embroidery {preview["width"]:g} x {preview["height"]:g} in'
+        if preview.get('text'):
+            description += f' / {preview["text"]["placement"].replace("_", " ")} text'
     return unit_price, int(float(cfg.get('digitizing_fee', 0))), description, preview
 
 
@@ -282,6 +284,31 @@ def validate_embroidery_preview(value, cfg, placement):
     if (not isinstance(colors, list) or not 1 <= len(colors) <= 8 or
             any(not isinstance(c, str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', c) for c in colors)):
         raise HTTPException(422, 'Choose 1 to 8 thread colors.')
-    return {'width': round(width, 2), 'height': round(height, 2),
-            'offset_x': round(x, 2), 'offset_y': round(y, 2),
-            'thread_colors': [c.lower() for c in colors]}
+    result = {'width': round(width, 2), 'height': round(height, 2),
+              'offset_x': round(x, 2), 'offset_y': round(y, 2),
+              'thread_colors': [c.lower() for c in colors]}
+    text = value.get('text') or {}
+    if isinstance(text, dict) and text.get('enabled'):
+        other = {'left_chest': 'right_chest', 'right_chest': 'left_chest'}.get(placement)
+        other_option = next((p for p in cfg.get('placement_options', []) if p['id'] == other), None)
+        if not other_option:
+            raise HTTPException(422, 'Second-side text embroidery is only available for chest placements.')
+        line1 = str(text.get('line1') or '').strip()
+        line2 = str(text.get('line2') or '').strip()
+        if not line1 and not line2:
+            raise HTTPException(422, 'Enter text for the second embroidery side.')
+        if any(len(line) > 40 or re.search(r'[\x00-\x1f\x7f]', line) for line in (line1, line2)):
+            raise HTTPException(422, 'Embroidery text must be 40 characters or fewer per line.')
+        try:
+            text_width = float(text.get('width', 3))
+        except (ValueError, TypeError):
+            raise HTTPException(422, 'Enter a valid embroidery text width.')
+        text_color = str(text.get('thread_color') or result['thread_colors'][0]).lower()
+        if (not math.isfinite(text_width) or text_width < 0.75 or
+                text_width > float(other_option['width']) or
+                not re.fullmatch(r'#[0-9a-fA-F]{6}', text_color)):
+            raise HTTPException(422, 'Second-side embroidery text exceeds the garment area.')
+        result['text'] = {'enabled': True, 'placement': other, 'line1': line1[:40],
+                          'line2': line2[:40], 'width': round(text_width, 2),
+                          'thread_color': text_color}
+    return result

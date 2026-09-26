@@ -7,6 +7,9 @@ export const embroideryLimits = (product, placement) => {
   if (!option) throw new Error('Choose a valid embroidery placement.');
   return {width: Number(option.width), height: Number(option.height), offset: placement === 'front' ? .35 : .75};
 };
+const chestSide = placement => ['left_chest','right_chest'].includes(placement);
+const oppositeChest = placement => placement === 'left_chest' ? 'right_chest' : placement === 'right_chest' ? 'left_chest' : '';
+const placementLabel = placement => placement.replace('_',' ');
 
 function dominantColors(canvas) {
   const {data} = canvas.getContext('2d', {willReadFrequently:true}).getImageData(0, 0, canvas.width, canvas.height);
@@ -78,6 +81,36 @@ function drawThread(context, image, width, height, colors, x, y) {
   context.drawImage(sheen,x,y);
 }
 
+function drawThreadText(context, text, centerX, centerY, ppi) {
+  const lines = [text?.line1, text?.line2].map(line => String(line || '').trim()).filter(Boolean).slice(0, 2);
+  if (!lines.length) return;
+  const width = clamp(Number(text.width) || 3, .75, 3.5) * ppi;
+  const color = /^#[0-9a-fA-F]{6}$/.test(text.thread_color || '') ? text.thread_color : '#ffffff';
+  const fontFamily = 'Arial, Helvetica, sans-serif';
+  context.save();
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  let size = lines.length === 1 ? 19 : 15;
+  for (; size >= 8; size--) {
+    context.font = `700 ${size}px ${fontFamily}`;
+    if (Math.max(...lines.map(line => context.measureText(line).width)) <= width) break;
+  }
+  const lineHeight = size * 1.2;
+  const top = centerY - (lineHeight * (lines.length - 1)) / 2;
+  context.shadowColor = 'rgba(5,12,20,.28)';
+  context.shadowBlur = 1;
+  context.shadowOffsetY = .5;
+  context.fillStyle = color;
+  context.strokeStyle = 'rgba(255,255,255,.16)';
+  context.lineWidth = .6;
+  lines.forEach((line, index) => {
+    const y = top + index * lineHeight;
+    context.strokeText(line, centerX, y);
+    context.fillText(line, centerX, y);
+  });
+  context.restore();
+}
+
 // Generated product photographs. Tint the photographed fabric while preserving its texture.
 const PHOTO_LAYOUTS = {
   embroidered_polo: {file:'polo-photo.webp', chestX:.63, chestY:.34, ppi:17},
@@ -129,8 +162,13 @@ export async function renderEmbroidery(canvas, product, fileImage, design, color
   const width=design.width*ppi, height=design.height*ppi;
   const x=centerX+design.offset_x*ppi-width/2, y=centerY+design.offset_y*ppi-height/2;
   if(fileImage && design.thread_colors?.length)drawThread(c,fileImage,width,height,design.thread_colors,x,y);
+  if(design.text?.enabled && chestSide(design.text.placement)){
+    const textX=80+(design.text.placement==='right_chest'?1-layout.chestX:layout.chestX)*640;
+    drawThreadText(c,design.text,textX,centerY,ppi);
+  }
   c.fillStyle='#5c6770';c.font='14px Arial, sans-serif';c.textAlign='center';
-  c.fillText(fileImage?`${design.width.toFixed(2)} × ${design.height.toFixed(2)} in  ·  ${design.placement.replace('_',' ')}`:'Upload your logo to preview it here',400,666);
+  const detail = design.text?.enabled ? `${placementLabel(design.placement)} logo + ${placementLabel(design.text.placement)} text` : placementLabel(design.placement);
+  c.fillText(fileImage?`${design.width.toFixed(2)} × ${design.height.toFixed(2)} in  ·  ${detail}`:'Upload your logo to preview it here',400,666);
   if(caption){
     c.fillStyle='#ffffff';c.fillRect(0,680,800,80);c.fillStyle='#293f4b';c.font='15px Arial, sans-serif';
     c.fillText('Digital mockup. Garment style, thread colors and final details may vary.',400,712);
@@ -170,11 +208,25 @@ export function createEmbroidery(ctx) {
   };
   function defaultDesign(p) {
     return {placement:p.config.placement_options[0].id,width:p.config.apparel_kind==='embroidered_hat'?3.25:3.5,
-      height:p.config.apparel_kind==='embroidered_hat'?1.65:3.5,offset_x:0,offset_y:0,thread_colors:['#ffffff']};
+      height:p.config.apparel_kind==='embroidered_hat'?1.65:3.5,offset_x:0,offset_y:0,thread_colors:['#ffffff'],
+      text:{enabled:false,placement:'',line1:'',line2:'',width:3,thread_color:'#ffffff'}};
+  }
+  function normalizeText(p) {
+    draft.design.text ||= {enabled:false,placement:'',line1:'',line2:'',width:3,thread_color:'#ffffff'};
+    const text=draft.design.text, other=oppositeChest(draft.design.placement);
+    const hasOther=other && p.config.placement_options.some(option=>option.id===other);
+    if(!hasOther) text.enabled=false;
+    text.placement=hasOther?other:'';
+    text.line1=String(text.line1||'').slice(0,40);
+    text.line2=String(text.line2||'').slice(0,40);
+    text.width=clamp(Number(text.width)||3,.75,hasOther?embroideryLimits(p,other).width:3.5);
+    if(!/^#[0-9a-fA-F]{6}$/.test(text.thread_color||'')) text.thread_color=draft.design.thread_colors?.[0]||'#ffffff';
+    return hasOther;
   }
   const colorFor=p=>p.config.shirt_colors[$('#calculator')?.elements.shirt_color?.value]||'#ffffff';
   function sync(p) {
     if(!draft)return;
+    const supportsOtherText=normalizeText(p);
     const max=embroideryLimits(p,draft.design.placement);
     const ratio=image ? artworkAspectRatio(image) : 1;
     if(Math.min(max.width,max.height*ratio)<Math.max(.5,.2*ratio)){
@@ -189,6 +241,14 @@ export function createEmbroidery(ctx) {
     if(position)position.textContent=`${draft.design.width.toFixed(2)} × ${draft.design.height.toFixed(2)} in  ·  Max ${max.width} × ${max.height} in`;
     for(const axis of ['x','y']){const slider=$(`#embroidery-offset-${axis}`);if(slider){slider.min=-max.offset;slider.max=max.offset;slider.value=draft.design[`offset_${axis}`];}}
     const swatches=$('#embroidery-threads');if(swatches)swatches.innerHTML=draft.design.thread_colors.map((color,i)=>`<label class="embroidery-thread"><span>Thread ${i+1}</span><input type="color" data-thread="${i}" value="${esc(color)}"></label>`).join('');
+    const textBlock=$('#embroidery-text-block'),textEnabled=$('#embroidery-text-enabled'),textSide=$('#embroidery-text-side'),textWidth=$('#embroidery-text-width'),textSize=$('#embroidery-text-size'),textColor=$('#embroidery-text-color');
+    if(textBlock)textBlock.hidden=!supportsOtherText;
+    if(textEnabled)textEnabled.checked=!!draft.design.text.enabled;
+    if(textSide)textSide.textContent=supportsOtherText?`Adds ${placementLabel(draft.design.text.placement)} embroidery text`: 'Text embroidery is available on polo and hoodie chest placements.';
+    for(const field of ['line1','line2']){const node=$(`#embroidery-text-${field}`);if(node&&node.value!==draft.design.text[field])node.value=draft.design.text[field];}
+    if(textWidth){textWidth.max=supportsOtherText?embroideryLimits(p,draft.design.text.placement).width:3.5;textWidth.value=draft.design.text.width; textWidth.disabled=!draft.design.text.enabled;}
+    if(textSize)textSize.textContent=`${Number(draft.design.text.width).toFixed(2)} in text width`;
+    if(textColor){textColor.value=draft.design.text.thread_color;textColor.disabled=!draft.design.text.enabled;}
     const canvas=$('#embroidery-canvas');if(canvas)renderEmbroidery(canvas,p,image,draft.design,colorFor(p)).catch(error=>toast(error.message,true));
     const status=$('#embroidery-file-status');if(status)status.textContent=draft.original?`${draft.original.name} saved for your project`:'Upload a logo to see the stitched preview.';
   }
@@ -197,7 +257,7 @@ export function createEmbroidery(ctx) {
     currentId=p.id;draft=null;image=null;const f=$('#calculator');
     const preview=$('.product-preview');preview.classList.add('embroidery-product-preview');
     preview.innerHTML='<canvas id="embroidery-canvas" width="800" height="680" aria-label="Digital embroidery mockup on the selected garment"></canvas>';
-    f.insertAdjacentHTML('beforeend',`<section class="embroidery-controls"><h3>Preview your embroidery</h3><p class="field-hint">Upload a PNG or JPG logo (up to 50 MB). A transparent PNG gives the clearest stitch preview.</p><label class="field mt-sm"><span>Logo for embroidery</span><input id="embroidery-upload" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg"></label><p class="field-hint" id="embroidery-file-status" role="status"></p><label class="field mt-sm"><span>Finished embroidery width</span><input id="embroidery-width" type="range" min="0.5" step="0.05"><strong id="embroidery-position"></strong></label><div class="fields mt-sm"><label class="field"><span>Move horizontally</span><input id="embroidery-offset-x" type="range" step="0.05"></label><label class="field"><span>Move vertically</span><input id="embroidery-offset-y" type="range" step="0.05"></label></div><div class="field mt-sm"><span>Approximate thread colors</span><div id="embroidery-threads" class="embroidery-threads"></div></div><p class="field-hint mt-sm">Garment style and thread colors are approximate. We will review your original logo and send a proof before production.</p></section>`);
+    f.insertAdjacentHTML('beforeend',`<section class="embroidery-controls"><h3>Preview your embroidery</h3><p class="field-hint">Upload a PNG or JPG logo (up to 50 MB). A transparent PNG gives the clearest stitch preview. Scroll over the mockup to zoom the logo size.</p><label class="field mt-sm"><span>Logo for embroidery</span><input id="embroidery-upload" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg"></label><p class="field-hint" id="embroidery-file-status" role="status"></p><label class="field mt-sm"><span>Finished embroidery width</span><input id="embroidery-width" type="range" min="0.5" step="0.05"><strong id="embroidery-position"></strong></label><div class="fields mt-sm"><label class="field"><span>Move horizontally</span><input id="embroidery-offset-x" type="range" step="0.05"></label><label class="field"><span>Move vertically</span><input id="embroidery-offset-y" type="range" step="0.05"></label></div><div class="field mt-sm"><span>Approximate thread colors</span><div id="embroidery-threads" class="embroidery-threads"></div></div><div id="embroidery-text-block" class="embroidery-extra mt-sm" hidden><label class="check"><input id="embroidery-text-enabled" type="checkbox"><span>Add name/title text on the other chest side</span></label><p class="field-hint" id="embroidery-text-side"></p><div class="fields mt-sm"><label class="field"><span>Text line 1</span><input id="embroidery-text-line1" type="text" maxlength="40" placeholder="Name"></label><label class="field"><span>Text line 2 optional</span><input id="embroidery-text-line2" type="text" maxlength="40" placeholder="Title"></label></div><label class="field mt-sm"><span>Text embroidery width</span><input id="embroidery-text-width" type="range" min="0.75" step="0.05"><strong id="embroidery-text-size"></strong></label><label class="embroidery-thread mt-sm"><span>Text thread</span><input id="embroidery-text-color" type="color"></label></div><p class="field-hint mt-sm">Garment style and thread colors are approximate. We will review your original logo and text and send a proof before production.</p></section>`);
     const [saved]=await Promise.all([getDesign(idFor(p.id)),loadPhoto(p.config.apparel_kind)]);
     if(currentId!==p.id || !$('#embroidery-canvas'))return;
     draft=saved||{id:idFor(p.id),kind:'embroidery-preview',product_id:p.id,original:null,design:defaultDesign(p)};
@@ -206,6 +266,13 @@ export function createEmbroidery(ctx) {
     if(selected)selected.checked=true;
     sync(p);
     onChange();
+    $('#embroidery-canvas').addEventListener('wheel',event=>{
+      if(!draft || !image)return;
+      event.preventDefault();
+      const factor=event.deltaY<0?1.06:.94;
+      draft.design.width=Number(draft.design.width)*factor;
+      sync(p);saveDesign(draft).catch(error=>toast(error.message,true));onChange();
+    },{passive:false});
     $('#embroidery-upload').onchange=async event=>{
       try {
         const file=event.target.files[0];if(!file)return;fileCheck(file);
@@ -219,10 +286,14 @@ export function createEmbroidery(ctx) {
       } catch(error){toast(error.message,true);} finally {event.target.value='';}
     };
     $('#embroidery-width').oninput=e=>{draft.design.width=Number(e.target.value);sync(p);saveDesign(draft).catch(error=>toast(error.message,true));};
+    $('#embroidery-text-enabled').onchange=e=>{draft.design.text.enabled=e.target.checked;sync(p);saveDesign(draft).catch(error=>toast(error.message,true));onChange();};
+    for(const field of ['line1','line2'])$(`#embroidery-text-${field}`).oninput=e=>{draft.design.text[field]=e.target.value;draft.design.text.enabled=!!(draft.design.text.line1||draft.design.text.line2);sync(p);saveDesign(draft).catch(error=>toast(error.message,true));onChange();};
+    $('#embroidery-text-width').oninput=e=>{draft.design.text.width=Number(e.target.value);sync(p);saveDesign(draft).catch(error=>toast(error.message,true));onChange();};
+    $('#embroidery-text-color').oninput=e=>{draft.design.text.thread_color=e.target.value;sync(p);saveDesign(draft).catch(error=>toast(error.message,true));onChange();};
     for(const axis of ['x','y'])$(`#embroidery-offset-${axis}`).oninput=e=>{draft.design[`offset_${axis}`]=Number(e.target.value);sync(p);saveDesign(draft).catch(error=>toast(error.message,true));};
     f.addEventListener('change',event=>{
       if(!$('#embroidery-canvas')||currentId!==p.id)return;
-      if(event.target.name==='print_locations'){draft.design.placement=event.target.value;draft.design.offset_x=0;draft.design.offset_y=0;saveDesign(draft).catch(error=>toast(error.message,true));}
+      if(event.target.name==='print_locations'){draft.design.placement=event.target.value;draft.design.offset_x=0;draft.design.offset_y=0;normalizeText(p);saveDesign(draft).catch(error=>toast(error.message,true));}
       if(event.target.dataset.thread!==undefined){draft.design.thread_colors[Number(event.target.dataset.thread)]=event.target.value;saveDesign(draft).catch(error=>toast(error.message,true));}
       sync(p);onChange();
     });

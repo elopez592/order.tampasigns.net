@@ -287,6 +287,9 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .embroidery-threads{display:flex;flex-wrap:wrap;gap:9px}
 .embroidery-thread{display:flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-size:11px}
 .embroidery-thread input[type=color]{width:36px;height:30px;padding:2px;cursor:pointer}
+.embroidery-extra{border:1px solid var(--line);border-radius:8px;padding:14px;background:#f7faf9}
+.embroidery-extra[hidden]{display:none}
+.embroidery-extra #embroidery-text-size{font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums}
 .embroidery-modal-canvas{max-width:680px;margin:auto;border-radius:10px}
 .print-locations label{display:flex;align-items:center;gap:9px;font-size:12px}
 .print-locations input[type=radio],.print-locations input[type=checkbox]{width:16px;height:16px;flex:0 0 16px;margin:0;accent-color:var(--accent)}

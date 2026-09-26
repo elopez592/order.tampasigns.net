@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 import {test} from 'node:test';
 import {artworkAspectRatio, visibleArtworkBounds} from '../app/static/embroidery.js';
 
@@ -21,4 +22,12 @@ test('empty transparent artwork has no visible bounds', () => {
 
 test('artwork aspect ratio prefers original cropped artwork dimensions', () => {
   assert.equal(artworkAspectRatio({width:640, height:427, dataset:{artworkWidth:'3000', artworkHeight:'2000'}}), 1.5);
+});
+
+test('embroidery generator includes wheel zoom and second-side text controls', async () => {
+  const source = await readFile(new URL('../app/static/embroidery.js', import.meta.url), 'utf8');
+  assert.match(source, /addEventListener\('wheel'/);
+  assert.match(source, /embroidery-text-enabled/);
+  assert.match(source, /oppositeChest/);
+  assert.match(source, /drawThreadText/);
 });

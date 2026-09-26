@@ -30,11 +30,20 @@ def test_embroidery_garments_accept_preview_in_reviewed_quote(env):
                 'thread_colors': ['#ffffff', '#2453a0'],
             },
         }
+        if placement in ('left_chest', 'right_chest'):
+            item['embroidery_preview']['text'] = {
+                'enabled': True, 'line1': 'Elias Lopez', 'line2': 'Owner',
+                'width': 3.25, 'thread_color': '#ffffff',
+            }
         response = client.post('/api/calculate', json={'items': [item]})
         assert response.status_code == 200, (name, response.text)
         line = response.json()['lines'][0]
         assert line['embroidery_preview']['thread_colors'] == ['#ffffff', '#2453a0']
         assert 'embroidery 3 x 2 in' in line['description']
+        if placement in ('left_chest', 'right_chest'):
+            assert line['embroidery_preview']['text']['placement'] != placement
+            assert line['embroidery_preview']['text']['line1'] == 'Elias Lopez'
+            assert 'text' in line['description']
         assert line['quote_only'] and line['digitizing_fee_cents'] == 3500
 
 
@@ -54,6 +63,35 @@ def test_embroidery_preview_rejects_size_position_and_palette_outside_placement(
         bad = dict(item, embroidery_preview={**item['embroidery_preview'], **change})
         response = client.post('/api/calculate', json={'items': [bad]})
         assert response.status_code == 422, (change, response.text)
+
+
+def test_embroidery_second_side_text_is_limited_to_opposite_chest(env):
+    app, _, _ = env
+    client = anonymous(app)
+    catalog = {p['name']: p for p in client.get('/api/catalog').json()['products']}
+    polo = catalog['Embroidered polos']
+    base = {
+        'product_id': polo['id'], 'width': 12, 'height': 12, 'quantity': 1,
+        'shirt_color': 'White', 'size_quantities': {'M': 1},
+        'print_locations': ['left_chest'],
+        'embroidery_preview': {'width': 3, 'height': 2, 'offset_x': 0, 'offset_y': 0,
+                               'thread_colors': ['#ffffff']},
+    }
+    good = dict(base, embroidery_preview={**base['embroidery_preview'], 'text': {
+        'enabled': True, 'placement': 'left_chest', 'line1': 'Maria', 'line2': 'Manager',
+        'width': 3, 'thread_color': '#2453a0'}})
+    response = client.post('/api/calculate', json={'items': [good]})
+    assert response.status_code == 200, response.text
+    text = response.json()['lines'][0]['embroidery_preview']['text']
+    assert text['placement'] == 'right_chest'
+    assert text['line2'] == 'Manager'
+
+    for text_change in ({'line1': ''}, {'line1': 'x' * 41}, {'width': 4}, {'thread_color': 'blue'}):
+        bad_text = {'enabled': True, 'line1': 'Maria', 'line2': '', 'width': 3, 'thread_color': '#2453a0'}
+        bad_text.update(text_change)
+        bad = dict(base, embroidery_preview={**base['embroidery_preview'], 'text': bad_text})
+        response = client.post('/api/calculate', json={'items': [bad]})
+        assert response.status_code == 422, (text_change, response.text)
 
 
 def test_existing_embroidery_shirts_and_jackets_are_retired_without_deleting_records(env):
