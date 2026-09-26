@@ -25,8 +25,13 @@ def test_events_tinting_foam_boards_and_rollups_are_public(env):
     assert set(catalog['Yard signs']['config']['storefront_categories']) == {'Construction & Site Signs', 'Signs'}
     assert set(catalog['Trailer / Food Truck Wraps']['config']['storefront_categories']) == {'Vehicles', 'Fleet Services'}
     acrylic = catalog['Acrylic Signs']
-    assert acrylic['config']['quote_only'] is True
+    assert acrylic['config']['quote_only'] is False
+    assert acrylic['config']['instant'] is True
     assert set(acrylic['config']['storefront_categories']) == {'Storefront', 'Signs'}
+    assert [(o['label'], o['width'], o['height']) for o in acrylic['config']['size_options']] == [
+        ('12 × 18 in', '12', '18'), ('18 × 24 in', '18', '24'),
+        ('24 × 36 in', '24', '36'), ('24 × 48 in', '24', '48')
+    ]
     assert [(o['id'], o['label']) for o in acrylic['config']['material_options']] == [
         ('clear', 'Clear acrylic'), ('white', 'White acrylic'), ('frosted', 'Frosted acrylic')
     ]
@@ -34,18 +39,37 @@ def test_events_tinting_foam_boards_and_rollups_are_public(env):
         ('eighth', '1/8 inch acrylic'), ('quarter', '1/4 inch acrylic')
     ]
     assert [(o['id'], o['label']) for o in acrylic['config']['mounting_options']] == [
-        ('standoffs', 'Standoff hardware'), ('none', 'No mounting hardware'), ('installation', 'Installation quote')
+        ('standoffs', 'Standoff hardware (+$25)'), ('none', 'No mounting hardware'), ('installation', 'Installation quote')
     ]
     assert acrylic['config']['supports_installation'] is True
+    base_acrylic = anonymous(app).post('/api/calculate', json={'items':[{
+        'product_id': acrylic['id'], 'width': 24, 'height': 36, 'quantity': 1,
+        'material': 'clear', 'acrylic_thickness': 'eighth', 'acrylic_mounting': 'none'
+    }]})
+    assert base_acrylic.status_code == 200, base_acrylic.text
+    assert base_acrylic.json()['subtotal_cents'] == 15900
+    standoff_acrylic = anonymous(app).post('/api/calculate', json={'items':[{
+        'product_id': acrylic['id'], 'width': 24, 'height': 36, 'quantity': 1,
+        'material': 'clear', 'acrylic_thickness': 'eighth', 'acrylic_mounting': 'standoffs'
+    }]})
+    assert standoff_acrylic.json()['subtotal_cents'] == 18400
+    premium_acrylic = anonymous(app).post('/api/calculate', json={'items':[{
+        'product_id': acrylic['id'], 'width': 24, 'height': 36, 'quantity': 1,
+        'material': 'frosted', 'acrylic_thickness': 'quarter', 'acrylic_mounting': 'standoffs'
+    }]})
+    assert premium_acrylic.json()['subtotal_cents'] == 27185
     installed_acrylic = anonymous(app).post('/api/calculate', json={'items':[{
         'product_id': acrylic['id'], 'width': 24, 'height': 12, 'quantity': 1,
-        'material': 'frosted', 'installation_requested': True,
+        'material': 'frosted', 'acrylic_thickness': 'quarter', 'acrylic_mounting': 'installation',
+        'installation_requested': True,
         'description': 'Acrylic: Frosted acrylic | Thickness: 1/4 inch acrylic | Mounting: Installation quote'
     }]})
     assert installed_acrylic.status_code == 200, installed_acrylic.text
     line = installed_acrylic.json()['lines'][0]
     assert line['material'] == 'frosted'
     assert line['material_label'] == 'Frosted acrylic'
+    assert line['acrylic_thickness'] == 'quarter'
+    assert line['acrylic_mounting'] == 'installation'
     assert line['installation_requested'] is True
     assert line['quote_only'] is True
     assert catalog['Illuminated Sign Faces']['config']['quote_only'] is True
