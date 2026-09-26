@@ -245,7 +245,7 @@ export function createEmbroidery(ctx) {
     if(textBlock)textBlock.hidden=!supportsOtherText;
     if(textEnabled)textEnabled.checked=!!draft.design.text.enabled;
     const textLineCount=[draft.design.text.line1,draft.design.text.line2].filter(line=>String(line||'').trim()).length;
-    if(textSide)textSide.textContent=supportsOtherText?`Adds ${placementLabel(draft.design.text.placement)} embroidery text · $7 per populated line${textLineCount?' (+: 'Text embroidery is available on polo and hoodie chest placements.';
+    if(textSide)textSide.textContent=supportsOtherText?'Adds '+placementLabel(draft.design.text.placement)+' embroidery text · $7 per populated line'+(textLineCount?' (+$'+(textLineCount*7)+' per garment)':''):'Text embroidery is available on polo and hoodie chest placements.';
     for(const field of ['line1','line2']){const node=$(`#embroidery-text-${field}`);if(node&&node.value!==draft.design.text[field])node.value=draft.design.text[field];}
     if(textWidth){textWidth.max=supportsOtherText?embroideryLimits(p,draft.design.text.placement).width:3.5;textWidth.value=draft.design.text.width; textWidth.disabled=!draft.design.text.enabled;}
     if(textSize)textSize.textContent=`${Number(draft.design.text.width).toFixed(2)} in text width`;
