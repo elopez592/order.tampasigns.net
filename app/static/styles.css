@@ -387,3 +387,15 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .status-qr-wrap img{display:block;width:min(300px,80vw);height:auto;margin:0 auto 16px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px}
 .photo-mockup-canvas{display:block;width:100%;height:auto;max-height:520px;object-fit:contain;margin-top:16px;border:1px solid var(--line);border-radius:10px;background:#edf1f2}
 @media(max-width:800px){.review-grid{grid-template-columns:1fr}}
+
+/* Compact product-page help cards */
+.product-help-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:24px}
+.product-help-card{min-width:0;min-height:220px;padding:22px;border:1px solid var(--line);border-radius:14px;background:#fff;display:flex;flex-direction:column;justify-content:space-between;gap:20px;box-shadow:0 6px 18px rgba(19,45,55,.05)}
+.product-help-card h2{font-size:22px;line-height:1.1;margin:7px 0 8px}
+.product-help-card p{font-size:12px;line-height:1.55;color:var(--muted);max-width:34em}
+.product-help-card .eyebrow{font-size:9px}
+.product-help-card .btn{align-self:flex-start;margin-top:auto}
+.product-help-card-featured{background:var(--nav);border-color:var(--nav);color:#fff;border-top:4px solid var(--brand-orange)}
+.product-help-card-featured p{color:#a9bcc4}
+.product-help-card-featured .eyebrow{color:#8bdbd7}
+@media(max-width:900px){.product-help-grid{grid-template-columns:1fr}.product-help-card{min-height:0}.product-help-card .btn{width:100%}}
