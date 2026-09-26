@@ -26,7 +26,8 @@ test('artwork aspect ratio prefers original cropped artwork dimensions', () => {
 
 test('embroidery generator includes wheel zoom and second-side text controls', async () => {
   const source = await readFile(new URL('../app/static/embroidery.js', import.meta.url), 'utf8');
-  assert.match(source, /addEventListener\('wheel'/);
+  assert.match(source, /preview\.addEventListener\('wheel'/);
+  assert.match(source, /preventDefault\(\)/);
   assert.match(source, /embroidery-text-enabled/);
   assert.match(source, /oppositeChest/);
   assert.match(source, /drawThreadText/);

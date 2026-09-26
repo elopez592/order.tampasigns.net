@@ -279,7 +279,7 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .product-example-detail{width:100%;min-height:0;aspect-ratio:4/3;background:#f4f5f6}
 .product-example-detail .product-example-photo{background-size:contain;background-color:#f4f5f6}
 .product-example-detail:hover .product-example-photo{transform:none}
-.product-preview.embroidery-product-preview{height:auto;aspect-ratio:800/680;background:#f4f5f6;overflow:hidden;margin-bottom:24px}
+.product-preview.embroidery-product-preview{height:auto;aspect-ratio:800/680;background:#f4f5f6;overflow:hidden;margin-bottom:24px;cursor:zoom-in}
 .embroidery-product-preview canvas,.embroidery-modal-canvas{display:block;width:100%;height:auto}
 .embroidery-controls{border-top:1px solid var(--line);margin-top:20px;padding-top:20px}
 .embroidery-controls input[type=range]{padding:0;accent-color:var(--accent);min-height:28px}

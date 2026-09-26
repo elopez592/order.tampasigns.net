@@ -207,8 +207,8 @@ export function createEmbroidery(ctx) {
     if(!file.size || file.size>MAX_BYTES) throw new Error('Logo files must be nonempty and at most 50 MB.');
   };
   function defaultDesign(p) {
-    return {placement:p.config.placement_options[0].id,width:p.config.apparel_kind==='embroidered_hat'?3.25:3.5,
-      height:p.config.apparel_kind==='embroidered_hat'?1.65:3.5,offset_x:0,offset_y:0,thread_colors:['#ffffff'],
+    return {placement:p.config.placement_options[0].id,width:p.config.apparel_kind==='embroidered_hat'?2.75:3,
+      height:p.config.apparel_kind==='embroidered_hat'?1.4:3,offset_x:0,offset_y:0,thread_colors:['#ffffff'],
       text:{enabled:false,placement:'',line1:'',line2:'',width:3,thread_color:'#ffffff'}};
   }
   function normalizeText(p) {
@@ -266,10 +266,12 @@ export function createEmbroidery(ctx) {
     if(selected)selected.checked=true;
     sync(p);
     onChange();
-    $('#embroidery-canvas').addEventListener('wheel',event=>{
+    preview.addEventListener('wheel',event=>{
       if(!draft || !image)return;
       event.preventDefault();
-      const factor=event.deltaY<0?1.06:.94;
+      event.stopPropagation();
+      const direction=event.deltaY || -event.wheelDelta || event.detail || 0;
+      const factor=direction<0?1.08:.92;
       draft.design.width=Number(draft.design.width)*factor;
       sync(p);saveDesign(draft).catch(error=>toast(error.message,true));onChange();
     },{passive:false});
