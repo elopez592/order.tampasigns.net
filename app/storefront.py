@@ -257,16 +257,17 @@ def upgrade_catalog(database):
             'High-Density Board Signs': dict(
                 category='Construction signs', storefront_categories=['Construction signs','Signs'], unit='sqft',
                 sell_per_sqft='20', cost_per_sqft='6', setup_price='0', setup_cost='0',
-                waste_percent='15', labor_minutes_per_unit='0', minimum_price='85',
-                default_width='24', default_height='48', min_width='12', min_height='12',
-                max_width='48', max_height='96', max_short_axis='48', max_long_axis='96',
+                waste_percent='15', labor_minutes_per_unit='0', minimum_price='240',
+                default_width='36', default_height='48', min_width='36', min_height='36',
+                min_short_axis='36', min_long_axis='48',
+                max_width='96', max_height='96', max_short_axis='48', max_long_axis='96',
                 instant=True, quote_only=False, self_approve_artwork=False,
                 size_options=[
-                    {'label':'2 × 4 ft','width':'24','height':'48'},
-                    {'label':'3 × 6 ft','width':'36','height':'72'},
+                    {'label':'3 × 4 ft','width':'36','height':'48'},
+                    {'label':'4 × 6 ft','width':'48','height':'72'},
                     {'label':'4 × 8 ft','width':'48','height':'96'},
                 ],
-                description='Flat printed sign on standard 1/2-inch high-density urethane board. $20/sq ft with an $85 minimum. Routed, carved, dimensional, painted or specialty-finished HDU work is quoted separately.'
+                description='Flat printed outdoor sign on standard 1/2-inch high-density urethane board. Standard sizes start at 3 × 4 feet at $20/sq ft. Routed, carved, dimensional, painted or specialty-finished HDU work is quoted separately.'
             ),
         }
         for name, kind in (('Embroidered hoodies', 'embroidered_hoodie'),):
