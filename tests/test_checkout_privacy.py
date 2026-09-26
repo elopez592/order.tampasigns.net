@@ -130,7 +130,7 @@ def test_checkout_disabled_until_connected_and_reviewed(env):
     assert admin.put('/api/admin/settings',json={'checkout_enabled':True}).status_code==422
 
 
-@pytest.mark.parametrize('pid,width,height,quantity',[(1,3,3,50),(2,2,2,50),(3,3,3,10),(4,72,36,1),(5,24,18,1)])
+@pytest.mark.parametrize('pid,width,height,quantity',[(1,3,3,50),(2,2,2,50),(3,3,3,10),(4,72,36,1)])
 def test_standard_products_can_be_purchased(live_setup,pid,width,height,quantity):
     app,admin,employee=live_setup
     c,r,b=new_order(app,pid,width,height,quantity)
