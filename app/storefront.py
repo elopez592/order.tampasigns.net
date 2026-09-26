@@ -23,6 +23,11 @@ ACM_MATERIAL_OPTIONS = [
     {'id':'3mm','label':'3 mm ACM (standard)','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','default':True},
     {'id':'6mm','label':'6 mm ACM (+$6/sq ft)','sell_per_sqft_adjustment':'6','cost_per_sqft_adjustment':'3.5','default':False},
 ]
+ACM_LAMINATION_OPTIONS = [
+    {'id':'none','label':'No laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
+    {'id':'gloss','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
+    {'id':'premium_matte','label':'Matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
+]
 
 
 def upgrade_catalog(database):
@@ -139,7 +144,7 @@ def upgrade_catalog(database):
                     default_width='24', default_height='48',
                     min_width='24', min_height='48', max_width='60', max_height='120',
                     max_short_axis='60', max_long_axis='120', instant=True,
-                    quote_only=False, material_options=ACM_MATERIAL_OPTIONS,
+                    quote_only=False, material_options=ACM_MATERIAL_OPTIONS, lamination_options=ACM_LAMINATION_OPTIONS,
                     size_options=[
                         {'label':'2 × 4 ft','width':'24','height':'48'},
                         {'label':'3 × 6 ft','width':'36','height':'72'},
@@ -298,7 +303,7 @@ def upgrade_catalog(database):
                 waste_percent='15', labor_minutes_per_unit='0', minimum_price='65',
                 default_width='24', default_height='48', min_width='24', min_height='48', max_width='60', max_height='120',
                 max_short_axis='60', max_long_axis='120', instant=True,
-                material_options=ACM_MATERIAL_OPTIONS,
+                material_options=ACM_MATERIAL_OPTIONS, lamination_options=ACM_LAMINATION_OPTIONS,
                 size_options=[
                     {'label':'2 × 4 ft','width':'24','height':'48'},
                     {'label':'3 × 6 ft','width':'36','height':'72'},
