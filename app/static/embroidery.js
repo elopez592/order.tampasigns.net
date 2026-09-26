@@ -29,6 +29,24 @@ function dominantColors(canvas) {
 }
 
 const toRgb = hex => [1,3,5].map(i => parseInt(hex.slice(i,i+2),16));
+export function visibleArtworkBounds(data, width, height, alphaThreshold = 20) {
+  let left = width, right = -1, top = height, bottom = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (data[(y * width + x) * 4 + 3] <= alphaThreshold) continue;
+      left = Math.min(left, x); right = Math.max(right, x);
+      top = Math.min(top, y); bottom = Math.max(bottom, y);
+    }
+  }
+  return right < left ? null : {left, top, width:right - left + 1, height:bottom - top + 1};
+}
+
+export function artworkAspectRatio(image) {
+  return image?.dataset?.artworkWidth && image?.dataset?.artworkHeight
+    ? Number(image.dataset.artworkWidth) / Number(image.dataset.artworkHeight)
+    : image.width / image.height;
+}
+
 function drawThread(context, image, width, height, colors, x, y) {
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(width)); canvas.height = Math.max(1, Math.round(height));
@@ -126,9 +144,17 @@ const imageFrom = async file => {
   try {
     image.src=url;await image.decode();
     if (!image.width || image.width*image.height>50_000_000) throw new Error('The logo is empty or exceeds 50 megapixels.');
-    const canvas=document.createElement('canvas'),scale=Math.min(1,640/Math.max(image.width,image.height));
-    canvas.width=Math.max(1,Math.round(image.width*scale));canvas.height=Math.max(1,Math.round(image.height*scale));
-    canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);
+    const raw=document.createElement('canvas');raw.width=image.width;raw.height=image.height;
+    const rawContext=raw.getContext('2d',{willReadFrequently:true});
+    rawContext.drawImage(image,0,0);
+    const bounds=visibleArtworkBounds(rawContext.getImageData(0,0,raw.width,raw.height).data,raw.width,raw.height);
+    const source=bounds || {left:0,top:0,width:image.width,height:image.height};
+    const scale=Math.min(1,640/Math.max(source.width,source.height));
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.max(1,Math.round(source.width*scale));canvas.height=Math.max(1,Math.round(source.height*scale));
+    canvas.dataset.artworkWidth=String(source.width);
+    canvas.dataset.artworkHeight=String(source.height);
+    canvas.getContext('2d').drawImage(raw,source.left,source.top,source.width,source.height,0,0,canvas.width,canvas.height);
     return canvas;
   } finally {URL.revokeObjectURL(url);}
 };
@@ -150,9 +176,9 @@ export function createEmbroidery(ctx) {
   function sync(p) {
     if(!draft)return;
     const max=embroideryLimits(p,draft.design.placement);
-    const ratio=image ? image.width/image.height : 1;
+    const ratio=image ? artworkAspectRatio(image) : 1;
     if(Math.min(max.width,max.height*ratio)<Math.max(.5,.2*ratio)){
-      throw new Error('This logo is too narrow or wide for the selected embroidery area. Upload a cropped version with less empty space.');
+      throw new Error('This logo is too narrow or wide for the selected embroidery area.');
     }
     draft.design.width=clamp(Number(draft.design.width)||3.5,.5,Math.min(max.width,max.height*ratio));
     draft.design.height=Math.round(draft.design.width/ratio*100)/100;
@@ -184,8 +210,8 @@ export function createEmbroidery(ctx) {
       try {
         const file=event.target.files[0];if(!file)return;fileCheck(file);
         const decoded=await imageFrom(file);
-        const limits=embroideryLimits(p,draft.design.placement),ratio=decoded.width/decoded.height;
-        if(Math.min(limits.width,limits.height*ratio)<Math.max(.5,.2*ratio)) throw new Error('This logo is too narrow or wide for the embroidery area. Crop excess blank space and upload it again.');
+        const limits=embroideryLimits(p,draft.design.placement),ratio=artworkAspectRatio(decoded);
+        if(Math.min(limits.width,limits.height*ratio)<Math.max(.5,.2*ratio)) throw new Error('This logo is too narrow or wide for the selected embroidery area.');
         image=decoded;draft.original=file;
         draft.design.thread_colors=dominantColors(decoded);
         await saveDesign(draft);sync(p);onChange();
