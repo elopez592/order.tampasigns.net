@@ -127,11 +127,11 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             elif product_name == 'usdot decals':
                 category_map = ['Vehicles','Fleet Services']
             elif product_name == 'fleet window tinting':
-                category_map = ['Fleet Services']
+                category_map = ['Vehicles','Fleet Services']
             elif product_name == 'partial vehicle wraps':
                 category_map = ['Vehicles','Fleet Services']
             elif product_name == 'trailer / food truck wraps':
-                category_map = ['Trailers / Food Trucks','Fleet Services']
+                category_map = ['Vehicles','Fleet Services']
             if category_map:
                 cfg['storefront_categories'] = list(dict.fromkeys(category_map))
             if any(x in lname for x in ('sticker', 'transfer')):
@@ -401,7 +401,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
               ('ACM signs', 'Signs', 3, 'sqft', '14', '5', '20', '8', '65', 1, 24, 18, 48, 96, True, ACM_DESCRIPTION),
               ('Yard signs', 'Signs', 3, 'piece', '8', '2.5', '15', '5', '30', 1, 24, 18, 48, 96, True, '4mm corrugated plastic; hardware and installation not included.'),
               ('Window Graphics', 'Windows', 3, 'sqft', '10.5', '4.25', '0', '0', '75', 1, 44, 92, 54, 1200, False, 'Window graphics with your choice of perforated window vinyl or standard opaque vinyl. Add each window or panel size separately. Lamination is not included.'),
-              ('Acrylic sign face replacement', 'Signs', 3, 'sqft', '22', '12', '0', '0', '150', 1, 120, 30.5, 120, 96, False, 'Review thickness, full-sheet purchase, print type, retainers and installation labor.'),
+              ('Illuminated Sign Faces', 'Signs', 3, 'sqft', '22', '12', '0', '0', '150', 1, 120, 30.5, 120, 96, False, 'Replacement faces for illuminated sign cabinets and lightboxes. Face material, thickness, translucent graphics, retainers, cabinet measurements and installation are confirmed before production.'),
               ('Vehicle Wraps', 'Vehicle Wraps', 5, 'sqft', '5.27', '0', '0', '0', '5.27', 1, 54, 120, 54, 1200, True, 'Premium cast wrap film printed and laminated at the current WePrintWraps benchmark rate. Installation is estimated instantly and reviewed before production.'),
             ]
             for name, category, workflow, unit, sell, cost, setup, setup_cost, minimum, minqty, width, height, maxw, maxh, instant, description in entries:
@@ -617,7 +617,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 'is_wrap':True,'requires_installation':False,'supports_installation':True,
                 'installation_workflow_id':vehicle_workflow_for_fleet['id'] if vehicle_workflow_for_fleet else 4,
                 'supports_multiple_dimensions':False,'self_approve_artwork':False,'usdot_customizer':False,
-                'storefront_categories':['Trailers / Food Trucks','Fleet Services'],'size_options':[],'placement_options':[],
+                'storefront_categories':['Vehicles','Fleet Services'],'size_options':[],'placement_options':[],
                 'quantity_presets':[1,2,5,10,25],'coverage_options':trailer_coverage,
                 'vehicle_type_options':trailer_types,'material_options':[],
                 'lamination_options':[
