@@ -31,6 +31,16 @@ ACM_LAMINATION_OPTIONS = [
 ACRYLIC_MATERIAL_OPTIONS = [
     {'id':'clear','label':'Clear acrylic','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','default':True},
     {'id':'white','label':'White acrylic','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','default':False},
+    {'id':'frosted','label':'Frosted acrylic','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','default':False},
+]
+ACRYLIC_THICKNESS_OPTIONS = [
+    {'id':'eighth','label':'1/8 inch acrylic','default':True},
+    {'id':'quarter','label':'1/4 inch acrylic','default':False},
+]
+ACRYLIC_MOUNTING_OPTIONS = [
+    {'id':'standoffs','label':'Standoff hardware','default':True},
+    {'id':'none','label':'No mounting hardware','default':False},
+    {'id':'installation','label':'Installation quote','default':False},
 ]
 
 
@@ -38,6 +48,7 @@ def upgrade_catalog(database):
     from .pricing import validate_config
     with transaction(database, True) as conn:
         conn.execute("UPDATE products SET category='Construction & Site Signs' WHERE category='Construction signs'")
+        signs_workflow = conn.execute("SELECT id FROM workflows WHERE name='Signs and storefronts' LIMIT 1").fetchone()
         for row in conn.execute('SELECT * FROM products').fetchall():
             cfg = json.loads(row['config'])
             cats = [
@@ -125,9 +136,13 @@ def upgrade_catalog(database):
             if name == 'Acrylic Signs':
                 cfg.update(
                     material_options=ACRYLIC_MATERIAL_OPTIONS,
+                    thickness_options=ACRYLIC_THICKNESS_OPTIONS,
+                    mounting_options=ACRYLIC_MOUNTING_OPTIONS,
                     lamination_options=[],
+                    supports_installation=True,
+                    installation_workflow_id=(signs_workflow['id'] if signs_workflow else row['workflow_id']),
                     instant=False, quote_only=True, self_approve_artwork=False,
-                    description='Indoor acrylic wall signs in clear or white acrylic with standoff mounting. Enter the finished size and upload artwork; acrylic thickness, print method, hardware, wall conditions and installation are confirmed in the custom quote.'
+                    description='Indoor acrylic wall signs in clear, white or frosted acrylic. Choose 1/8-inch or 1/4-inch thickness, then select standoff hardware, no mounting hardware, or request an installation quote.'
                 )
                 cats = ['Storefront', 'Signs']
             if name == 'ACM signs':
@@ -307,7 +322,11 @@ def upgrade_catalog(database):
                 default_width='24', default_height='12', min_width='1', min_height='1',
                 max_width='120', max_height='120', instant=False, quote_only=True,
                 self_approve_artwork=False, material_options=ACRYLIC_MATERIAL_OPTIONS,
-                description='Indoor acrylic wall signs in clear or white acrylic with standoff mounting. Enter the finished size and upload artwork; acrylic thickness, print method, hardware, wall conditions and installation are confirmed in the custom quote.'
+                thickness_options=ACRYLIC_THICKNESS_OPTIONS,
+                mounting_options=ACRYLIC_MOUNTING_OPTIONS,
+                supports_installation=True,
+                installation_workflow_id=(signs_workflow['id'] if signs_workflow else None),
+                description='Indoor acrylic wall signs in clear, white or frosted acrylic. Choose 1/8-inch or 1/4-inch thickness, then select standoff hardware, no mounting hardware, or request an installation quote.'
             ),
             'Aluminum Composite Signs': dict(
                 category='Construction & Site Signs', storefront_categories=['Construction & Site Signs','Storefront','Signs'], unit='sqft',
@@ -357,8 +376,9 @@ def upgrade_catalog(database):
                 continue
             category = values.pop('category')
             cfg = validate_config(values)
+            product_workflow = signs_workflow['id'] if product_name == 'Acrylic Signs' and signs_workflow else workflow
             conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,1,1,?,?,?)',
-                         (product_name, category, workflow, json.dumps(cfg), now()))
+                         (product_name, category, product_workflow, json.dumps(cfg), now()))
 
 
 def garment_selection(item, qty, cfg, product_name):

@@ -477,10 +477,10 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 keys = ('finished_apparel','shirt_colors','shirt_sizes','apparel_kind','apparel_unit_price','digitizing_fee','quote_only','unit','description','min_quantity','max_quantity','max_width','max_height',
                         'default_width','default_height','min_width','min_height','instant','is_wrap','supports_installation',
                         'supports_multiple_dimensions','self_approve_artwork','lamination_options','material_options',
-                        'storefront_categories','size_options','placement_options','quantity_presets','coverage_options','vehicle_type_options','quantity_only_note','min_short_axis','min_long_axis','max_short_axis','max_long_axis','usdot_customizer','usdot_logo_setup_price','contour_customizer','quantity_only','vehicle_details_required','tint_package_selector','artwork_upload_disabled')
+                        'storefront_categories','size_options','placement_options','quantity_presets','coverage_options','vehicle_type_options','thickness_options','mounting_options','quantity_only_note','min_short_axis','min_long_axis','max_short_axis','max_long_axis','usdot_customizer','usdot_logo_setup_price','contour_customizer','quantity_only','vehicle_details_required','tint_package_selector','artwork_upload_disabled')
                 defaults = {'is_wrap': False, 'supports_installation': False, 'supports_multiple_dimensions': False,
                             'self_approve_artwork': False, 'lamination_options': [], 'material_options': [],
-                            'storefront_categories': [], 'size_options': [], 'placement_options': [], 'quantity_presets': [], 'coverage_options': [], 'vehicle_type_options': [], 'quantity_only_note': '', 'min_short_axis': '0.1', 'min_long_axis': '0.1', 'max_short_axis': '10000',
+                            'storefront_categories': [], 'size_options': [], 'placement_options': [], 'quantity_presets': [], 'coverage_options': [], 'vehicle_type_options': [], 'thickness_options': [], 'mounting_options': [], 'quantity_only_note': '', 'min_short_axis': '0.1', 'min_long_axis': '0.1', 'max_short_axis': '10000',
                             'max_long_axis': '10000', 'usdot_customizer': False, 'usdot_logo_setup_price': '20', 'contour_customizer': False, 'quantity_only': False,
                             'vehicle_details_required': False, 'tint_package_selector': False,
                             'artwork_upload_disabled': False}

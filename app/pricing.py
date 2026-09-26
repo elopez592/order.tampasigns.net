@@ -357,6 +357,35 @@ def validate_config(cfg: dict) -> dict:
         vehicle_type_ids.add(oid)
         checked_vehicle_types.append({'id': oid, 'label': label, 'multiplier': str(multiplier)})
     result['vehicle_type_options'] = checked_vehicle_types
+
+    def simple_options(key, label, max_count=12):
+        options = cfg.get(key, [])
+        if not isinstance(options, list) or len(options) > max_count:
+            raise HTTPException(422, f'Use no more than {max_count} {label.lower()} options.')
+        checked, ids, defaults = [], set(), 0
+        for option in options:
+            if not isinstance(option, dict):
+                raise HTTPException(422, f'Invalid {label.lower()} option.')
+            oid = str(option.get('id', '')).strip().lower()
+            if not re.fullmatch(r'[a-z0-9_-]{1,40}', oid) or oid in ids:
+                raise HTTPException(422, f'{label} IDs must be unique letters, numbers, hyphens or underscores.')
+            text_label = str(option.get('label', '')).strip()[:100]
+            if not text_label:
+                raise HTTPException(422, f'{label} label is required.')
+            is_default = option.get('default', False)
+            if not isinstance(is_default, bool):
+                raise HTTPException(422, f'{label} default must be true or false.')
+            ids.add(oid)
+            defaults += int(is_default)
+            checked.append({'id': oid, 'label': text_label, 'default': is_default})
+        if defaults > 1:
+            raise HTTPException(422, f'Choose only one default {label.lower()} option.')
+        if checked and defaults == 0:
+            checked[0]['default'] = True
+        return checked
+
+    result['thickness_options'] = simple_options('thickness_options', 'Thickness')
+    result['mounting_options'] = simple_options('mounting_options', 'Mounting')
     result['quantity_only_note'] = str(cfg.get('quantity_only_note', ''))[:300]
     return result
 
