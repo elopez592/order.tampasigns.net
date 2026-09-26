@@ -24,8 +24,20 @@ def test_events_tinting_foam_boards_and_rollups_are_public(env):
     assert catalog['Storefront Window Tinting']['config']['artwork_upload_disabled'] is True
     assert set(catalog['Yard signs']['config']['storefront_categories']) == {'Construction & Site Signs', 'Signs'}
     assert set(catalog['Trailer / Food Truck Wraps']['config']['storefront_categories']) == {'Vehicles', 'Fleet Services'}
-    assert catalog['Acrylic Signs']['config']['quote_only'] is True
-    assert set(catalog['Acrylic Signs']['config']['storefront_categories']) == {'Storefront', 'Signs'}
+    acrylic = catalog['Acrylic Signs']
+    assert acrylic['config']['quote_only'] is True
+    assert set(acrylic['config']['storefront_categories']) == {'Storefront', 'Signs'}
+    assert [(o['id'], o['label']) for o in acrylic['config']['material_options']] == [
+        ('clear', 'Clear acrylic'), ('white', 'White acrylic')
+    ]
+    assert all('frosted' not in o['label'].lower() for o in acrylic['config']['material_options'])
+    white_acrylic = anonymous(app).post('/api/calculate', json={'items':[{
+        'product_id': acrylic['id'], 'width': 24, 'height': 12, 'quantity': 1, 'material': 'white'
+    }]})
+    assert white_acrylic.status_code == 200, white_acrylic.text
+    assert white_acrylic.json()['lines'][0]['material'] == 'white'
+    assert white_acrylic.json()['lines'][0]['material_label'] == 'White acrylic'
+    assert white_acrylic.json()['lines'][0]['quote_only'] is True
     assert catalog['Illuminated Sign Faces']['config']['quote_only'] is True
     assert set(catalog['Illuminated Sign Faces']['config']['storefront_categories']) == {'Storefront', 'Signs'}
     assert 'ACM signs' not in catalog
