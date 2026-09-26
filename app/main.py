@@ -774,6 +774,40 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                      f'The customer {action_.replace("_", " ")} proof version {decision_version}.' + (f' Comment: {comment}' if comment else ''), public_url)
         return {'ok': True}
 
+    @app.post('/api/portal/appointment-request')
+    def portal_appointment_request(request: Request, payload: dict = Body(...)):
+        throttle(request, 'appointment_request', 12, 3600)
+        kind = str(payload.get('kind', '')).strip().lower()
+        labels = {
+            'site_survey': 'Site survey / measurements',
+            'consultation': 'Project consultation',
+            'installation': 'Installation scheduling',
+            'pickup': 'Pickup coordination',
+        }
+        if kind not in labels:
+            raise HTTPException(422, 'Choose a valid appointment type.')
+        requested_date = text(payload.get('requested_date', ''), 'Requested date', 10, True)
+        try:
+            date.fromisoformat(requested_date)
+        except (ValueError, TypeError):
+            raise HTTPException(422, 'Requested date must be a valid date.')
+        window = text(payload.get('window', ''), 'Preferred time window', 80, True)
+        location = text(payload.get('location', ''), 'Location', 500)
+        note = text(payload.get('note', ''), 'Scheduling note', 2000)
+        with transaction(database, True) as conn:
+            job = portal_job(conn, request)
+            audit(conn, job['id'], 'Customer via private job link', 'appointment.requested',
+                  {'kind': labels[kind], 'requested_date': requested_date, 'window': window,
+                   'location': location, 'note': note}, True)
+            appointment_job_id = job['id']
+            appointment_number = job['number']
+        notify_staff(database, appointment_job_id, 'appointment_' + secrets.token_hex(6),
+                     f'Scheduling request for {appointment_number}', 'Customer scheduling request',
+                     f'{labels[kind]} requested for {requested_date} ({window}).'
+                     + (f' Location: {location}.' if location else '')
+                     + (f' Note: {note}' if note else ''), public_url)
+        return {'ok': True}
+
     @app.post('/api/portal/message')
     def portal_message(request: Request, payload: dict = Body(...)):
         throttle(request, 'messages', 60, 3600)
@@ -1565,7 +1599,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
 
     crm.install(app, database, require_admin, issue_email_portal)
     from .customers import install as install_customers
-    install_customers(app, database, production, throttle, issue_portal)
+    install_customers(app, database, production, throttle, issue_portal, uploads)
 
     app.mount('/static', StaticFiles(directory=STATIC), name='static')
 
