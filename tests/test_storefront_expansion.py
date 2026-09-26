@@ -10,18 +10,26 @@ def test_events_tinting_foam_boards_and_rollups_are_public(env):
     catalog = products(anonymous(app))
 
     assert catalog['Window Graphics']['config']['storefront_categories'] == ['Storefront']
-    assert catalog['Fleet Window Tinting']['config']['storefront_categories'] == ['Fleet Services']
+    assert catalog['Fleet Window Tinting']['config']['storefront_categories'] == ['Vehicles', 'Fleet Services']
     assert catalog['Storefront Window Tinting']['config']['storefront_categories'] == ['Storefront']
     assert catalog['Roll-up banners']['config']['storefront_categories'] == ['Storefront', 'Events']
     assert catalog['Foam boards']['config']['storefront_categories'] == ['Storefront', 'Events']
     assert catalog['A-Frame inserts']['config']['storefront_categories'] == ['Storefront', 'Events']
-    assert set(catalog['Aluminum Composite Signs']['config']['storefront_categories']) == {'Construction signs', 'Signs'}
-    assert set(catalog['High-Density Board Signs']['config']['storefront_categories']) == {'Construction signs', 'Signs'}
-    assert 'Construction signs' in catalog['Banners']['config']['storefront_categories']
+    assert set(catalog['Aluminum Composite Signs']['config']['storefront_categories']) == {'Construction & Site Signs', 'Storefront', 'Signs'}
+    assert set(catalog['High-Density Board Signs']['config']['storefront_categories']) == {'Construction & Site Signs', 'Signs'}
+    assert 'Construction & Site Signs' in catalog['Banners']['config']['storefront_categories']
     assert 'Events' in catalog['Banners']['config']['storefront_categories']
     assert 'Events' in catalog['Custom T-shirts']['config']['storefront_categories']
     assert catalog['Roll-up banners']['config']['quote_only'] is False
     assert catalog['Storefront Window Tinting']['config']['artwork_upload_disabled'] is True
+    assert set(catalog['Yard signs']['config']['storefront_categories']) == {'Construction & Site Signs', 'Signs'}
+    assert set(catalog['Trailer / Food Truck Wraps']['config']['storefront_categories']) == {'Vehicles', 'Fleet Services'}
+    assert catalog['Acrylic Signs']['config']['quote_only'] is True
+    assert set(catalog['Acrylic Signs']['config']['storefront_categories']) == {'Storefront', 'Signs'}
+    assert catalog['Illuminated Sign Faces']['config']['quote_only'] is True
+    assert set(catalog['Illuminated Sign Faces']['config']['storefront_categories']) == {'Storefront', 'Signs'}
+    assert 'ACM signs' not in catalog
+    assert 'Acrylic sign face replacement' not in catalog
 
 
 def test_new_sign_products_have_prices_sizes_and_material_options(env):
@@ -68,7 +76,8 @@ def test_new_sign_products_have_prices_sizes_and_material_options(env):
 
     construction = catalog['Aluminum Composite Signs']['config']
     assert [x['label'] for x in construction['size_options']] == ['2 × 4 ft', '3 × 6 ft', '4 × 8 ft', '5 × 10 ft']
-    assert '3mm aluminum composite' in construction['description']
+    assert 'aluminum composite (ACM)' in construction['description']
+    assert [o['id'] for o in construction['material_options']] == ['3mm', '6mm']
     hdu_product = catalog['High-Density Board Signs']
     hdu = hdu_product['config']
     assert hdu['quote_only'] is False
