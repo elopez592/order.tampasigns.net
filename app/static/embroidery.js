@@ -200,7 +200,7 @@ const imageFrom = async file => {
 export function createEmbroidery(ctx) {
   const {getDesign,saveDesign,product,esc,toast,onChange}=ctx;
   const idFor=id=>`embroidery-draft-${id}`;
-  let draft=null, image=null, currentId=null;
+  let draft=null, image=null, currentId=null, zoomRefresh=()=>{};
   const $=selector=>document.querySelector(selector);
   const fileCheck=file=>{
     if(!file || !/\.(png|jpe?g)$/i.test(file.name) || !['image/png','image/jpeg'].includes(file.type)) throw new Error('Choose a PNG or JPG logo for the live preview. You may attach a PDF separately to your project.');
@@ -249,15 +249,21 @@ export function createEmbroidery(ctx) {
     if(textWidth){textWidth.max=supportsOtherText?embroideryLimits(p,draft.design.text.placement).width:3.5;textWidth.value=draft.design.text.width; textWidth.disabled=!draft.design.text.enabled;}
     if(textSize)textSize.textContent=`${Number(draft.design.text.width).toFixed(2)} in text width`;
     if(textColor){textColor.value=draft.design.text.thread_color;textColor.disabled=!draft.design.text.enabled;}
-    const canvas=$('#embroidery-canvas');if(canvas)renderEmbroidery(canvas,p,image,draft.design,colorFor(p)).catch(error=>toast(error.message,true));
+    const canvas=$('#embroidery-canvas');if(canvas)renderEmbroidery(canvas,p,image,draft.design,colorFor(p)).then(()=>zoomRefresh()).catch(error=>toast(error.message,true));
     const status=$('#embroidery-file-status');if(status)status.textContent=draft.original?`${draft.original.name} saved for your project`:'Upload a logo to see the stitched preview.';
   }
   async function setup(p) {
-    if(!embroidered(p))return;
+    const preview=$('.product-preview');
+    zoomRefresh=()=>{};
+    if(preview){
+      preview.onpointerenter=null;preview.onpointermove=null;preview.onpointerleave=null;preview.onwheel=null;
+      preview.classList.remove('embroidery-product-preview');
+    }
+    if(!embroidered(p) || !preview)return;
     currentId=p.id;draft=null;image=null;const f=$('#calculator');
-    const preview=$('.product-preview');preview.classList.add('embroidery-product-preview');
-    preview.innerHTML='<canvas id="embroidery-canvas" width="800" height="680" aria-label="Digital embroidery mockup on the selected garment"></canvas>';
-    f.insertAdjacentHTML('beforeend',`<section class="embroidery-controls"><h3>Preview your embroidery</h3><p class="field-hint">Upload a PNG or JPG logo (up to 50 MB). A transparent PNG gives the clearest stitch preview. Scroll over the mockup to zoom the logo size.</p><label class="field mt-sm"><span>Logo for embroidery</span><input id="embroidery-upload" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg"></label><p class="field-hint" id="embroidery-file-status" role="status"></p><label class="field mt-sm"><span>Finished embroidery width</span><input id="embroidery-width" type="range" min="0.5" step="0.05"><strong id="embroidery-position"></strong></label><div class="fields mt-sm"><label class="field"><span>Move horizontally</span><input id="embroidery-offset-x" type="range" step="0.05"></label><label class="field"><span>Move vertically</span><input id="embroidery-offset-y" type="range" step="0.05"></label></div><div class="field mt-sm"><span>Approximate thread colors</span><div id="embroidery-threads" class="embroidery-threads"></div></div><div id="embroidery-text-block" class="embroidery-extra mt-sm" hidden><label class="check"><input id="embroidery-text-enabled" type="checkbox"><span>Add name/title text on the other chest side</span></label><p class="field-hint" id="embroidery-text-side"></p><div class="fields mt-sm"><label class="field"><span>Text line 1</span><input id="embroidery-text-line1" type="text" maxlength="40" placeholder="Name"></label><label class="field"><span>Text line 2 optional</span><input id="embroidery-text-line2" type="text" maxlength="40" placeholder="Title"></label></div><label class="field mt-sm"><span>Text embroidery width</span><input id="embroidery-text-width" type="range" min="0.75" step="0.05"><strong id="embroidery-text-size"></strong></label><label class="embroidery-thread mt-sm"><span>Text thread</span><input id="embroidery-text-color" type="color"></label></div><p class="field-hint mt-sm">Garment style and thread colors are approximate. We will review your original logo and text and send a proof before production.</p></section>`);
+    preview.classList.add('embroidery-product-preview');
+    preview.innerHTML='<canvas id="embroidery-canvas" width="800" height="680" aria-label="Digital embroidery mockup on the selected garment"></canvas><div id="embroidery-zoom-window" class="embroidery-zoom-window" aria-hidden="true"><canvas id="embroidery-zoom-canvas" width="260" height="260" aria-label="Magnified embroidery preview"></canvas><span id="embroidery-zoom-level" class="embroidery-zoom-level">2.3×</span></div>';
+    f.insertAdjacentHTML('beforeend',`<section class="embroidery-controls"><h3>Preview your embroidery</h3><p class="field-hint">Upload a PNG or JPG logo (up to 50 MB). A transparent PNG gives the clearest stitch preview. Hover over the mockup for a magnified window. Scroll while hovering to zoom that window in or out. Use Finished embroidery width below to change the actual embroidery size.</p><label class="field mt-sm"><span>Logo for embroidery</span><input id="embroidery-upload" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg"></label><p class="field-hint" id="embroidery-file-status" role="status"></p><label class="field mt-sm"><span>Finished embroidery width</span><input id="embroidery-width" type="range" min="0.5" step="0.05"><strong id="embroidery-position"></strong></label><div class="fields mt-sm"><label class="field"><span>Move horizontally</span><input id="embroidery-offset-x" type="range" step="0.05"></label><label class="field"><span>Move vertically</span><input id="embroidery-offset-y" type="range" step="0.05"></label></div><div class="field mt-sm"><span>Approximate thread colors</span><div id="embroidery-threads" class="embroidery-threads"></div></div><div id="embroidery-text-block" class="embroidery-extra mt-sm" hidden><label class="check"><input id="embroidery-text-enabled" type="checkbox"><span>Add name/title text on the other chest side</span></label><p class="field-hint" id="embroidery-text-side"></p><div class="fields mt-sm"><label class="field"><span>Text line 1</span><input id="embroidery-text-line1" type="text" maxlength="40" placeholder="Name"></label><label class="field"><span>Text line 2 optional</span><input id="embroidery-text-line2" type="text" maxlength="40" placeholder="Title"></label></div><label class="field mt-sm"><span>Text embroidery width</span><input id="embroidery-text-width" type="range" min="0.75" step="0.05"><strong id="embroidery-text-size"></strong></label><label class="embroidery-thread mt-sm"><span>Text thread</span><input id="embroidery-text-color" type="color"></label></div><p class="field-hint mt-sm">Garment style and thread colors are approximate. We will review your original logo and text and send a proof before production.</p></section>`);
     const [saved]=await Promise.all([getDesign(idFor(p.id)),loadPhoto(p.config.apparel_kind)]);
     if(currentId!==p.id || !$('#embroidery-canvas'))return;
     draft=saved||{id:idFor(p.id),kind:'embroidery-preview',product_id:p.id,original:null,design:defaultDesign(p)};
@@ -266,15 +272,40 @@ export function createEmbroidery(ctx) {
     if(selected)selected.checked=true;
     sync(p);
     onChange();
-    preview.addEventListener('wheel',event=>{
-      if(!draft || !image)return;
-      event.preventDefault();
-      event.stopPropagation();
-      const direction=event.deltaY || -event.wheelDelta || event.detail || 0;
-      const factor=direction<0?1.08:.92;
-      draft.design.width=Number(draft.design.width)*factor;
-      sync(p);saveDesign(draft).catch(error=>toast(error.message,true));onChange();
-    },{passive:false});
+    const sourceCanvas=$('#embroidery-canvas'),zoomWindow=$('#embroidery-zoom-window'),zoomCanvas=$('#embroidery-zoom-canvas'),zoomLabel=$('#embroidery-zoom-level');
+    let zoomLevel=2.25,zoomClientX=null,zoomClientY=null;
+    const drawZoom=()=>{
+      if(!sourceCanvas||!zoomCanvas||!zoomWindow?.classList.contains('active'))return;
+      const sourceRect=sourceCanvas.getBoundingClientRect(),zoomRect=zoomCanvas.getBoundingClientRect();
+      if(!sourceRect.width||!sourceRect.height||!zoomRect.width||!zoomRect.height)return;
+      const localX=zoomClientX===null?sourceRect.width/2:clamp(zoomClientX-sourceRect.left,0,sourceRect.width);
+      const localY=zoomClientY===null?sourceRect.height/2:clamp(zoomClientY-sourceRect.top,0,sourceRect.height);
+      const centerX=localX/sourceRect.width*sourceCanvas.width,centerY=localY/sourceRect.height*sourceCanvas.height;
+      const sourceWidth=Math.min(sourceCanvas.width,zoomRect.width*(sourceCanvas.width/sourceRect.width)/zoomLevel);
+      const sourceHeight=Math.min(sourceCanvas.height,zoomRect.height*(sourceCanvas.height/sourceRect.height)/zoomLevel);
+      const sx=clamp(centerX-sourceWidth/2,0,Math.max(0,sourceCanvas.width-sourceWidth));
+      const sy=clamp(centerY-sourceHeight/2,0,Math.max(0,sourceCanvas.height-sourceHeight));
+      const z=zoomCanvas.getContext('2d');z.clearRect(0,0,zoomCanvas.width,zoomCanvas.height);z.imageSmoothingEnabled=true;z.imageSmoothingQuality='high';
+      z.drawImage(sourceCanvas,sx,sy,sourceWidth,sourceHeight,0,0,zoomCanvas.width,zoomCanvas.height);
+      if(zoomLabel)zoomLabel.textContent=`${zoomLevel.toFixed(1)}×`;
+    };
+    const showZoom=event=>{
+      if(!sourceCanvas||!zoomWindow||!zoomCanvas)return;
+      if(event&&Number.isFinite(event.clientX)){zoomClientX=event.clientX;zoomClientY=event.clientY;}
+      zoomWindow.classList.add('active');zoomWindow.setAttribute('aria-hidden','false');drawZoom();
+    };
+    const hideZoom=()=>{if(zoomWindow){zoomWindow.classList.remove('active');zoomWindow.setAttribute('aria-hidden','true');}};
+    preview.onpointerenter=showZoom;
+    preview.onpointermove=event=>{zoomClientX=event.clientX;zoomClientY=event.clientY;showZoom(event);};
+    preview.onpointerleave=hideZoom;
+    preview.onwheel=event=>{
+      event.preventDefault();event.stopPropagation();
+      zoomClientX=event.clientX;zoomClientY=event.clientY;
+      const step=event.deltaY<0?1.18:1/1.18;
+      zoomLevel=clamp(zoomLevel*step,1.25,6);
+      showZoom(event);
+    };
+    zoomRefresh=drawZoom;
     $('#embroidery-upload').onchange=async event=>{
       try {
         const file=event.target.files[0];if(!file)return;fileCheck(file);
