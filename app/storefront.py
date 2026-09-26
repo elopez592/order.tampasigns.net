@@ -38,8 +38,8 @@ ACRYLIC_THICKNESS_OPTIONS = [
     {'id':'quarter','label':'1/4 inch acrylic','default':False},
 ]
 ACRYLIC_MOUNTING_OPTIONS = [
-    {'id':'standoffs','label':'Standoff hardware','default':True},
-    {'id':'none','label':'No mounting hardware','default':False},
+    {'id':'standoffs','label':'Standoff hardware (+$25)','default':False},
+    {'id':'none','label':'No mounting hardware','default':True},
     {'id':'installation','label':'Installation quote','default':False},
 ]
 
@@ -135,14 +135,25 @@ def upgrade_catalog(database):
                 cats = ['Storefront']
             if name == 'Acrylic Signs':
                 cfg.update(
+                    unit='sqft', sell_per_sqft='20', cost_per_sqft='0',
+                    setup_price='39', setup_cost='0', waste_percent='0',
+                    labor_minutes_per_unit='0', minimum_price='69',
+                    default_width='12', default_height='18',
+                    min_width='1', min_height='1', max_width='120', max_height='120',
                     material_options=ACRYLIC_MATERIAL_OPTIONS,
                     thickness_options=ACRYLIC_THICKNESS_OPTIONS,
                     mounting_options=ACRYLIC_MOUNTING_OPTIONS,
                     lamination_options=[],
+                    size_options=[
+                        {'label':'12 × 18 in','width':'12','height':'18'},
+                        {'label':'18 × 24 in','width':'18','height':'24'},
+                        {'label':'24 × 36 in','width':'24','height':'36'},
+                        {'label':'24 × 48 in','width':'24','height':'48'},
+                    ],
                     supports_installation=True,
                     installation_workflow_id=(signs_workflow['id'] if signs_workflow else row['workflow_id']),
-                    instant=False, quote_only=True, self_approve_artwork=False,
-                    description='Indoor acrylic wall signs in clear, white or frosted acrylic. Choose 1/8-inch or 1/4-inch thickness, then select standoff hardware, no mounting hardware, or request an installation quote.'
+                    instant=True, quote_only=False, self_approve_artwork=False,
+                    description='Indoor acrylic wall signs in clear, white or frosted acrylic. Standard 1/8-inch clear or white acrylic is priced online; 1/4-inch acrylic adds 35%, frosted acrylic adds 15%, and standoff hardware adds $25. Installation is quoted after review.'
                 )
                 cats = ['Storefront', 'Signs']
             if name == 'ACM signs':
@@ -317,16 +328,22 @@ def upgrade_catalog(database):
             ),
             'Acrylic Signs': dict(
                 category='Storefront', storefront_categories=['Storefront','Signs'], unit='sqft',
-                sell_per_sqft='0', cost_per_sqft='0', setup_price='0', setup_cost='0',
-                waste_percent='0', labor_minutes_per_unit='0', minimum_price='0',
-                default_width='24', default_height='12', min_width='1', min_height='1',
-                max_width='120', max_height='120', instant=False, quote_only=True,
+                sell_per_sqft='20', cost_per_sqft='0', setup_price='39', setup_cost='0',
+                waste_percent='0', labor_minutes_per_unit='0', minimum_price='69',
+                default_width='12', default_height='18', min_width='1', min_height='1',
+                max_width='120', max_height='120', instant=True, quote_only=False,
                 self_approve_artwork=False, material_options=ACRYLIC_MATERIAL_OPTIONS,
                 thickness_options=ACRYLIC_THICKNESS_OPTIONS,
                 mounting_options=ACRYLIC_MOUNTING_OPTIONS,
                 supports_installation=True,
+                size_options=[
+                    {'label':'12 × 18 in','width':'12','height':'18'},
+                    {'label':'18 × 24 in','width':'18','height':'24'},
+                    {'label':'24 × 36 in','width':'24','height':'36'},
+                    {'label':'24 × 48 in','width':'24','height':'48'},
+                ],
                 installation_workflow_id=(signs_workflow['id'] if signs_workflow else None),
-                description='Indoor acrylic wall signs in clear, white or frosted acrylic. Choose 1/8-inch or 1/4-inch thickness, then select standoff hardware, no mounting hardware, or request an installation quote.'
+                description='Indoor acrylic wall signs in clear, white or frosted acrylic. Standard 1/8-inch clear or white acrylic is priced online; 1/4-inch acrylic adds 35%, frosted acrylic adds 15%, and standoff hardware adds $25. Installation is quoted after review.'
             ),
             'Aluminum Composite Signs': dict(
                 category='Construction & Site Signs', storefront_categories=['Construction & Site Signs','Storefront','Signs'], unit='sqft',
