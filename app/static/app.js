@@ -1,6 +1,6 @@
 import {createMarketingDashboard} from './marketing-admin.js?v=20260924-1';
 import {createCrmDashboard} from './crm-admin.js?v=20260925-1';
-import {createShop} from './shop.js?v=20260926-ux-cleanup-1';
+import {createShop} from './shop.js?v=20260926-no-sample-kit-1';
 
 const state = {calcSequence:0, user:null, customer:null, csrf:'', catalog:null, jobs:[], job:null, jobTab:'overview', boardMode:'board',
   products:[], workflows:[], users:[], product:null, quote:null, selectedProduct:1, tasks:[], queueFilter:'available',
