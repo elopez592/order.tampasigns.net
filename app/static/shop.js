@@ -26,6 +26,28 @@ export function createShop(ctx) {
   const designs=()=>storage('readonly',s=>s.getAll());
   const imageFor=color=>'/static/shirts/'+String(color||'White').toLowerCase().replaceAll(' ','-')+'.jpg';
   const shirtItem=()=>{const f=$('#calculator'),sizes=Object.fromEntries($$('[data-shirt-size]').map(e=>[e.dataset.shirtSize,Number(e.value)])),p=product(state.selectedProduct);return {product_id:state.selectedProduct,width:12,height:12,quantity:Object.values(sizes).reduce((a,b)=>a+b,0),shirt_color:f.elements.shirt_color.value,size_quantities:sizes,print_locations:$$('input[name="print_locations"]:checked').map(e=>e.value),...(embroidered(p)&&embroidery.selection()?{embroidery_preview:embroidery.selection()}:{})};};
+  const photoMockup={background:null,artwork:null,scale:42,x:50,y:50,opacity:92};
+  const imageFile=async file=>{const url=URL.createObjectURL(file),image=new Image();try{image.src=url;await image.decode();return image;}finally{URL.revokeObjectURL(url);}};
+  function drawPhotoMockup(){
+    const canvas=$('#photo-mockup-canvas');if(!canvas)return;
+    const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#edf1f2';ctx.fillRect(0,0,canvas.width,canvas.height);
+    if(photoMockup.background){
+      const image=photoMockup.background,ratio=Math.min(canvas.width/image.width,canvas.height/image.height),w=image.width*ratio,h=image.height*ratio;
+      ctx.drawImage(image,(canvas.width-w)/2,(canvas.height-h)/2,w,h);
+    }else{ctx.fillStyle='#667780';ctx.font='20px Arial';ctx.textAlign='center';ctx.fillText('Upload your storefront or vehicle photo',canvas.width/2,canvas.height/2);}
+    if(photoMockup.artwork){
+      const art=photoMockup.artwork,w=canvas.width*(photoMockup.scale/100),h=w*(art.height/art.width),x=canvas.width*(photoMockup.x/100)-w/2,y=canvas.height*(photoMockup.y/100)-h/2;
+      ctx.save();ctx.globalAlpha=photoMockup.opacity/100;ctx.drawImage(art,x,y,w,h);ctx.restore();
+    }
+  }
+  function showPhotoMockup(){
+    photoMockup.background=null;photoMockup.artwork=null;photoMockup.scale=42;photoMockup.x=50;photoMockup.y=50;photoMockup.opacity=92;
+    showModal('Preview artwork on your photo',`<div class="notice info">Reference mockup only. This does not set final production scale, crop, color, or placement; your approved proof remains the production reference.</div><div class="fields mt"><label class="field"><span>Storefront / vehicle photo</span><input id="photo-mockup-bg" type="file" accept="image/png,image/jpeg"></label><label class="field"><span>Artwork / logo</span><input id="photo-mockup-art" type="file" accept="image/png,image/jpeg"></label></div><canvas id="photo-mockup-canvas" class="photo-mockup-canvas" width="900" height="600"></canvas><div class="fields mt"><label class="field"><span>Artwork size</span><input id="photo-mockup-scale" type="range" min="8" max="100" value="42"></label><label class="field"><span>Opacity</span><input id="photo-mockup-opacity" type="range" min="20" max="100" value="92"></label></div><div class="fields"><label class="field"><span>Move left / right</span><input id="photo-mockup-x" type="range" min="0" max="100" value="50"></label><label class="field"><span>Move up / down</span><input id="photo-mockup-y" type="range" min="0" max="100" value="50"></label></div><div class="modal-footer"><button type="button" class="btn light" data-action="close">Cancel</button><button type="button" class="btn primary" data-action="photo-mockup-save">Save reference to project</button></div>`,true);
+    $('#photo-mockup-bg').onchange=async e=>{const file=e.target.files[0];if(file){photoMockup.background=await imageFile(file);drawPhotoMockup();}};
+    $('#photo-mockup-art').onchange=async e=>{const file=e.target.files[0];if(file){photoMockup.artwork=await imageFile(file);drawPhotoMockup();}};
+    for(const key of ['scale','opacity','x','y'])$('#photo-mockup-'+key).oninput=e=>{photoMockup[key]=Number(e.target.value);drawPhotoMockup();};
+    drawPhotoMockup();
+  }
   function setupProduct(p){
     const f=$('#calculator');if(!f)return;
     if(p.config.finished_apparel){
@@ -39,7 +61,7 @@ export function createShop(ctx) {
     }
     if(p.config.contour_customizer)f.insertAdjacentHTML('afterend','<p class="field-hint mt">Upload your PNG or JPEG artwork when submitting the project. We will generate an approximate contour outline preview for review; the final cut path may differ slightly after production setup.</p>');
     if(!p.config.artwork_upload_disabled&&!p.config.contour_customizer){
-      if(usesDirectArtwork(p))f.insertAdjacentHTML('afterend',`${p.config.is_wrap?wrapArtworkNote:multiPanelNote}<div class="row wrap mt">${windowUploads.button({product_id:p.id})}<button type="button" class="btn light" data-action="design-quote">Request design help</button></div>`);
+      if(usesDirectArtwork(p))f.insertAdjacentHTML('afterend',`${p.config.is_wrap?wrapArtworkNote:multiPanelNote}<div class="row wrap mt">${windowUploads.button({product_id:p.id})}<button type="button" class="btn light" data-action="photo-mockup">Preview on your photo</button><button type="button" class="btn light" data-action="design-quote">Request design help</button></div>`);
       else if(embroidered(p))f.insertAdjacentHTML('afterend',`<p class="field-hint mt-sm">Have a vector or PDF logo too? ${windowUploads.button({product_id:p.id})} Attach it as an extra reference for our digitizer.</p>`);
       else f.insertAdjacentHTML('afterend',`<div class="row wrap mt"><button type="button" class="btn light" data-action="product-canva">Design in Canva</button>${windowUploads.button({product_id:p.id})}</div><p class="field-hint mt-sm">Already have artwork? Use Upload File. Or design in Canva, export PDF Print or a high-resolution PNG, and attach it here.</p>`);
     }
@@ -371,6 +393,8 @@ export function createShop(ctx) {
   }
   Object.assign(actions,windowUploads.actions,{
     'request-order':add,
+    'photo-mockup':()=>showPhotoMockup(),
+    'photo-mockup-save':async()=>{if(!photoMockup.background||!photoMockup.artwork)throw new Error('Upload both a background photo and artwork first.');const canvas=$('#photo-mockup-canvas');const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw new Error('Unable to save the photo mockup.');const file=new File([blob],`customer-photo-mockup-${Date.now()}.png`,{type:'image/png'});await windowUploads.addGenerated(state.selectedProduct,file);closeModal();toast('Reference mockup saved with this product. Add the product to your Project when ready.');},
     'canva-open':async b=>openCanvaDesign(b.dataset.width,b.dataset.height,b.dataset.label),
     'product-canva':async()=>{await recalculate();const item=state.currentQuoteItems?.[0];if(!item)throw new Error('Complete your options before designing in Canva.');const p=product(item.product_id);if(usesDirectArtwork(p)){toast('For wraps or multiple panes, use Upload Design or Request design help.',true);return;}await openCanvaDesign(item.width,item.height,publicProductName(p));},
     'project-remove':async b=>{project.splice(Number(b.dataset.index),1);persist();await projectView();},
