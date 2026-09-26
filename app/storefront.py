@@ -114,6 +114,25 @@ def upgrade_catalog(database):
                 )
                 cats = ['Storefront', 'Events']
             if name == 'A-Frame inserts':
+                cfg.update(
+                    unit='sqft', sell_per_sqft='0', cost_per_sqft='0', setup_price='0', setup_cost='0',
+                    waste_percent='0', labor_minutes_per_unit='0', minimum_price='0',
+                    default_width='24', default_height='36', min_width='24', min_height='36',
+                    max_width='24', max_height='36', instant=True, quote_only=False,
+                    quantity_only=True,
+                    quantity_only_note='Standard 24 x 36 inch inserts. One insert is $49, two inserts are $80. Add an A-frame stand for $99.',
+                    quantity_presets=[1, 2],
+                    quantity_price_table=[
+                        {'quantity': 1, 'total': '49'},
+                        {'quantity': 2, 'total': '80'},
+                    ],
+                    price_table_base_width='24', price_table_base_height='36', price_table_size_weight='1',
+                    material_options=[
+                        {'id':'inserts','label':'Printed inserts only','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','flat_price_adjustment':'0','flat_cost_adjustment':'0','default':True},
+                        {'id':'with_frame','label':'Add A-frame stand — +$99','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','flat_price_adjustment':'99','flat_cost_adjustment':'0','default':False},
+                    ],
+                    description='Standard 24 x 36 inch printed A-frame inserts. One insert is $49, two inserts are $80, and the A-frame stand is an extra $99.'
+                )
                 cats = ['Storefront', 'Events']
             if name in ('1/4 inch foam board', 'Foam boards'):
                 name = 'Foam boards'
@@ -182,15 +201,22 @@ def upgrade_catalog(database):
             ),
             'A-Frame inserts': dict(
                 category='Storefront', storefront_categories=['Storefront','Events'], unit='sqft',
-                sell_per_sqft='8.166667', cost_per_sqft='0', setup_price='0', setup_cost='0',
-                waste_percent='0', labor_minutes_per_unit='0', minimum_price='49',
+                sell_per_sqft='0', cost_per_sqft='0', setup_price='0', setup_cost='0',
+                waste_percent='0', labor_minutes_per_unit='0', minimum_price='0',
                 default_width='24', default_height='36', min_width='24', min_height='36', max_width='24', max_height='36',
-                instant=True, quantity_only=True, quantity_only_note='Standard 24 × 36 inch insert. Choose replacement inserts or a complete A-frame with printed inserts.',
-                material_options=[
-                    {'id':'inserts','label':'Printed replacement inserts — $49','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','default':True},
-                    {'id':'with_frame','label':'With A-frame — $99','sell_per_sqft_adjustment':'8.333333','cost_per_sqft_adjustment':'0','default':False},
+                instant=True, quantity_only=True,
+                quantity_only_note='Standard 24 x 36 inch inserts. One insert is $49, two inserts are $80. Add an A-frame stand for $99.',
+                quantity_presets=[1, 2],
+                quantity_price_table=[
+                    {'quantity': 1, 'total': '49'},
+                    {'quantity': 2, 'total': '80'},
                 ],
-                description='Standard 24 × 36 inch printed A-frame inserts, with an option to order the complete A-frame for $99.'
+                price_table_base_width='24', price_table_base_height='36', price_table_size_weight='1',
+                material_options=[
+                    {'id':'inserts','label':'Printed inserts only','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','flat_price_adjustment':'0','flat_cost_adjustment':'0','default':True},
+                    {'id':'with_frame','label':'Add A-frame stand — +$99','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','flat_price_adjustment':'99','flat_cost_adjustment':'0','default':False},
+                ],
+                description='Standard 24 x 36 inch printed A-frame inserts. One insert is $49, two inserts are $80, and the A-frame stand is an extra $99.'
             ),
             'Construction signs': dict(
                 category='Construction signs', storefront_categories=['Construction signs'], unit='sqft',

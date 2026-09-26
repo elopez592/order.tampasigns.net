@@ -34,10 +34,25 @@ def test_new_sign_products_have_prices_sizes_and_material_options(env):
     assert quote['subtotal_cents'] == 15000
 
     aframe = catalog['A-Frame inserts']
+    insert_quote = client.post('/api/calculate', json={'items':[{
+        'product_id': aframe['id'], 'width': 24, 'height': 36, 'quantity': 1, 'material': 'inserts'
+    }]}).json()
+    assert insert_quote['subtotal_cents'] == 4900
+
+    two_insert_quote = client.post('/api/calculate', json={'items':[{
+        'product_id': aframe['id'], 'width': 24, 'height': 36, 'quantity': 2, 'material': 'inserts'
+    }]}).json()
+    assert two_insert_quote['subtotal_cents'] == 8000
+
     frame_quote = client.post('/api/calculate', json={'items':[{
         'product_id': aframe['id'], 'width': 24, 'height': 36, 'quantity': 1, 'material': 'with_frame'
     }]}).json()
-    assert frame_quote['subtotal_cents'] == 9900
+    assert frame_quote['subtotal_cents'] == 14800
+
+    two_insert_frame_quote = client.post('/api/calculate', json={'items':[{
+        'product_id': aframe['id'], 'width': 24, 'height': 36, 'quantity': 2, 'material': 'with_frame'
+    }]}).json()
+    assert two_insert_frame_quote['subtotal_cents'] == 17900
 
     foam = catalog['Foam boards']
     assert foam['config']['max_width'] == '48' and foam['config']['max_height'] == '96'

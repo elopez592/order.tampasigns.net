@@ -240,6 +240,8 @@ def validate_config(cfg: dict) -> dict:
             raise HTTPException(422, 'Material option label is required.')
         sell_adjustment = number(option.get('sell_per_sqft_adjustment', 0), 'Material selling adjustment', '0', '1000')
         cost_adjustment = number(option.get('cost_per_sqft_adjustment', 0), 'Material cost adjustment', '0', '1000')
+        flat_sell_adjustment = number(option.get('flat_price_adjustment', 0), 'Material flat price adjustment', '0', '100000')
+        flat_cost_adjustment = number(option.get('flat_cost_adjustment', 0), 'Material flat cost adjustment', '0', '100000')
         is_default = option.get('default', False)
         if not isinstance(is_default, bool):
             raise HTTPException(422, 'Material default flag must be true or false.')
@@ -249,6 +251,8 @@ def validate_config(cfg: dict) -> dict:
             'id': oid, 'label': label,
             'sell_per_sqft_adjustment': str(sell_adjustment),
             'cost_per_sqft_adjustment': str(cost_adjustment),
+            'flat_price_adjustment': str(flat_sell_adjustment),
+            'flat_cost_adjustment': str(flat_cost_adjustment),
             'default': is_default
         })
     if material_defaults > 1:
@@ -507,8 +511,10 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             if material:
                 raise HTTPException(422, 'Material selection is not available for this product.')
             material_option = None
-        material_sell = net_area * D(material_option['sell_per_sqft_adjustment']) * 100 if material_option else D(0)
-        material_cost = material_area * D(material_option['cost_per_sqft_adjustment']) * 100 if material_option else D(0)
+        material_sell = (net_area * D(material_option['sell_per_sqft_adjustment']) * 100
+                         + D(material_option.get('flat_price_adjustment', '0')) * 100) if material_option else D(0)
+        material_cost = (material_area * D(material_option['cost_per_sqft_adjustment']) * 100
+                         + D(material_option.get('flat_cost_adjustment', '0')) * 100) if material_option else D(0)
 
         installation_hours = D(0)
         if installation_requested:
