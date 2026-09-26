@@ -1,4 +1,4 @@
-import {createWindowUploads, usesDirectArtwork} from './window-upload.js?v=20260926-preflight-1';
+import {createWindowUploads, usesDirectArtwork} from './window-upload.js?v=20260926-extras-1';
 import {createEmbroidery, embroidered} from './embroidery.js?v=20260926-embroidery-wheel-1';
 
 // Customer project cart and artwork attachments.
