@@ -104,6 +104,27 @@ def upgrade_catalog(database):
                     description='Storefront window tinting priced by measured glass area. Add each window or panel separately; installation and film selection are confirmed after review.'
                 )
                 cats = ['Storefront']
+            if name == 'Banners':
+                cats = list(dict.fromkeys(cats + ['Construction signs']))
+            if name in ('Construction signs', 'Aluminum Composite Signs'):
+                name = 'Aluminum Composite Signs'
+                cfg.update(
+                    unit='sqft', sell_per_sqft='14', cost_per_sqft='5',
+                    setup_price='0', setup_cost='0', waste_percent='15',
+                    labor_minutes_per_unit='0', minimum_price='65',
+                    default_width='24', default_height='48',
+                    min_width='24', min_height='48', max_width='60', max_height='120',
+                    max_short_axis='60', max_long_axis='120', instant=True,
+                    quote_only=False,
+                    size_options=[
+                        {'label':'2 × 4 ft','width':'24','height':'48'},
+                        {'label':'3 × 6 ft','width':'36','height':'72'},
+                        {'label':'4 × 8 ft','width':'48','height':'96'},
+                        {'label':'5 × 10 ft','width':'60','height':'120'},
+                    ],
+                    description='Durable 3mm aluminum composite signs with common construction and property-sign sizes from 2 × 4 through 5 × 10 feet.'
+                )
+                cats = ['Construction signs', 'Signs']
             if name == 'Roll-up banners':
                 cfg.update(
                     unit='sqft', sell_per_sqft='8.181818', cost_per_sqft='0', minimum_price='150',
@@ -219,8 +240,8 @@ def upgrade_catalog(database):
                 ],
                 description='Standard 24 x 36 inch printed A-frame inserts. One insert is $49, two inserts are $80, and the A-frame stand is an extra $99.'
             ),
-            'Construction signs': dict(
-                category='Construction signs', storefront_categories=['Construction signs'], unit='sqft',
+            'Aluminum Composite Signs': dict(
+                category='Construction signs', storefront_categories=['Construction signs','Signs'], unit='sqft',
                 sell_per_sqft='14', cost_per_sqft='5', setup_price='0', setup_cost='0',
                 waste_percent='15', labor_minutes_per_unit='0', minimum_price='65',
                 default_width='24', default_height='48', min_width='24', min_height='48', max_width='60', max_height='120',
@@ -231,7 +252,16 @@ def upgrade_catalog(database):
                     {'label':'4 × 8 ft','width':'48','height':'96'},
                     {'label':'5 × 10 ft','width':'60','height':'120'},
                 ],
-                description='Construction signs printed on durable 3mm aluminum composite panels. Choose 2 × 4, 3 × 6, 4 × 8 or 5 × 10 feet.'
+                description='Durable 3mm aluminum composite signs with common construction and property-sign sizes from 2 × 4 through 5 × 10 feet.'
+            ),
+            'High-Density Board Signs': dict(
+                category='Construction signs', storefront_categories=['Construction signs','Signs'], unit='sqft',
+                sell_per_sqft='0', cost_per_sqft='0', setup_price='0', setup_cost='0',
+                waste_percent='0', labor_minutes_per_unit='0', minimum_price='0',
+                default_width='24', default_height='48', min_width='1', min_height='1',
+                max_width='120', max_height='120', instant=False, quote_only=True,
+                self_approve_artwork=False,
+                description='Rigid high-density board signs for durable construction, property and site signage. Board type, thickness, finish, mounting and pricing are confirmed after review.'
             ),
         }
         for name, kind in (('Embroidered hoodies', 'embroidered_hoodie'),):
