@@ -20,11 +20,12 @@ test('project center exposes proof, scheduling and commercial customer workflow'
   assert.match(customers, /\/reorder/);
 });
 
-test('discovery, samples and artwork preflight are present', () => {
+test('discovery and artwork preflight are present', () => {
   assert.match(app, /help-choose/);
   assert.match(app, /Build something like this/);
   assert.match(shop, /industryProfiles/);
-  assert.match(shop, /sample-kit-request/);
+  assert.doesNotMatch(shop, /sample-kit/);
+  assert.doesNotMatch(shop, /Material sample kit/);
   assert.match(upload, /preflightArtwork/);
   assert.match(upload, /PPI at ordered size/);
   assert.match(domain, /rush_requested/);
