@@ -47,6 +47,46 @@ def test_embroidery_garments_accept_preview_in_reviewed_quote(env):
         assert line['quote_only'] and line['digitizing_fee_cents'] == 3500
 
 
+def test_embroidery_name_text_adds_seven_dollars_per_populated_line_per_garment(env):
+    app, _, _ = env
+    client = anonymous(app)
+    polo = next(p for p in client.get('/api/catalog').json()['products'] if p['name'] == 'Embroidered polos')
+    base = {
+        'product_id': polo['id'], 'width': 12, 'height': 12, 'quantity': 2,
+        'shirt_color': 'White', 'size_quantities': {'M': 2},
+        'print_locations': ['left_chest'],
+        'embroidery_preview': {
+            'width': 3, 'height': 2, 'offset_x': 0, 'offset_y': 0,
+            'thread_colors': ['#ffffff'],
+        },
+    }
+    plain = client.post('/api/calculate', json={'items': [base]})
+    assert plain.status_code == 200, plain.text
+
+    one_line = dict(base, embroidery_preview={**base['embroidery_preview'], 'text': {
+        'enabled': True, 'line1': 'Maria', 'line2': '',
+        'width': 3, 'thread_color': '#2453a0'}})
+    one = client.post('/api/calculate', json={'items': [one_line]})
+    assert one.status_code == 200, one.text
+
+    two_line = dict(base, embroidery_preview={**base['embroidery_preview'], 'text': {
+        'enabled': True, 'line1': 'Maria', 'line2': 'Manager',
+        'width': 3, 'thread_color': '#2453a0'}})
+    two = client.post('/api/calculate', json={'items': [two_line]})
+    assert two.status_code == 200, two.text
+
+    plain_line = plain.json()['lines'][0]
+    one_line_quote = one.json()['lines'][0]
+    two_line_quote = two.json()['lines'][0]
+    assert one_line_quote['sell_cents'] - plain_line['sell_cents'] == 1400
+    assert two_line_quote['sell_cents'] - plain_line['sell_cents'] == 2800
+    assert one_line_quote['embroidery_text_line_count'] == 1
+    assert one_line_quote['embroidery_text_fee_cents'] == 1400
+    assert two_line_quote['embroidery_text_line_count'] == 2
+    assert two_line_quote['embroidery_text_fee_cents'] == 2800
+    assert '@ $7 each per garment' in two_line_quote['description']
+
+
 def test_embroidery_preview_rejects_size_position_and_palette_outside_placement(env):
     app, _, _ = env
     client = anonymous(app)
