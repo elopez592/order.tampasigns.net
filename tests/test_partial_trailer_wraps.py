@@ -61,7 +61,7 @@ def test_trailer_food_truck_wraps_category_and_coverage(env):
     trailer = products['Trailer / Food Truck Wraps']
     cfg = trailer['config']
 
-    assert set(cfg['storefront_categories']) == {'Trailers / Food Trucks', 'Fleet Services'}
+    assert set(cfg['storefront_categories']) == {'Vehicles', 'Fleet Services'}
     assert [x['id'] for x in cfg['coverage_options']] == [
         'lettering', 'partial', 'sides', 'sides_rear', 'three_quarter', 'full'
     ]
@@ -93,7 +93,8 @@ def test_wrap_coverage_storefront_ui_is_present(env):
     js = client.get('/static/app.js')
     assert js.status_code == 200
     text = js.text
-    assert "Trailers / Food Trucks" in text
+    assert "Construction & Site Signs" in text
+    assert "Trailers / Food Trucks" not in text
     assert "Choose wrap coverage" in text
     assert "coverage-card" in text
     assert "key==='partial vehicle wraps'" in text
