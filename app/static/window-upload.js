@@ -25,6 +25,28 @@ export function supportsArtworkUpload(p) {
   return !!p?.config && !p.config.artwork_upload_disabled && !p.config.contour_customizer;
 }
 
+export async function preflightArtwork(file, target = {}) {
+  validateWindowFiles([file]);
+  if (/\.pdf$/i.test(file.name || '') || file.type === 'application/pdf') {
+    return {level:'review', title:'Shop preflight required', detail:'PDF received. We will verify page size, bleed, fonts, vector content, embedded image resolution and color setup before production.'};
+  }
+  let bitmap;
+  try { bitmap = await createImageBitmap(file); }
+  catch {
+    return {level:'review', title:'Image needs shop review', detail:'We could not read pixel dimensions in this browser. The file is still attached for shop preflight.'};
+  }
+  const width = bitmap.width, height = bitmap.height;
+  bitmap.close?.();
+  const targetWidth = Number(target.width) || 0, targetHeight = Number(target.height) || 0;
+  if (!targetWidth || !targetHeight) {
+    return {level:'info', title:`${width} × ${height} px`, detail:'Pixel dimensions look readable. Final resolution will be checked against the finished print size.'};
+  }
+  const ppi = Math.min(width / targetWidth, height / targetHeight);
+  if (ppi >= 150) return {level:'good', title:`${Math.round(ppi)} PPI at ordered size`, detail:`${width} × ${height} px. Good starting resolution for shop review.`};
+  if (ppi >= 100) return {level:'review', title:`${Math.round(ppi)} PPI at ordered size`, detail:`${width} × ${height} px. Often usable for large-format viewing, but we will inspect it before production.`};
+  return {level:'bad', title:`${Math.round(ppi)} PPI at ordered size`, detail:`${width} × ${height} px. This may look soft or pixelated at ${targetWidth} × ${targetHeight} in. A higher-resolution or vector file is recommended.`};
+}
+
 export function createWindowUploads(ctx) {
   const {esc, showModal, toast, getDesign, saveDesign, product, getProject, persist} = ctx;
   const draftId = id => `window-upload-draft-${Number(id)}`;
@@ -56,16 +78,19 @@ export function createWindowUploads(ctx) {
   function renderFiles() {
     const target = document.querySelector('#window-upload-files');
     if (!target || !active) return;
-    target.innerHTML = active.files.length ? active.files.map((file, index) => `<div class="row between wrap mt-sm"><span style="overflow-wrap:anywhere;min-width:0">${esc(file.name)} <small class="muted">(${(file.size / 1048576).toFixed(2)} MB)</small></span><button type="button" class="btn light small" data-action="window-upload-remove" data-index="${index}" aria-label="Remove ${esc(file.name)}">Remove</button></div>`).join('') : '<p class="muted">No files selected yet.</p>';
+    target.innerHTML = active.files.length ? active.files.map((file, index) => {
+      const check = active.checks?.[index];
+      return `<div class="artwork-file-check mt-sm"><div class="row between wrap"><span style="overflow-wrap:anywhere;min-width:0"><strong>${esc(file.name)}</strong> <small class="muted">(${(file.size / 1048576).toFixed(2)} MB)</small></span><button type="button" class="btn light small" data-action="window-upload-remove" data-index="${index}" aria-label="Remove ${esc(file.name)}">Remove</button></div>${check?`<div class="preflight-result ${esc(check.level)}"><strong>${esc(check.title)}</strong><span>${esc(check.detail)}</span></div>`:''}</div>`;
+    }).join('') : '<p class="muted">No files selected yet.</p>';
   }
 
-  async function save(files) {
+  async function save(files, checks=active?.checks||[]) {
     if (busy) throw new Error('Artwork is still saving. Please try again.');
     busy = true;
     const target = active, input = document.querySelector('#window-upload-input');
     if (input) input.disabled = true;
     try {
-      await saveDesign({id: target.id, kind: 'window-upload', product_id: target.productId, files});
+      await saveDesign({id: target.id, kind: 'window-upload', product_id: target.productId, files, checks});
       if (target.key) {
         const item = getProject().find(line => line.key === target.key);
         if (!item) throw new Error('This item was removed. Please reopen your project.');
@@ -78,7 +103,7 @@ export function createWindowUploads(ctx) {
           }
         });
       }
-      target.files = files;
+      target.files = files; target.checks = checks;
       if (active === target) renderFiles();
       await refresh();
     } finally {
@@ -97,26 +122,34 @@ export function createWindowUploads(ctx) {
     const id = key ? item.window_artwork_id || crypto.randomUUID() : draftId(productId);
     const record = await read(id);
     if (item?.window_artwork_id && !record) throw new Error('Saved artwork is missing. Remove and re-add this item to attach it again.');
-    active = {id, key, productId, files: [...(record?.files || [])]};
+    active = {id, key, productId, files: [...(record?.files || [])], checks: [...(record?.checks || [])]};
     const shared = key ? getProject().filter(line => line.window_artwork_id === id).length : 0;
     const wrap = !!product(productId)?.config?.is_wrap;
     const panes = !wrap && !!product(productId)?.config?.supports_multiple_dimensions;
     const extra = product(productId)?.config?.apparel_kind?.startsWith('embroidered_');
     const intro = extra ? 'Attach a PDF or another export of your logo as an optional digitizing reference. Your preview logo is already saved separately.' : wrap ? 'Upload your finished wrap artwork, logo, concept or reference photos.' : panes ? 'Upload finished artwork, a storefront concept, a sketch or reference photos.' : 'Upload your ready-to-print artwork, logo or reference files for this product.';
     const instructions = extra ? 'Our shop will use the original logo and any extra reference to create the final embroidery proof.' : wrap ? 'Attach one PDF or separate files named for each side or panel, such as Driver Side, Passenger Side and Rear. We will review fit, placement and production layout.' : panes ? 'For multiple panes, attach a multi-page PDF or separate files named for each pane, such as Left Window, Door and Right Window. We will review the layout before production.' : 'Attach one file or separate files for each printed side, such as Front and Back. We will review your artwork before production.';
-    showModal(wrap || panes ? 'Upload Design' : extra ? 'Upload extra file' : 'Upload File', `<div class="stack"><p>${esc(intro)}</p><p class="field-hint">${esc(instructions)}</p>${shared > 1 ? `<div class="notice info">These files are shared by ${shared} ${panes ? 'panes' : 'items'} in this project. Changes here apply to the whole group.</div>` : ''}<label class="field"><span>Choose design files</span><input id="window-upload-input" type="file" accept=".png,.jpg,.jpeg,.pdf" multiple></label><p class="field-hint">PDF, PNG or JPG. Up to 50 MB per file. You can select several files or add more afterward.</p><div id="window-upload-error" class="form-error" role="alert"></div><div id="window-upload-files" aria-live="polite"></div><div class="notice info">Files are saved in this browser${key ? ' and attached to your project' : '. After choosing your options, click Add to project'}. They will be sent to Tampa Signs when you submit your project.${wrap || extra ? '' : ' No Canva account is needed.'}</div><div class="row mt"><button type="button" class="btn primary" data-action="close">Done</button></div></div>`);
+    showModal(wrap || panes ? 'Upload Design' : extra ? 'Upload extra file' : 'Upload File', `<div class="stack"><p>${esc(intro)}</p><p class="field-hint">${esc(instructions)}</p>${shared > 1 ? `<div class="notice info">These files are shared by ${shared} ${panes ? 'panes' : 'items'} in this project. Changes here apply to the whole group.</div>` : ''}<label class="field"><span>Choose design files</span><input id="window-upload-input" type="file" accept=".png,.jpg,.jpeg,.pdf" multiple></label><p class="field-hint">PDF, PNG or JPG. Up to 50 MB per file. Raster images receive an instant resolution check against the ordered size when available. PDFs are always verified by the shop before production.</p><div id="window-upload-error" class="form-error" role="alert"></div><div id="window-upload-files" aria-live="polite"></div><div class="notice info">Files are saved in this browser${key ? ' and attached to your project' : '. After choosing your options, click Add to project'}. They will be sent to Tampa Signs when you submit your project.${wrap || extra ? '' : ' No Canva account is needed.'}</div><div class="row mt"><button type="button" class="btn primary" data-action="close">Done</button></div></div>`);
     renderFiles();
     document.querySelector('#window-upload-input').onchange = async event => {
       const selected = [...event.target.files], error = document.querySelector('#window-upload-error');
       if (error) error.textContent = '';
       try {
         validateWindowFiles(selected);
-        const files = [...active.files];
+        const files = [...active.files], checks = [...(active.checks || [])];
+        const projectItem = key ? getProject().find(line => line.key === key) : null;
+        const targetSize = {
+          width: Number(projectItem?.width) || Number(product(productId)?.config?.default_width) || 0,
+          height: Number(projectItem?.height) || Number(product(productId)?.config?.default_height) || 0,
+        };
         for (const file of selected) {
-          if (!files.some(saved => saved.name === file.name && saved.size === file.size && saved.lastModified === file.lastModified)) files.push(file);
+          if (!files.some(saved => saved.name === file.name && saved.size === file.size && saved.lastModified === file.lastModified)) {
+            files.push(file);
+            checks.push(await preflightArtwork(file, targetSize));
+          }
         }
         if (selected.length) {
-          await save(files);
+          await save(files, checks);
           globalThis.window?.TampaAnalytics?.track('upload_file');
           toast(`${files.length} design file${files.length === 1 ? '' : 's'} saved${key ? ' to your project' : ' for this product'}.`);
         }
@@ -188,7 +221,7 @@ export function createWindowUploads(ctx) {
     'window-upload-remove': async button => {
       const index = Number(button.dataset.index);
       if (!active || !Number.isInteger(index) || index < 0 || index >= active.files.length) return;
-      await save(active.files.filter((_, i) => i !== index));
+      await save(active.files.filter((_, i) => i !== index), (active.checks || []).filter((_, i) => i !== index));
     }
   }};
 }
