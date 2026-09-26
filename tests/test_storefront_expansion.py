@@ -15,7 +15,9 @@ def test_events_tinting_foam_boards_and_rollups_are_public(env):
     assert catalog['Roll-up banners']['config']['storefront_categories'] == ['Storefront', 'Events']
     assert catalog['Foam boards']['config']['storefront_categories'] == ['Storefront', 'Events']
     assert catalog['A-Frame inserts']['config']['storefront_categories'] == ['Storefront', 'Events']
-    assert catalog['Construction signs']['config']['storefront_categories'] == ['Construction signs']
+    assert set(catalog['Aluminum Composite Signs']['config']['storefront_categories']) == {'Construction signs', 'Signs'}
+    assert set(catalog['High-Density Board Signs']['config']['storefront_categories']) == {'Construction signs', 'Signs'}
+    assert 'Construction signs' in catalog['Banners']['config']['storefront_categories']
     assert 'Events' in catalog['Banners']['config']['storefront_categories']
     assert 'Events' in catalog['Custom T-shirts']['config']['storefront_categories']
     assert catalog['Roll-up banners']['config']['quote_only'] is False
@@ -64,9 +66,22 @@ def test_new_sign_products_have_prices_sizes_and_material_options(env):
     }]}).json()['subtotal_cents']
     assert quarter > 0 and half > quarter
 
-    construction = catalog['Construction signs']['config']
+    construction = catalog['Aluminum Composite Signs']['config']
     assert [x['label'] for x in construction['size_options']] == ['2 × 4 ft', '3 × 6 ft', '4 × 8 ft', '5 × 10 ft']
     assert '3mm aluminum composite' in construction['description']
+    hdu_product = catalog['High-Density Board Signs']
+    hdu = hdu_product['config']
+    assert hdu['quote_only'] is False
+    assert [x['label'] for x in hdu['size_options']] == ['2 × 4 ft', '3 × 6 ft', '4 × 8 ft']
+    assert '1/2-inch high-density urethane board' in hdu['description']
+    standard_hdu = client.post('/api/calculate', json={'items':[{
+        'product_id': hdu_product['id'], 'width': 24, 'height': 48, 'quantity': 1
+    }]}).json()
+    assert standard_hdu['subtotal_cents'] == 16000
+    minimum_hdu = client.post('/api/calculate', json={'items':[{
+        'product_id': hdu_product['id'], 'width': 12, 'height': 12, 'quantity': 1
+    }]}).json()
+    assert minimum_hdu['subtotal_cents'] == 8500
 
 
 def test_finished_shirts_validate_options_and_reward_quantity(env):

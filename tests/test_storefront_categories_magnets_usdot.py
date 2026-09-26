@@ -14,7 +14,7 @@ def test_storefront_category_metadata_and_duplicates(env):
     products = catalog_by_name(anonymous(app))
 
     assert products['Window Graphics']['config']['storefront_categories'] == ['Storefront']
-    assert set(products['Banners']['config']['storefront_categories']) == {'Storefront', 'Signs', 'Events'}
+    assert set(products['Banners']['config']['storefront_categories']) == {'Storefront', 'Signs', 'Events', 'Construction signs'}
     assert set(products['ACM signs']['config']['storefront_categories']) == {'Storefront', 'Signs'}
     assert set(products['Magnets']['config']['storefront_categories']) == {'Vehicles', 'Fleet Services', 'Signs'}
     assert products['Transfer stickers']['config']['storefront_categories'] == ['Stickers']
