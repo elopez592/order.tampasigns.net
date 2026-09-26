@@ -3,6 +3,7 @@ import json
 
 from app.db import transaction
 from app.seed import bootstrap
+from app.storefront import upgrade_catalog
 
 
 def catalog_by_name(client):
@@ -56,7 +57,9 @@ def test_acm_thickness_prices_and_existing_catalog_upgrade(env):
         old_cfg['description'] = 'Temporary legacy ACM description.'
         conn.execute('UPDATE products SET config=? WHERE id=?', (json.dumps(old_cfg), product['id']))
     bootstrap(app.state.database)
+    upgrade_catalog(app.state.database)
     bootstrap(app.state.database)
+    upgrade_catalog(app.state.database)
     upgraded = catalog_by_name(client)['Aluminum Composite Signs']['config']
     assert catalog_by_name(client)['Aluminum Composite Signs']['version'] == product['version'] + 1
     assert [o['id'] for o in upgraded['material_options']] == ['3mm', '6mm']
