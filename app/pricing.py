@@ -265,7 +265,7 @@ def validate_config(cfg: dict) -> dict:
     categories = cfg.get('storefront_categories', [])
     if not isinstance(categories, list) or len(categories) > 8:
         raise HTTPException(422, 'Use no more than 8 storefront categories.')
-    allowed_categories = {'Storefront','Vehicles','Fleet Services','Trailers / Food Trucks','Construction signs','Stickers','Signs','Apparel','Events'}
+    allowed_categories = {'Storefront','Vehicles','Fleet Services','Construction & Site Signs','Stickers','Signs','Apparel','Events'}
     checked_categories = []
     for category in categories:
         label = str(category).strip()
