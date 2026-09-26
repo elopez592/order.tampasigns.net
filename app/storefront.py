@@ -305,7 +305,7 @@ def upgrade_catalog(database):
                     {'label':'4 × 8 ft','width':'48','height':'96'},
                     {'label':'5 × 10 ft','width':'60','height':'120'},
                 ],
-                description='Durable 3mm aluminum composite signs with common construction and property-sign sizes from 2 × 4 through 5 × 10 feet.'
+                description='Durable aluminum composite (ACM) signs in 3 mm standard or optional 6 mm thickness, with common construction and property-sign sizes from 2 × 4 through 5 × 10 feet.'
             ),
             'High-Density Board Signs': dict(
                 category='Construction & Site Signs', storefront_categories=['Construction & Site Signs','Signs'], unit='sqft',
