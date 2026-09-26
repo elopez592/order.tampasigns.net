@@ -373,3 +373,17 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .real-work-build{display:inline-block;font-size:11px;font-weight:750;color:var(--accent-dark);margin-top:7px}
 @media(max-width:900px){.project-center-overview,.industry-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.account-dashboard{grid-template-columns:1fr}}
 @media(max-width:650px){.project-center-overview,.industry-grid{grid-template-columns:1fr}.account-hero{align-items:flex-start;flex-direction:column}}
+
+/* Verified reviews, limited QR status and customer photo mockups */
+.product-reviews-section{margin:24px 0}
+.review-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.review-card{display:flex;flex-direction:column;gap:10px}
+.review-card>strong{color:#a56d00;letter-spacing:1px}
+.review-card p{font-size:12px;line-height:1.55}
+.review-card small{margin-top:auto;color:var(--muted)}
+.status-public-card{max-width:620px;margin:50px auto;text-align:center;padding:34px}
+.status-public-stage{display:inline-block;margin-top:22px;padding:12px 18px;border-radius:999px;background:#eaf5ef;font-size:17px;font-weight:800}
+.status-qr-wrap{text-align:center}
+.status-qr-wrap img{display:block;width:min(300px,80vw);height:auto;margin:0 auto 16px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px}
+.photo-mockup-canvas{display:block;width:100%;height:auto;max-height:520px;object-fit:contain;margin-top:16px;border:1px solid var(--line);border-radius:10px;background:#edf1f2}
+@media(max-width:800px){.review-grid{grid-template-columns:1fr}}

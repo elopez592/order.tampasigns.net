@@ -32,6 +32,7 @@ from .checkout import (StripeGateway, availability, eligible_quote, checkout_pol
 from .mailer import public_status as email_status, notify_customer, notify_staff, send_test_email
 from . import canva, marketing, crm
 import uuid
+import qrcode
 
 COOKIE = 'signshop_session'
 STATIC = Path(__file__).with_name('static')
@@ -772,6 +773,116 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                      f'Proof {action_.replace("_", " ")} for {decision_number}',
                      'Customer proof activity',
                      f'The customer {action_.replace("_", " ")} proof version {decision_version}.' + (f' Comment: {comment}' if comment else ''), public_url)
+        return {'ok': True}
+
+    @app.get('/api/reviews/{product_id}')
+    def public_product_reviews(product_id: int):
+        with transaction(database) as conn:
+            rows = conn.execute(
+                'SELECT rating,comment,display_name,product_ids,created_at FROM customer_reviews '
+                'WHERE visible=1 ORDER BY id DESC LIMIT 250'
+            ).fetchall()
+        reviews = []
+        for row in rows:
+            try:
+                product_ids = [int(value) for value in json.loads(row['product_ids'] or '[]')]
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+            if product_id not in product_ids:
+                continue
+            reviews.append({
+                'rating': row['rating'], 'comment': row['comment'],
+                'display_name': row['display_name'], 'created_at': row['created_at'],
+                'verified': True,
+            })
+            if len(reviews) >= 12:
+                break
+        average = round(sum(item['rating'] for item in reviews) / len(reviews), 1) if reviews else None
+        return {'count': len(reviews), 'average': average, 'reviews': reviews}
+
+    @app.get('/api/status')
+    def limited_public_status(token: str):
+        token = text(token, 'Status token', 200, True)
+        with transaction(database) as conn:
+            link = conn.execute(
+                'SELECT job_id FROM public_status_links WHERE token_hash=? AND expires_at>?',
+                (digest(token), time.time()),
+            ).fetchone()
+            if not link:
+                raise HTTPException(404, 'Status link is invalid or expired.')
+            job = get_job(conn, link['job_id'])
+            current = stage(conn, job)
+            labels = {
+                'quote': 'Order received / quote review',
+                'prepress': 'Artwork & proofing',
+                'ready': 'Ready for production',
+                'production': 'In production',
+                'complete': 'Finished',
+                'archived': 'Closed',
+            }
+            return {'number': job['number'], 'stage': current, 'label': labels.get(current, 'Order received')}
+
+    @app.get('/api/status/qr')
+    def limited_status_qr(token: str):
+        token = text(token, 'Status token', 200, True)
+        with transaction(database) as conn:
+            valid = conn.execute(
+                'SELECT 1 FROM public_status_links WHERE token_hash=? AND expires_at>?',
+                (digest(token), time.time()),
+            ).fetchone()
+            if not valid:
+                raise HTTPException(404, 'Status link is invalid or expired.')
+        url = f'{public_url}/status#token={quote(token)}'
+        image = qrcode.make(url)
+        buffer = io.BytesIO()
+        image.save(buffer, format='PNG')
+        return Response(buffer.getvalue(), media_type='image/png',
+                        headers={'Cache-Control': 'private, no-store'})
+
+    @app.post('/api/portal/status-link')
+    def portal_status_link(request: Request):
+        with transaction(database, True) as conn:
+            job = portal_job(conn, request)
+            token = secrets.token_urlsafe(24)
+            expires_at = time.time() + 180 * 86400
+            conn.execute('DELETE FROM public_status_links WHERE expires_at<?', (time.time(),))
+            conn.execute(
+                'INSERT INTO public_status_links(token_hash,job_id,expires_at,created_at) VALUES(?,?,?,?)',
+                (digest(token), job['id'], expires_at, now()),
+            )
+        status_url = f'{public_url}/status#token={quote(token)}'
+        return {'status_url': status_url, 'qr_url': f'/api/status/qr?token={quote(token)}'}
+
+    @app.post('/api/portal/review')
+    def portal_review(request: Request, payload: dict = Body(...)):
+        try:
+            rating = int(payload.get('rating'))
+        except (TypeError, ValueError):
+            raise HTTPException(422, 'Choose a rating from 1 to 5.')
+        if rating < 1 or rating > 5:
+            raise HTTPException(422, 'Choose a rating from 1 to 5.')
+        comment = text(payload.get('comment', ''), 'Review', 1200)
+        with transaction(database, True) as conn:
+            job = portal_job(conn, request)
+            if stage(conn, job) != 'complete':
+                raise HTTPException(409, 'Reviews are available after the project is finished.')
+            quote_snapshot = json.loads(job['quote_snapshot'])
+            product_ids = sorted({
+                int(line['product_id']) for line in quote_snapshot.get('lines', [])
+                if line.get('product_id') is not None
+            })
+            first_name = (job['customer_name'] or 'Verified customer').strip().split()[0][:60]
+            stamp = now()
+            conn.execute(
+                """INSERT INTO customer_reviews(job_id,rating,comment,display_name,product_ids,visible,created_at,updated_at)
+                   VALUES(?,?,?,?,?,1,?,?)
+                   ON CONFLICT(job_id) DO UPDATE SET
+                     rating=excluded.rating,comment=excluded.comment,display_name=excluded.display_name,
+                     product_ids=excluded.product_ids,visible=1,updated_at=excluded.updated_at""",
+                (job['id'], rating, comment, first_name, json.dumps(product_ids), stamp, stamp),
+            )
+            audit(conn, job['id'], 'Customer via private job link', 'customer.reviewed',
+                  {'rating': rating, 'product_ids': product_ids}, True)
         return {'ok': True}
 
     @app.post('/api/portal/appointment-request')
