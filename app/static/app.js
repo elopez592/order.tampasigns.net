@@ -169,7 +169,7 @@ async function route(){
   if(path==='/portal')return loadPortal();
   if(path==='/status')return statusView();
   if(path==='/contact'||path==='/contact.html')return contactView();
-  if(path.startsWith('/products/')){const requested=decodeURIComponent(path.slice('/products/'.length)),slug=requested==='acrylic-sign-face-replacement'?'illuminated-sign-faces':requested;const product=state.catalog?.products?.find(p=>productSlug(p)===slug);if(product){if(requested!==slug)history.replaceState(null,'',productPath(product));state.selectedProduct=product.id;state.selectedCategory=product.config.storefront_categories?.[0]||state.selectedCategory;sessionStorage.setItem('storefront_category',state.selectedCategory);await calculatorView();return shop?.resumeCanva?.();}}
+  if(path.startsWith('/products/')){const requested=decodeURIComponent(path.slice('/products/'.length)),aliases={'acrylic-sign-face-replacement':'illuminated-sign-faces','acm-signs':'aluminum-composite-signs'},slug=aliases[requested]||requested;const product=state.catalog?.products?.find(p=>productSlug(p)===slug);if(product){if(requested!==slug)history.replaceState(null,'',productPath(product));state.selectedProduct=product.id;state.selectedCategory=product.config.storefront_categories?.[0]||state.selectedCategory;sessionStorage.setItem('storefront_category',state.selectedCategory);await calculatorView();return shop?.resumeCanva?.();}}
   if(shop?.handles(path)){await shop.route(path);return shop.resumeCanva?.();}
   await calculatorView();return shop?.resumeCanva?.();
 }
