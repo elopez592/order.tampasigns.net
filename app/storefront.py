@@ -125,6 +125,25 @@ def upgrade_catalog(database):
                     description='Durable 3mm aluminum composite signs with common construction and property-sign sizes from 2 × 4 through 5 × 10 feet.'
                 )
                 cats = ['Construction signs', 'Signs']
+            if name == 'High-Density Board Signs':
+                cfg.update(
+                    unit='sqft', sell_per_sqft='20', cost_per_sqft='6',
+                    setup_price='0', setup_cost='0', waste_percent='15',
+                    labor_minutes_per_unit='0', minimum_price='240',
+                    default_width='36', default_height='48',
+                    min_width='36', min_height='36',
+                    min_short_axis='36', min_long_axis='48',
+                    max_width='96', max_height='96',
+                    max_short_axis='48', max_long_axis='96',
+                    instant=True, quote_only=False, self_approve_artwork=False,
+                    size_options=[
+                        {'label':'3 × 4 ft','width':'36','height':'48'},
+                        {'label':'4 × 6 ft','width':'48','height':'72'},
+                        {'label':'4 × 8 ft','width':'48','height':'96'},
+                    ],
+                    description='Flat printed outdoor sign on standard 1/2-inch high-density urethane board. Standard sizes start at 3 × 4 feet at $20/sq ft. Routed, carved, dimensional, painted or specialty-finished HDU work is quoted separately.'
+                )
+                cats = ['Construction signs', 'Signs']
             if name == 'Roll-up banners':
                 cfg.update(
                     unit='sqft', sell_per_sqft='8.181818', cost_per_sqft='0', minimum_price='150',
