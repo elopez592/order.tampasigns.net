@@ -25,6 +25,10 @@ def test_catalog_uses_broad_categories_and_reassigned_acrylic_photos(env):
     assert "return 'Storefront Window Tinting'" in js
     assert "return 'Acrylic Signs'" in js
     assert "return 'Illuminated Sign Faces'" in js
+    assert "name='acrylic_thickness'" not in js
+    assert "select('acrylic_thickness','Thickness'" in js
+    assert "select('acrylic_mounting','Mounting / service'" in js
+    assert "acrylicMounting==='installation'" in js
     assert '.product-photo-acrylic-signs .product-example-photo' in css
     assert "client-jobs/acm-signs.webp" in css
     assert '.product-photo-illuminated-sign-faces .product-example-photo' in css
