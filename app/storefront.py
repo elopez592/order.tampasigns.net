@@ -18,6 +18,7 @@ CHEST_PLACEMENTS = [
 HAT_PLACEMENTS = [{'id': 'front', 'label': 'Front — up to 4 x 2.25 in', 'width': '4', 'height': '2.25'}]
 PRINTS = {'front': 'Full front', 'back': 'Full back', 'left_chest': 'Left chest'}
 PRINT_PRICES = {'front': 30, 'back': 30, 'left_chest': 25}
+EMBROIDERY_TEXT_LINE_PRICE = 7
 
 
 def upgrade_catalog(database):
@@ -280,12 +281,16 @@ def garment_selection(item, qty, cfg, product_name):
         placement_labels = [options[placements[0]]]
     description = garment + ' / ' + color + ' / ' + ', '.join(f'{s}: {q}' for s, q in sizes.items() if q) + ' / ' + ', '.join(placement_labels)
     preview = None
+    text_line_count = 0
     if kind != 'custom_shirt' and item.get('embroidery_preview') is not None:
         preview = validate_embroidery_preview(item['embroidery_preview'], cfg, placements[0])
         description += f' / embroidery {preview["width"]:g} x {preview["height"]:g} in'
         if preview.get('text'):
-            description += f' / {preview["text"]["placement"].replace("_", " ")} text'
-    return unit_price, int(float(cfg.get('digitizing_fee', 0))), description, preview
+            text_line_count = sum(bool(str(preview['text'].get(key) or '').strip()) for key in ('line1', 'line2'))
+            description += (f' / {preview["text"]["placement"].replace("_", " ")} text'
+                            f' / {text_line_count} personalized line{"s" if text_line_count != 1 else ""}'
+                            f' @ ${EMBROIDERY_TEXT_LINE_PRICE} each per garment')
+    return unit_price, int(float(cfg.get('digitizing_fee', 0))), description, preview, text_line_count
 
 
 def validate_embroidery_preview(value, cfg, placement):
