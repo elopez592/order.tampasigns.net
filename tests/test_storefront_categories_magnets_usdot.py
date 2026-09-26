@@ -41,9 +41,9 @@ def test_acm_thickness_prices_and_existing_catalog_upgrade(env):
         assert response.status_code == 200, response.text
         return response.json()
 
-    assert price(24, 36)['subtotal_cents'] == 8400
-    thicker = price(24, 36, '6mm')
-    assert thicker['subtotal_cents'] == 12000
+    assert price(24, 48)['subtotal_cents'] == 11200
+    thicker = price(24, 48, '6mm')
+    assert thicker['subtotal_cents'] == 16000
     assert thicker['lines'][0]['material_label'] == '6 mm ACM (+$6/sq ft)'
     assert price(48, 96, '3mm')['subtotal_cents'] == 44800
     assert price(48, 96, '6mm')['subtotal_cents'] == 64000
