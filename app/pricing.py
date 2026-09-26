@@ -21,6 +21,18 @@ USDOT_POSITION_DEFAULTS = {
     'phone': {'x': 50, 'y': 33, 'rotation': 0}, 'number': {'x': 50, 'y': 51, 'rotation': 0},
     'licenses': {'x': 50, 'y': 69, 'rotation': 0}, 'location': {'x': 50, 'y': 85, 'rotation': 0},
 }
+ACRYLIC_STANDARD_PRICES = {
+    (D('12'), D('18')): D('69'),
+    (D('18'), D('24')): D('99'),
+    (D('24'), D('36')): D('159'),
+    (D('24'), D('48')): D('199'),
+}
+ACRYLIC_PRICE_CURVE = [
+    (D('1.5'), D('69')),
+    (D('3'), D('99')),
+    (D('6'), D('159')),
+    (D('8'), D('199')),
+]
 
 
 def usdot_design(value) -> dict:
@@ -412,6 +424,21 @@ def table_total(quantity: int, table: list) -> Decimal:
     return D(quantity) * rows[-1][1] / D(rows[-1][0])
 
 
+def acrylic_base_price(width: Decimal, height: Decimal) -> Decimal:
+    size_key = tuple(sorted((width, height)))
+    if size_key in ACRYLIC_STANDARD_PRICES:
+        return ACRYLIC_STANDARD_PRICES[size_key]
+    area = width * height / 144
+    if area <= ACRYLIC_PRICE_CURVE[0][0]:
+        return ACRYLIC_PRICE_CURVE[0][1]
+    for (area_a, price_a), (area_b, price_b) in zip(ACRYLIC_PRICE_CURVE, ACRYLIC_PRICE_CURVE[1:]):
+        if area <= area_b:
+            share = (area - area_a) / (area_b - area_a)
+            return price_a + (price_b - price_a) * share
+    last_area, last_price = ACRYLIC_PRICE_CURVE[-1]
+    return last_price + (area - last_area) * D('20')
+
+
 def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
     if not isinstance(items, list) or not 1 <= len(items) <= 30:
         raise HTTPException(422, 'A quote needs 1 to 30 product lines.')
@@ -549,6 +576,30 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
         material_cost = (material_area * D(material_option['cost_per_sqft_adjustment']) * 100
                          + D(material_option.get('flat_cost_adjustment', '0')) * 100) if material_option else D(0)
 
+        acrylic_thickness = ''
+        acrylic_thickness_label = ''
+        acrylic_mounting = ''
+        acrylic_mounting_label = ''
+        if row['name'] == 'Acrylic Signs':
+            thickness_options = cfg.get('thickness_options', [])
+            acrylic_thickness = str(item.get('acrylic_thickness', '') or '').strip().lower()
+            if thickness_options:
+                if not acrylic_thickness:
+                    acrylic_thickness = next((o['id'] for o in thickness_options if o.get('default')), thickness_options[0]['id'])
+                thickness_option = next((o for o in thickness_options if o['id'] == acrylic_thickness), None)
+                if not thickness_option:
+                    raise HTTPException(422, 'Choose a valid acrylic thickness.')
+                acrylic_thickness_label = thickness_option['label']
+            mounting_options = cfg.get('mounting_options', [])
+            acrylic_mounting = str(item.get('acrylic_mounting', '') or '').strip().lower()
+            if mounting_options:
+                if not acrylic_mounting:
+                    acrylic_mounting = next((o['id'] for o in mounting_options if o.get('default')), mounting_options[0]['id'])
+                mounting_option = next((o for o in mounting_options if o['id'] == acrylic_mounting), None)
+                if not mounting_option:
+                    raise HTTPException(422, 'Choose a valid acrylic mounting option.')
+                acrylic_mounting_label = mounting_option['label']
+
         installation_hours = D(0)
         if installation_requested:
             installation_hours = net_area * D(cfg.get('installation_minutes_per_sqft', '0')) / 60
@@ -577,6 +628,16 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
         calculated += usdot_logo_fee
         floor = 0 if cfg.get('quantity_price_table') else int((D(cost) / (1 - margin)).quantize(D('1'), rounding=ROUND_CEILING))
         sell = max(cent_round(calculated), cents(cfg['minimum_price']), floor)
+        if row['name'] == 'Acrylic Signs':
+            unit_price = acrylic_base_price(width, height)
+            if acrylic_thickness == 'quarter':
+                unit_price *= D('1.35')
+            if material == 'frosted':
+                unit_price *= D('1.15')
+            if acrylic_mounting == 'standoffs':
+                unit_price += D('25')
+            sell = max(cent_round(unit_price * D(qty) * 100), cents(cfg['minimum_price']))
+            retail_sell = sell
         if include_roof_wrap:
             sell = cent_round(D(sell) * D('1.20'))
             cost = cent_round(D(cost) * D('1.20'))
@@ -612,7 +673,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             'embroidery_text_line_count': garment_text_lines,
             'embroidery_text_fee_cents': embroidery_text_fee,
             'usdot_logo_fee_cents': usdot_logo_fee,
-            'quote_only': bool(cfg.get('quote_only')) or design_requested,
+            'quote_only': bool(cfg.get('quote_only')) or design_requested or installation_requested,
             'category': row['category'], 'description': str(item.get('description', ''))[:200],
             'width': str(width), 'height': str(height), 'quantity': qty, 'unit': cfg['unit'],
             'net_sqft': str(net_area.quantize(D('0.0001'))),
@@ -631,6 +692,10 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             'material': material_option['id'] if material_option else '',
             'material_label': material_option['label'] if material_option else '',
             'material_cents': cent_round(material_sell),
+            'acrylic_thickness': acrylic_thickness,
+            'acrylic_thickness_label': acrylic_thickness_label,
+            'acrylic_mounting': acrylic_mounting,
+            'acrylic_mounting_label': acrylic_mounting_label,
             'coverage_option': coverage_option['id'] if coverage_option else '',
             'coverage_label': coverage_option['label'] if coverage_option else '',
             'include_roof_wrap': include_roof_wrap,
