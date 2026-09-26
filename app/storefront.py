@@ -28,6 +28,10 @@ ACM_LAMINATION_OPTIONS = [
     {'id':'gloss','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
     {'id':'premium_matte','label':'Matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
 ]
+ACRYLIC_MATERIAL_OPTIONS = [
+    {'id':'clear','label':'Clear acrylic','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','default':True},
+    {'id':'white','label':'White acrylic','sell_per_sqft_adjustment':'0','cost_per_sqft_adjustment':'0','default':False},
+]
 
 
 def upgrade_catalog(database):
@@ -118,6 +122,14 @@ def upgrade_catalog(database):
                     description='Storefront window tinting priced by measured glass area. Add each window or panel separately; installation and film selection are confirmed after review.'
                 )
                 cats = ['Storefront']
+            if name == 'Acrylic Signs':
+                cfg.update(
+                    material_options=ACRYLIC_MATERIAL_OPTIONS,
+                    lamination_options=[],
+                    instant=False, quote_only=True, self_approve_artwork=False,
+                    description='Indoor acrylic wall signs in clear or white acrylic with standoff mounting. Enter the finished size and upload artwork; acrylic thickness, print method, hardware, wall conditions and installation are confirmed in the custom quote.'
+                )
+                cats = ['Storefront', 'Signs']
             if name == 'ACM signs':
                 active, public = 0, 0
             if name == 'Banners':
@@ -294,8 +306,8 @@ def upgrade_catalog(database):
                 waste_percent='0', labor_minutes_per_unit='0', minimum_price='0',
                 default_width='24', default_height='12', min_width='1', min_height='1',
                 max_width='120', max_height='120', instant=False, quote_only=True,
-                self_approve_artwork=False,
-                description='Indoor acrylic wall signs with standoff mounting. Enter the finished size and upload artwork; acrylic thickness, print method, standoff hardware, wall conditions and installation are confirmed by quote.'
+                self_approve_artwork=False, material_options=ACRYLIC_MATERIAL_OPTIONS,
+                description='Indoor acrylic wall signs in clear or white acrylic with standoff mounting. Enter the finished size and upload artwork; acrylic thickness, print method, hardware, wall conditions and installation are confirmed in the custom quote.'
             ),
             'Aluminum Composite Signs': dict(
                 category='Construction & Site Signs', storefront_categories=['Construction & Site Signs','Storefront','Signs'], unit='sqft',
