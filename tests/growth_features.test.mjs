@@ -35,3 +35,16 @@ test('reorders preserve review safety and current-price recalculation', () => {
   assert.match(customers, /Pricing is recalculated at current rates/);
   assert.match(customers, /new proof is still required/);
 });
+
+
+test('customer journey cleanup prioritizes next actions and progressive disclosure', () => {
+  assert.match(app, /NEXT STEP/);
+  assert.match(app, /More project details/);
+  assert.match(app, /portal-primary-panel/);
+  assert.match(shop, /business-profile-details/);
+  assert.match(shop, /finder-step/);
+  assert.match(shop, /Your best starting point/);
+  assert.match(shop, /Drag the artwork to position it/);
+  assert.match(shop, /white corner handle to resize/);
+  assert.match(shop, /Save mockup to Project/);
+});
