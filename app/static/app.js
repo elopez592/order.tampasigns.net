@@ -120,7 +120,7 @@ async function contactView(){
   document.title='Contact Tampa Signs and Stickers | Order Support';
   const description='Contact Tampa Signs and Stickers for order help, custom signs, wraps, stickers, apparel, pickup and project questions in Tampa.';
   let meta=document.querySelector('meta[name="description"]');if(!meta){meta=document.createElement('meta');meta.name='description';document.head.appendChild(meta);}meta.content=description;
-  let canonical=document.querySelector('link[rel="canonical"]');if(!canonical){canonical=document.createElement('link');canonical.rel='canonical';document.head.appendChild(canonical);}canonical.href=location.origin+'/contact';
+  let canonical=document.querySelector('link[rel="canonical"]');if(!canonical){canonical=document.createElement('link');canonical.rel='canonical';document.head.appendChild(canonical);}canonical.href='https://www.tampasigns.net/contact.html';
   app.innerHTML=publicHeader()+`<main class="public-page contact-order-page">
     <section class="contact-order-hero">
       <div class="contact-order-copy"><div class="eyebrow">CONTACT TAMPA SIGNS AND STICKERS</div><h1>Need help with an order or custom project?</h1><p>Call, email, or visit the shop. We can help with product selection, artwork questions, measurements, installation, pickup, or a project that does not fit the standard online options.</p><div class="contact-order-actions"><a class="btn primary" href="tel:${esc(tel)}">Call ${esc(phone)}</a><a class="btn light" href="mailto:${esc(email)}">Email the shop</a><a class="btn light" href="/products">Browse products</a></div></div>
