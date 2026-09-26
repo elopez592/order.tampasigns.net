@@ -28,16 +28,26 @@ def test_events_tinting_foam_boards_and_rollups_are_public(env):
     assert acrylic['config']['quote_only'] is True
     assert set(acrylic['config']['storefront_categories']) == {'Storefront', 'Signs'}
     assert [(o['id'], o['label']) for o in acrylic['config']['material_options']] == [
-        ('clear', 'Clear acrylic'), ('white', 'White acrylic')
+        ('clear', 'Clear acrylic'), ('white', 'White acrylic'), ('frosted', 'Frosted acrylic')
     ]
-    assert all('frosted' not in o['label'].lower() for o in acrylic['config']['material_options'])
-    white_acrylic = anonymous(app).post('/api/calculate', json={'items':[{
-        'product_id': acrylic['id'], 'width': 24, 'height': 12, 'quantity': 1, 'material': 'white'
+    assert [(o['id'], o['label']) for o in acrylic['config']['thickness_options']] == [
+        ('eighth', '1/8 inch acrylic'), ('quarter', '1/4 inch acrylic')
+    ]
+    assert [(o['id'], o['label']) for o in acrylic['config']['mounting_options']] == [
+        ('standoffs', 'Standoff hardware'), ('none', 'No mounting hardware'), ('installation', 'Installation quote')
+    ]
+    assert acrylic['config']['supports_installation'] is True
+    installed_acrylic = anonymous(app).post('/api/calculate', json={'items':[{
+        'product_id': acrylic['id'], 'width': 24, 'height': 12, 'quantity': 1,
+        'material': 'frosted', 'installation_requested': True,
+        'description': 'Acrylic: Frosted acrylic | Thickness: 1/4 inch acrylic | Mounting: Installation quote'
     }]})
-    assert white_acrylic.status_code == 200, white_acrylic.text
-    assert white_acrylic.json()['lines'][0]['material'] == 'white'
-    assert white_acrylic.json()['lines'][0]['material_label'] == 'White acrylic'
-    assert white_acrylic.json()['lines'][0]['quote_only'] is True
+    assert installed_acrylic.status_code == 200, installed_acrylic.text
+    line = installed_acrylic.json()['lines'][0]
+    assert line['material'] == 'frosted'
+    assert line['material_label'] == 'Frosted acrylic'
+    assert line['installation_requested'] is True
+    assert line['quote_only'] is True
     assert catalog['Illuminated Sign Faces']['config']['quote_only'] is True
     assert set(catalog['Illuminated Sign Faces']['config']['storefront_categories']) == {'Storefront', 'Signs'}
     assert 'ACM signs' not in catalog
