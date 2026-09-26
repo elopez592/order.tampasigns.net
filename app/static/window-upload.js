@@ -204,6 +204,22 @@ export function createWindowUploads(ctx) {
     return files;
   }
 
+  async function addGenerated(productId, file) {
+    if (!supported(productId)) throw new Error('This product does not accept artwork attachments.');
+    validateWindowFiles([file]);
+    const id = draftId(productId);
+    const record = await read(id) || {id, kind:'window-upload', product_id:Number(productId), files:[], checks:[]};
+    const files = [...(record.files || []), file];
+    const checks = [...(record.checks || []), {
+      level:'info',
+      title:'Customer photo mockup reference',
+      detail:'Reference visualization only. Final dimensions, placement, crop and production setup require shop proof approval.'
+    }];
+    await saveDesign({...record, files, checks});
+    await refresh();
+    return id;
+  }
+
   async function checkoutHint(items) {
     const attached = items.filter(item => item.window_artwork_id && supported(item.product_id));
     const ids = new Set(attached.map(item => item.window_artwork_id));
@@ -216,7 +232,7 @@ export function createWindowUploads(ctx) {
     }
   }
 
-  return {button, refresh, prepareItems, clearDrafts, filesFor, checkoutHint, actions: {
+  return {button, refresh, prepareItems, clearDrafts, filesFor, checkoutHint, addGenerated, actions: {
     'window-upload': open,
     'window-upload-remove': async button => {
       const index = Number(button.dataset.index);
