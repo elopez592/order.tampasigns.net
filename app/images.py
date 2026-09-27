@@ -52,6 +52,33 @@ def save_asset(conn, directory: Path, job_id: int, raw: bytes, name: str, mime: 
     return asset_id
 
 
+def usdot_proof_pdf(raw: bytes, job_number: str, item_number: int, line: dict) -> bytes:
+    """Make a dimensioned shop draft from the exact generated USDOT artwork."""
+    page = Image.new('RGB', (1650, 1275), 'white')  # 11 x 8.5 in at 150 dpi
+    draw = ImageDraw.Draw(page)
+    title = ImageFont.load_default(size=39)
+    normal = ImageFont.load_default(size=25)
+    small = ImageFont.load_default(size=19)
+    ink, muted, teal = '#112225', '#51676a', '#007f83'
+    draw.text((75, 65), f'{job_number}  /  USDOT DESIGN DRAFT', font=title, fill=ink)
+    draw.text((75, 124), f'Item {item_number}  |  {line["width"]} x {line["height"]} in  |  Qty {line["quantity"]}', font=normal, fill=teal)
+    draw.rectangle((75, 190, 1575, 1090), outline='#b8c9ca', width=3)
+    with Image.open(io.BytesIO(raw)) as source:
+        artwork = ImageOps.contain(source.convert('RGBA'), (1450, 850), method=Image.Resampling.LANCZOS)
+    color = line.get('usdot_design', {}).get('text_color', '#111111').lstrip('#')
+    rgb = tuple(int(color[i:i + 2], 16) for i in (0, 2, 4))
+    backdrop = '#546166' if sum(rgb) / 3 > 170 else 'white'
+    preview = Image.new('RGBA', artwork.size, backdrop)
+    preview.alpha_composite(artwork)
+    page.paste(preview.convert('RGB'), (825 - artwork.width // 2, 640 - artwork.height // 2))
+    draw.text((75, 1125), 'Check spelling, USDOT number, positioning, color and finished size.', font=normal, fill=ink)
+    draw.text((75, 1170), 'Preview backdrop is for contrast only; it is not printed.', font=small, fill=muted)
+    draw.text((75, 1205), 'Shop review required. This draft is not an approved proof or a production file.', font=small, fill=muted)
+    output = io.BytesIO()
+    page.save(output, format='PDF', resolution=150.0)
+    return output.getvalue()
+
+
 def panel_sheet(conn, directory: Path, job, mappings: dict, fit='contain') -> bytes:
     if fit not in ('contain', 'cover'):
         raise HTTPException(422, 'Fit must be contain or cover.')

@@ -405,14 +405,14 @@ export function createShop(ctx) {
     return new File([blob],`item-${index+1}-usdot-print-ready-${width}x${height}in.png`,{type:'image/png'});
   }
 
-  async function designFiles(uploadedFiles=[]){
-    const files=[...await windowUploads.filesFor(project),...await embroidery.filesFor(project)],imageUploads=uploadedFiles.filter(file=>['image/png','image/jpeg'].includes(file.type));let contourUploadIndex=0;
-    for(let i=0;i<project.length;i++){
-      if(project[i].usdot_design)files.push(await usdotPrintFile(project[i],i));
-      if(product(project[i].product_id)?.config.contour_customizer){const source=imageUploads[Math.min(contourUploadIndex,imageUploads.length-1)];contourUploadIndex+=1;if(source)files.push(...await contourPreviewFromFile(source,project[i],i));}
-      if(project[i].contour_design_id){const contour=await getDesign(project[i].contour_design_id);if(contour?.image)files.push(...await contourFiles(contour,i));}
-      if(!project[i].design_id)continue;
-      const d=await getDesign(project[i].design_id);if(!d)throw new Error('A saved design is missing. Reattach artwork before submitting.');
+  async function designFiles(uploadedFiles=[],items=project){
+    const files=[...await windowUploads.filesFor(items),...await embroidery.filesFor(items)],imageUploads=uploadedFiles.filter(file=>['image/png','image/jpeg'].includes(file.type));let contourUploadIndex=0;
+    for(let i=0;i<items.length;i++){
+      if(items[i].usdot_design)files.push(await usdotPrintFile(items[i],i));
+      if(product(items[i].product_id)?.config.contour_customizer){const source=imageUploads[Math.min(contourUploadIndex,imageUploads.length-1)];contourUploadIndex+=1;if(source)files.push(...await contourPreviewFromFile(source,items[i],i));}
+      if(items[i].contour_design_id){const contour=await getDesign(items[i].contour_design_id);if(contour?.image)files.push(...await contourFiles(contour,i));}
+      if(!items[i].design_id)continue;
+      const d=await getDesign(items[i].design_id);if(!d)throw new Error('A saved design is missing. Reattach artwork before submitting.');
       if(d.studio_version===2){
         for(const [sideName,side] of Object.entries(d.sides)){
           if(side.original){const extension=(side.original.name?.split('.').pop()||side.original.type?.split('/')[1]||'png').replace('jpeg','jpg');files.push(new File([side.original],`item-${i+1}-${sideName}-original.${extension}`,{type:side.original.type||'application/octet-stream'}));}

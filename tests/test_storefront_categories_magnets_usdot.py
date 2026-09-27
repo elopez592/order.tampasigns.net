@@ -1,4 +1,4 @@
-from .conftest import anonymous
+from .conftest import anonymous, image_bytes, portal
 import json
 
 from app.db import transaction
@@ -311,3 +311,38 @@ def test_usdot_custom_measurements_and_font_size_ui(env):
     assert 'strokeRect' not in shop[shop.index('async function usdotPrintFile'):shop.index('async function designFiles')]
     assert 'const location=(form.elements.location_line?.value||\'\')' in js
     assert "['phone','licenses','location'].includes(key)&&!value" in js
+
+
+def test_usdot_submission_attaches_dimensioned_pdf_draft_to_staff_job(env):
+    app, admin, _ = env
+    client = anonymous(app)
+    usdot = catalog_by_name(client)['USDOT Decals']
+    items = [{'product_id': usdot['id'], 'width': 24, 'height': 12, 'quantity': 2,
+              'lamination': 'none', 'usdot_design': {'company': 'Bay Area Logistics', 'number': '1234567'}}]
+    quote = client.post('/api/calculate', json={'items': items}).json()
+    order = client.post('/api/requests', json={'title': 'USDOT identification',
+        'customer_name': 'Test Customer', 'customer_email': 'customer@example.test',
+        'items': items, 'fingerprint': quote['fingerprint']})
+    assert order.status_code == 200, order.text
+    job_id = order.json()['job_id']
+    customer = portal(app, admin, job_id)
+    uploaded = customer.post(f'/api/jobs/{job_id}/artwork', files={'file':
+        ('item-1-usdot-print-ready-24x12in.png', image_bytes(), 'image/png')})
+    assert uploaded.status_code == 200, uploaded.text
+    draft_id = uploaded.json()['generated_proof_asset_id']
+    assert draft_id
+    job = admin.get(f'/api/staff/jobs/{job_id}').json()
+    draft = next(a for a in job['assets'] if a['id'] == draft_id)
+    assert draft['filename'] == f'{job["number"]}-item-1-usdot-proof-DRAFT.pdf'
+    assert draft['mime'] == 'application/pdf' and draft['kind'] == 'layout'
+    assert not job['proofs']  # The shop decides when to publish a customer proof.
+    assert admin.get(f'/api/assets/{draft_id}').content.startswith(b'%PDF-')
+    assert customer.get(f'/api/assets/{draft_id}').status_code == 404
+
+    unrelated = customer.post(f'/api/jobs/{job_id}/artwork', files={'file':
+        ('customer-logo.png', image_bytes(), 'image/png')})
+    assert unrelated.status_code == 200
+    assert unrelated.json()['generated_proof_asset_id'] is None
+    wrong_size = customer.post(f'/api/jobs/{job_id}/artwork', files={'file':
+        ('item-1-usdot-print-ready-18x12in.png', image_bytes(), 'image/png')})
+    assert wrong_size.status_code == 422

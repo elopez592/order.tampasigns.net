@@ -26,7 +26,7 @@ from .pricing import calculate, public_quote, validate_config, number, cents, ce
 from .domain import (get_job, totals, latest_proof, production_started, gate_reason,
                      serialize_job, create_job, validate_steps, stage, APPROVAL_STATEMENT)
 from .seed import bootstrap
-from .images import sanitize, save_asset, panel_sheet, MAX_UPLOAD
+from .images import sanitize, save_asset, panel_sheet, usdot_proof_pdf, MAX_UPLOAD
 from .checkout import (StripeGateway, availability, eligible_quote, checkout_policy,
                        start_checkout, start_custom_checkout, process_event, order_for_job)
 from .mailer import public_status as email_status, notify_customer, notify_staff, send_test_email
@@ -1324,14 +1324,30 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             job, who = access_job(conn, request, job_id)
             if job['archived']:
                 raise HTTPException(409, 'Job is archived.')
+            draft = None
+            generated = re.fullmatch(r'item-(\d+)-usdot-print-ready-([\d.]+)x([\d.]+)in\.png', name)
+            if generated and mime == 'image/png':
+                lines = json.loads(job['quote_snapshot'])['lines']
+                index = int(generated[1]) - 1
+                if index < 0 or index >= len(lines) or not lines[index].get('usdot_design'):
+                    raise HTTPException(422, 'This generated USDOT artwork does not match a job item.')
+                line = lines[index]
+                if number(generated[2]) != number(line['width']) or number(generated[3]) != number(line['height']):
+                    raise HTTPException(422, 'The generated USDOT artwork size does not match the order.')
+                draft = usdot_proof_pdf(raw, job['number'], index + 1, line)
             aid = save_asset(conn, uploads, job_id, raw, name, mime, suffix, 'artwork', who)
+            draft_id = None
+            if draft is not None:
+                draft_name = f'{job["number"]}-item-{index + 1}-usdot-proof-DRAFT.pdf'
+                draft_id = save_asset(conn, uploads, job_id, draft, draft_name, 'application/pdf', '.pdf', 'layout', who)
+                audit(conn, job_id, who, 'usdot.proof_draft_generated', {'filename': draft_name, 'asset_id': draft_id}, True)
             audit(conn, job_id, who, 'artwork.uploaded', {'filename': name}, True)
             artwork_number = job['number']
             customer_upload = not bool(request.state.user)
         if customer_upload:
             notify_staff(database, job_id, f'artwork_uploaded_{aid}', f'Artwork uploaded for {artwork_number}',
                          'Customer uploaded artwork', f'New customer artwork is attached: {name}', public_url)
-        return {'ok': True, 'asset_id': aid}
+        return {'ok': True, 'asset_id': aid, 'generated_proof_asset_id': draft_id}
 
     @app.post('/api/portal/artwork/{asset_id}/approve')
     def approve_uploaded_artwork(asset_id: int, request: Request, payload: dict = Body(...)):
