@@ -122,11 +122,8 @@ def checkout_policy(shop, fulfillment):
 
 
 def eligible_quote(conn, items, wholesale_client_id=None):
-    if not isinstance(items, list) or not 1 <= len(items) <= 20:
-        raise HTTPException(422, 'Checkout supports 1 to 20 size lines for one product.')
-    product_ids = {str(item.get('product_id')) for item in items if isinstance(item, dict)}
-    if len(product_ids) != 1:
-        raise HTTPException(422, 'Checkout supports multiple sizes of one product at a time. Request a quote for mixed products.')
+    if not isinstance(items, list) or not 1 <= len(items) <= 30:
+        raise HTTPException(422, 'Checkout supports 1 to 30 product lines.')
     quote = calculate(conn, items, wholesale_client_id=wholesale_client_id)
     if quote['subtotal_cents'] > 99_999_999:
         raise HTTPException(422, 'This amount requires a custom quote rather than online checkout.')
@@ -213,7 +210,10 @@ def start_checkout(database, job_id, gateway, public_url):
     if current['request_body']:
         body = json.loads(current['request_body'])
     else:
-        line = quote['lines'][0]
+        product_names = list(dict.fromkeys(line['name'] for line in quote['lines']))
+        product_name = product_names[0] if len(product_names) == 1 else f'Tampa Signs project ({len(product_names)} products)'
+        description = (f"{len(quote['lines'])} product line(s), "
+                       f"{sum(int(x['quantity']) for x in quote['lines'])} total item(s). {job_data['number']}")
         body = {'mode':'payment', 'integration_identifier':'tampa_orders_qxmdrjap',
                 'success_url': public_url + '/portal?payment=received',
                 'cancel_url': public_url + '/portal?payment=cancelled',
@@ -223,8 +223,8 @@ def start_checkout(database, job_id, gateway, public_url):
                 'payment_intent_data[metadata][job_id]': str(job_id),
                 'line_items[0][price_data][currency]':'usd',
                 'line_items[0][price_data][unit_amount]':str(current['merchandise_cents']),
-                'line_items[0][price_data][product_data][name]':line['name'],
-                'line_items[0][price_data][product_data][description]':(f"{len(quote['lines'])} size line(s), {sum(int(x['quantity']) for x in quote['lines'])} total item(s). {job_data['number']}"),
+                'line_items[0][price_data][product_data][name]':product_name,
+                'line_items[0][price_data][product_data][description]':description,
                 'line_items[0][price_data][tax_behavior]':'exclusive',
                 'line_items[0][quantity]':'1', 'billing_address_collection':'required',
                 'expires_at':str(int(current['expires_at'])),
