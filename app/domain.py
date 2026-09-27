@@ -137,12 +137,42 @@ def create_job(conn, payload, source='staff', actor='staff'):
     job_id = cursor.lastrowid
     number_ = f'JOB-{job_id:04d}'
     conn.execute('UPDATE jobs SET number=? WHERE id=?', (number_, job_id))
+    # Mixed carts keep the first product's workflow and add the other products'
+    # production steps before its delivery gate. Each product retains its own
+    # prerequisite graph, and delivery waits for every branch to finish.
+    extra_workflows = {}
+    if source == 'checkout':
+        for line in quote['lines'][1:]:
+            if line['workflow_id'] != workflow_id:
+                extra_workflows.setdefault(line['workflow_id'], line['name'])
     task_ids = []
-    for i, step in enumerate(json.loads(workflow['steps']), start=1):
+    primary_steps = json.loads(workflow['steps'])
+    defer_delivery = bool(extra_workflows and primary_steps[-1]['gate'] == 'delivery')
+    for i, step in enumerate(primary_steps[:-1] if defer_delivery else primary_steps, start=1):
         dependencies = [task_ids[d - 1] for d in step['depends_on']]
         task_id = conn.execute('INSERT INTO tasks(job_id,position,title,department,gate,dependencies) VALUES(?,?,?,?,?,?)',
                               (job_id, i, step['title'], step['department'], step['gate'], json.dumps(dependencies))).lastrowid
         task_ids.append(task_id)
+    extra_final_ids = []
+    for extra_id, product_name in extra_workflows.items():
+        extra = conn.execute('SELECT steps FROM workflows WHERE id=?', (extra_id,)).fetchone()
+        if not extra:
+            raise HTTPException(422, 'Product workflow not found.')
+        extra_steps = json.loads(extra['steps'])
+        extra_task_ids = []
+        for step in extra_steps[:-1]:
+            dependencies = [extra_task_ids[d - 1] for d in step['depends_on']]
+            task_id = conn.execute('INSERT INTO tasks(job_id,position,title,department,gate,dependencies) VALUES(?,?,?,?,?,?)',
+                                   (job_id, len(task_ids) + 1, f'{product_name}: {step["title"]}',
+                                    step['department'], step['gate'], json.dumps(dependencies))).lastrowid
+            task_ids.append(task_id)
+            extra_task_ids.append(task_id)
+        extra_final_ids.extend(extra_task_ids[d - 1] for d in extra_steps[-1]['depends_on'])
+    if defer_delivery:
+        step = primary_steps[-1]
+        dependencies = [task_ids[d - 1] for d in step['depends_on']] + extra_final_ids
+        conn.execute('INSERT INTO tasks(job_id,position,title,department,gate,dependencies) VALUES(?,?,?,?,?,?)',
+                     (job_id, len(task_ids) + 1, step['title'], step['department'], step['gate'], json.dumps(dependencies)))
     audit(conn, job_id, actor, 'job.created', {'source': source, 'workflow': workflow['name'], 'workflow_version': workflow['version']}, True)
     return job_id
 

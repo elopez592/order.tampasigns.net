@@ -172,6 +172,9 @@ def test_tshirts_and_usdot_decals_can_checkout_together(live_setup, fulfillment)
     job = client.get('/api/portal/job').json()
     assert len(job['quote']['lines']) == 2
     assert job['totals']['merchandise_cents'] == quote['subtotal_cents']
+    staff_job = admin.get(f'/api/staff/jobs/{jid}').json()
+    assert any(task['title'].startswith('USDOT Decals:') for task in staff_job['tasks'])
+    assert staff_job['tasks'][-1]['gate'] == 'delivery'
     session = open_session(app, client, jid)
     body = json.loads(session['request_body'])
     assert body['line_items[0][price_data][unit_amount]'] == str(quote['subtotal_cents'])
