@@ -144,6 +144,44 @@ def test_standard_products_can_be_purchased(live_setup,pid,width,height,quantity
     assert j['checkout']['can_pay']
 
 
+@pytest.mark.parametrize('fulfillment', ['pickup', 'shipping'])
+def test_tshirts_and_usdot_decals_can_checkout_together(live_setup, fulfillment):
+    app, admin, employee = live_setup
+    client = anonymous(app)
+    catalog = {p['name']: p for p in client.get('/api/catalog').json()['products']}
+    items = [
+        {'product_id': catalog['Custom T-shirts']['id'], 'width': 12, 'height': 12,
+         'quantity': 1, 'shirt_color': 'Black', 'size_quantities': {'M': 1},
+         'print_locations': ['front']},
+        {'product_id': catalog['USDOT Decals']['id'], 'width': 18, 'height': 12,
+         'quantity': 2, 'lamination': 'none',
+         'usdot_design': {'company': 'Test Fleet', 'number': '1234567'}},
+    ]
+    quote_response = client.post('/api/calculate', json={'items': items})
+    assert quote_response.status_code == 200, quote_response.text
+    quote = quote_response.json()
+    assert not quote['review_required']
+    order = client.post('/api/orders', json={
+        'items': items, 'fingerprint': quote['fingerprint'], 'request_id': str(uuid.uuid4()),
+        'customer_name': 'Mixed cart test', 'customer_email': 'mixed@example.test',
+        'title': 'Shirts and DOT decals', 'fulfillment': fulfillment, 'confirm': True,
+    })
+    assert order.status_code == 200, order.text
+    client.headers['X-CSRF-Token'] = order.json()['csrf']
+    jid = order.json()['job_id']
+    job = client.get('/api/portal/job').json()
+    assert len(job['quote']['lines']) == 2
+    assert job['totals']['merchandise_cents'] == quote['subtotal_cents']
+    session = open_session(app, client, jid)
+    body = json.loads(session['request_body'])
+    assert body['line_items[0][price_data][unit_amount]'] == str(quote['subtotal_cents'])
+    assert body['line_items[0][price_data][product_data][name]'] == 'Tampa Signs project (2 products)'
+    assert ('automatic_tax[enabled]' in body) == (fulfillment == 'shipping')
+    assert ('line_items[0][tax_rates][0]' in body) == (fulfillment == 'pickup')
+    assert send_event(app, paid_object(app, session)).status_code == 200
+    assert client.get('/api/portal/job').json()['checkout']['status'] == 'paid'
+
+
 def test_standard_order_below_shop_minimum_cannot_checkout(live_setup):
     app,admin,employee=live_setup
     c,r,b=new_order(app,6,24,18,1)
