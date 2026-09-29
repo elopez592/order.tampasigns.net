@@ -705,8 +705,8 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             'rate_snapshot': cfg,
         })
     line_subtotal = sum(x['sell_cents'] for x in lines)
-    minimum_order = cents(shop.get('minimum_order_price', '50'), 'Minimum order price')
-    apply_order_minimum = not all(x['category'] == 'Custom' or x['finished_apparel'] for x in lines)
+    minimum_order = cents(shop.get('minimum_order_price', '35'), 'Minimum order price')
+    apply_order_minimum = any(x['category'] != 'Custom' for x in lines)
     return {'lines': lines, 'subtotal_cents': line_subtotal,
             'wholesale': {'name': wholesale['name']} if wholesale else None,
             'minimum_order_adjustment_cents': 0,

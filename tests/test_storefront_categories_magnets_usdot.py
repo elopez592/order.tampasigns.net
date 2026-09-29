@@ -147,7 +147,8 @@ def test_decals_usdot_and_apparel_listings(env):
     }]})
     assert shirt_quote.status_code == 200, shirt_quote.text
     assert shirt_quote.json()['subtotal_cents'] == 3000
-    assert shirt_quote.json()['meets_minimum_order'] is True
+    assert shirt_quote.json()['minimum_order_cents'] == 3500
+    assert shirt_quote.json()['meets_minimum_order'] is False
     assert shirt_quote.json()['lines'][0]['description'].startswith('Gildan 5000 / Black / M: 1 / Full front')
 
     hat_product = products['Embroidered hats']

@@ -10,7 +10,7 @@ from .domain import create_job, validate_steps
 DEFAULT_SETTINGS = {
  'shop_name': 'Tampa Signs and Stickers', 'contact_email': '', 'contact_phone': '(813) 749-4500',
  'deposit_percent': '50', 'target_margin_percent': '40', 'overhead_percent': '10',
- 'labor_cost_per_hour': '35', 'labor_sell_per_hour': '85', 'minimum_order_price': '50', 'rates_live': False,
+ 'labor_cost_per_hour': '35', 'labor_sell_per_hour': '85', 'minimum_order_price': '35', 'rates_live': False,
  'quote_note': 'Order standard-sized prints online. Wraps, installation and custom specifications are quoted by our team. You approve your proof before we print.',
  'checkout_enabled': False, 'checkout_tax_reviewed': False,
  'checkout_pickup_enabled': True, 'checkout_pickup_address': '',
@@ -319,7 +319,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                 cfg['price_table_base_width'] = '3'
                 cfg['price_table_base_height'] = '3'
                 cfg['price_table_size_weight'] = '0.45'
-                cfg['minimum_price'] = '60'
+                cfg['minimum_price'] = '0'
                 cfg['lamination_options'] = [
                     {'id':'none','label':'No laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
                     {'id':'gloss','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
@@ -394,7 +394,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
         if not conn.execute('SELECT id FROM products LIMIT 1').fetchone():
             # Demonstration inputs only. Not competitor prices or supplier quotations.
             entries = [
-              ('Die-cut stickers', 'Stickers', 1, 'piece', '24', '4', '0', '8', '50', 50, 3, 3, 24, 48, True, 'Die-cut vinyl stickers with quantity-break pricing benchmarked to current Sticker Mule public pricing.'),
+              ('Die-cut stickers', 'Stickers', 1, 'piece', '24', '4', '0', '8', '0', 50, 3, 3, 24, 48, True, 'Die-cut vinyl stickers with quantity-break pricing benchmarked to current Sticker Mule public pricing.'),
               ('Labels', 'Labels', 1, 'piece', '18', '3', '30', '10', '45', 50, 2, 2, 12, 12, True, 'Example label configuration; confirm roll direction and packaging.'),
               ('Magnets', 'Magnets', 1, 'piece', '18', '5', '20', '8', '50', 1, 18, 12, 48, 48, True, 'Printed magnetic stock. Thickness and suitability require confirmation.'),
               ('Banners', 'Banners', 2, 'sqft', '5', '1.5', '10', '4', '45', 1, 72, 36, 120, 1200, True, 'Single-sided banner, standard hem and grommets.'),

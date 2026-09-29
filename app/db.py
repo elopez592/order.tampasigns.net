@@ -41,8 +41,8 @@ def initialize(path: Path) -> None:
     try:
         conn.execute('PRAGMA journal_mode=WAL')
         conn.executescript(Path(__file__).with_name('schema.sql').read_text())
-        versions = [r[0] for r in conn.execute('SELECT version FROM schema_version')]
-        if versions not in ([1], [1, 2], [1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 6, 7], [1, 2, 3, 4, 5, 6, 7, 8]):
+        versions = [r[0] for r in conn.execute('SELECT version FROM schema_version ORDER BY version')]
+        if not versions or versions != list(range(1, max(versions) + 1)) or max(versions) > 9:
             raise RuntimeError('Unsupported database schema; back up and migrate explicitly.')
         conn.execute('INSERT OR IGNORE INTO schema_version VALUES (2)')
         conn.execute('INSERT OR IGNORE INTO schema_version VALUES (3)')
@@ -72,6 +72,22 @@ def initialize(path: Path) -> None:
                     conn.execute('UPDATE products SET config=?,version=version+1,updated_at=? WHERE id=?',
                                  (json.dumps(cfg), now(), row['id']))
             conn.execute('INSERT OR IGNORE INTO schema_version VALUES (8)')
+        if 9 not in versions:
+            # Apply the new online purchase minimum once. Later owner edits remain intact.
+            row = conn.execute('SELECT data FROM settings WHERE id=1').fetchone()
+            if row:
+                shop = json.loads(row['data'])
+                shop['minimum_order_price'] = '35'
+                conn.execute('UPDATE settings SET data=? WHERE id=1', (json.dumps(shop),))
+            # The quantity table already anchors 50 3x3 stickers at $60. Its
+            # product-level floor was hiding the lower price of smaller sizes.
+            for row in conn.execute("SELECT id,config FROM products WHERE lower(name)='die-cut stickers'").fetchall():
+                cfg = json.loads(row['config'])
+                if Decimal(str(cfg.get('minimum_price', '0'))) != 0:
+                    cfg['minimum_price'] = '0'
+                    conn.execute('UPDATE products SET config=?,version=version+1,updated_at=? WHERE id=?',
+                                 (json.dumps(cfg), now(), row['id']))
+            conn.execute('INSERT OR IGNORE INTO schema_version VALUES (9)')
     finally:
         conn.close()
     try:

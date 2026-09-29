@@ -128,7 +128,7 @@ def eligible_quote(conn, items, wholesale_client_id=None):
     if quote['subtotal_cents'] > 99_999_999:
         raise HTTPException(422, 'This amount requires a custom quote rather than online checkout.')
     if not quote.get('meets_minimum_order', True):
-        minimum = quote.get('minimum_order_cents', 5000) / 100
+        minimum = quote.get('minimum_order_cents', 3500) / 100
         raise HTTPException(422, f'Minimum order is ${minimum:.2f}. Increase quantity or add products before checkout.')
     if quote['review_required']:
         raise HTTPException(422, 'Installation and custom specifications require a reviewed quote, not instant checkout.')

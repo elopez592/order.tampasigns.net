@@ -187,9 +187,11 @@ def test_tshirts_and_usdot_decals_can_checkout_together(live_setup, fulfillment)
 
 def test_standard_order_below_shop_minimum_cannot_checkout(live_setup):
     app,admin,employee=live_setup
-    c,r,b=new_order(app,6,24,18,1)
+    client=anonymous(app)
+    transfer=next(p for p in client.get('/api/catalog').json()['products'] if p['name']=='Transfer stickers')
+    c,r,b=new_order(app,transfer['id'],3,3,1,client=client)
     assert r.status_code==422,r.text
-    assert 'Minimum order is $50.00' in r.text
+    assert 'Minimum order is $35.00' in r.text
 
 
 @pytest.mark.parametrize('pid,width,height',[(7,44,92),(8,120,30.5),(4,200,400)])

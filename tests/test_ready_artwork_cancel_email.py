@@ -5,14 +5,14 @@ def test_shop_minimum_is_acceptance_gate_not_price_floor(env):
     app, admin, employee = env
     client = anonymous(app)
     catalog = client.get('/api/catalog').json()['products']
-    banner = next(p for p in catalog if p['name'] == 'Banners')
+    transfer = next(p for p in catalog if p['name'] == 'Transfer stickers')
     quote = client.post('/api/calculate', json={'items': [{
-        'product_id': banner['id'], 'width': 12, 'height': 12, 'quantity': 1
+        'product_id': transfer['id'], 'width': 3, 'height': 3, 'quantity': 1
     }]})
     assert quote.status_code == 200, quote.text
     data = quote.json()
-    assert data['subtotal_cents'] < 5000
-    assert data['minimum_order_cents'] == 5000
+    assert data['subtotal_cents'] < 3500
+    assert data['minimum_order_cents'] == 3500
     assert data['meets_minimum_order'] is False
     assert data['minimum_order_adjustment_cents'] == 0
 
@@ -60,7 +60,8 @@ def test_sticker_minimums_are_50_pieces_and_one_inch(env):
         'lamination': 'none'
     }]})
     assert valid.status_code == 200, valid.text
-    assert valid.json()['minimum_order_cents'] == 5000
+    assert valid.json()['subtotal_cents'] == 3600
+    assert valid.json()['minimum_order_cents'] == 3500
     assert valid.json()['meets_minimum_order'] is True
 
 

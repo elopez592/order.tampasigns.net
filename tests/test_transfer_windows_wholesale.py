@@ -19,8 +19,8 @@ def test_transfer_stickers_are_second_and_allow_single_unit(env):
     }]})
     assert quote.status_code == 200, quote.text
     data = quote.json()
-    assert data['subtotal_cents'] < 5000
-    assert data['minimum_order_cents'] == 5000
+    assert data['subtotal_cents'] < 3500
+    assert data['minimum_order_cents'] == 3500
     assert data['meets_minimum_order'] is False
 
 

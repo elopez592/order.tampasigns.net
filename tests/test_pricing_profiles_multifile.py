@@ -20,6 +20,26 @@ def test_sticker_benchmark_quantity_breaks(env):
     assert totals == expected
 
 
+def test_small_die_cut_sticker_prices_by_size_without_changing_3x3_anchor(env):
+    app, admin, employee = env
+    client = anonymous(app)
+    sticker = next(p for p in client.get('/api/catalog').json()['products'] if p['name'] == 'Die-cut stickers')
+
+    def quote(size):
+        response = client.post('/api/calculate', json={'items': [{
+            'product_id': sticker['id'], 'width': size, 'height': size,
+            'quantity': 50, 'lamination': 'none'
+        }]})
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    small, standard = quote(1), quote(3)
+    assert small['subtotal_cents'] == 3600
+    assert standard['subtotal_cents'] == 6000
+    assert small['minimum_order_cents'] == 3500
+    assert small['meets_minimum_order'] is True
+
+
 def test_wrap_multi_panel_install_estimate_and_lamination(env):
     app, admin, employee = env
     client = anonymous(app)
