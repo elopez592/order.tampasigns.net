@@ -1197,8 +1197,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             conn.execute('''UPDATE jobs SET quote_snapshot=?,quote_version=quote_version+1,
                 accepted_version=NULL,accepted_name=NULL,accepted_at=NULL,tax_cents=?,adjustment_note=?
                 WHERE id=?''', (json.dumps(quote), tax, note, job_id))
-            correction_actor = actor(user) if user is not None else 'Owner-authorized JOB-0015 price correction'
-            audit(conn, job_id, correction_actor, 'checkout.price_corrected',
+            audit(conn, job_id, actor(user), 'checkout.price_corrected',
                   {'from_cents': old_price, 'to_cents': new_price, 'version': job['quote_version'] + 1,
                    'reason': reason, 'old_links_expired': True}, True)
             link = issue_email_portal(conn, job_id)
@@ -1849,37 +1848,5 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         if path == '/':
             return HTMLResponse(seo_html('Tampa Signs and Stickers | Custom Signs, Wraps and Printing', 'Order custom signs, stickers, vehicle wraps, window graphics, banners and apparel from Tampa Signs and Stickers.', public_url + '/'), headers={'Cache-Control': 'no-cache'})
         return HTMLResponse((STATIC / 'index.html').read_text(), headers={'Cache-Control': 'no-cache', 'X-Robots-Tag': 'noindex, nofollow'})
-
-    # Temporary, opt-in production maintenance for the September 28 order.
-    # The regular owner-only route above performs the actual guarded correction.
-    if production and os.getenv('CORRECT_UNPAID_JOB_0015_ON_START') == '1':
-        try:
-            with transaction(database) as conn:
-                job = get_job(conn, 15)
-                maintenance_quote = json.loads(job['quote_snapshot'])
-                maintenance_lines = maintenance_quote.get('lines', [])
-                maintenance_line = maintenance_lines[0] if len(maintenance_lines) == 1 else {}
-                is_target = (
-                    job['number'] == 'JOB-0015'
-                    and order_for_job(conn, 15) is not None
-                    and maintenance_quote['subtotal_cents'] == 6000
-                    and 'stick' in str(maintenance_line.get('name', '')).lower()
-                    and Decimal(str(maintenance_line.get('quantity', 0))) == 50
-                    and Decimal(str(maintenance_line.get('width', 0))) == 1
-                    and Decimal(str(maintenance_line.get('height', 0))) == 1
-                )
-                version = job['quote_version'] if is_target else None
-            if version is None:
-                print('JOB-0015 maintenance: skipped because order details or old price differ.', flush=True)
-            else:
-                result = correct_online_price(15, None, {
-                    'confirm': True, 'version': version, 'new_price': '36',
-                    'reason': 'Corrected 1 x 1 sticker pricing on the September 28 online order.',
-                }, user=None)
-                print(f"JOB-0015 maintenance: corrected to $36; email_sent={result['customer_notified']}.", flush=True)
-        except HTTPException as exc:
-            print(f'JOB-0015 maintenance: skipped; status={exc.status_code}; reason={exc.detail}.', flush=True)
-        except (KeyError, TypeError, ValueError, sqlite3.Error) as exc:
-            print(f'JOB-0015 maintenance: skipped after {type(exc).__name__}.', flush=True)
 
     return app
