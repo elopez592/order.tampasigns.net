@@ -39,6 +39,13 @@ class FakeGateway(StripeGateway):
     def retrieve_session(self,sid):
         return copy.deepcopy(self.sessions[sid])
 
+    def expire_session(self,sid):
+        session=self.sessions[sid]
+        if session['status']!='open':
+            raise HTTPException(409,'Only open checkout sessions can be expired.')
+        session['status']='expired'
+        return copy.deepcopy(session)
+
 
 @pytest.fixture
 def live_setup(env):
@@ -256,6 +263,67 @@ def test_saved_order_is_idempotent_and_price_locked(live_setup):
     assert payment(admin,jid,1).status_code==409
     other=anonymous(app)
     assert other.post('/api/orders',json=b).status_code==409
+
+
+def test_unpaid_online_order_can_be_corrected_and_old_checkout_link_expires(live_setup):
+    app, admin, employee = live_setup
+    client, order, _ = new_order(app, product_id=1, width=1, height=1, quantity=50)
+    assert order.status_code == 200, order.text
+    jid = order.json()['job_id']
+    before = admin.get(f'/api/staff/jobs/{jid}').json()
+    assert before['quote']['subtotal_cents'] == 3600
+    # Simulate a legacy $60 checkout order saved before the corrected sticker rates.
+    with transaction(app.state.database, True) as conn:
+        snapshot = json.loads(conn.execute('SELECT quote_snapshot FROM jobs WHERE id=?', (jid,)).fetchone()[0])
+        snapshot['lines'][0]['sell_cents'] = 6000
+        snapshot['subtotal_cents'] = 6000
+        snapshot['minimum_order_cents'] = 5000
+        snapshot['settings_snapshot']['minimum_order_price'] = '50'
+        conn.execute('UPDATE jobs SET quote_snapshot=?,tax_cents=450 WHERE id=?', (json.dumps(snapshot), jid))
+    previous = open_session(app, client, jid)
+    assert previous['merchandise_cents'] == 6000
+    payload = {'version': 1, 'new_price': '36', 'reason': 'Corrected 1 x 1 sticker pricing', 'confirm': True}
+    assert employee.post(f'/api/staff/jobs/{jid}/online-price-correction', json=payload).status_code == 403
+    correction = admin.post(f'/api/staff/jobs/{jid}/online-price-correction', json=payload)
+    assert correction.status_code == 200, correction.text
+    assert correction.json()['new_total_cents'] == 3870
+    assert app.state.gateway.retrieve_session(previous['stripe_id'])['status'] == 'expired'
+    updated = admin.get(f'/api/staff/jobs/{jid}').json()
+    assert updated['quote']['lines'][0]['sell_cents'] == 3600
+    assert updated['quote']['subtotal_cents'] == 3600
+    assert updated['quote']['minimum_order_cents'] == 3500
+    assert updated['quote_version'] == 2 and updated['accepted_version'] is None
+    assert updated['totals']['tax_cents'] == 270
+    assert not updated['checkout']['can_pay']
+    assert client.post('/api/portal/checkout').status_code == 409
+    accept(client)
+    assert client.get('/api/portal/job').json()['checkout']['can_pay']
+    current = open_session(app, client, jid)
+    assert current['stripe_id'] != previous['stripe_id']
+    assert current['merchandise_cents'] == 3600
+    assert current['quote_version'] == 2
+    assert send_event(app, paid_object(app, current)).status_code == 200
+    assert client.get('/api/portal/job').json()['checkout']['status'] == 'paid'
+
+
+def test_price_correction_rejects_under_minimum_and_completed_payment(live_setup):
+    app, admin, employee = live_setup
+    client, order, _ = new_order(app)
+    jid = order.json()['job_id']
+    payload = {'version': 1, 'new_price': '34.99', 'reason': 'Courtesy adjustment', 'confirm': True}
+    assert admin.post(f'/api/staff/jobs/{jid}/online-price-correction', json=payload).status_code == 422
+    payload['new_price'] = '36'
+    session = open_session(app, client, jid)
+    app.state.gateway.sessions[session['stripe_id']]['status'] = 'complete'
+    assert admin.post(f'/api/staff/jobs/{jid}/online-price-correction', json=payload).status_code == 409
+    assert admin.get(f'/api/staff/jobs/{jid}').json()['quote_version'] == 1
+
+    paid_client, paid_order, _ = new_order(app)
+    paid_jid = paid_order.json()['job_id']
+    paid_session = open_session(app, paid_client, paid_jid)
+    assert send_event(app, paid_object(app, paid_session)).status_code == 200
+    assert admin.post(f'/api/staff/jobs/{paid_jid}/online-price-correction', json=payload).status_code == 409
+    assert admin.get(f'/api/staff/jobs/{paid_jid}').json()['checkout']['status'] == 'paid'
 
 
 def test_stale_price_rejected_at_order_creation(live_setup):

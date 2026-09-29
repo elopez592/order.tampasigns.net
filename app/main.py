@@ -12,6 +12,7 @@ import secrets
 import sqlite3
 import time
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from urllib.parse import urlsplit, quote
 
@@ -724,7 +725,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             raise HTTPException(422, 'Confirm acceptance of the current quote.')
         with transaction(database, True) as conn:
             job = portal_job(conn, request)
-            if job['archived'] or not job['published'] or not job['charges_verified']:
+            if job['archived'] or not job['published'] or (not job['charges_verified'] and not order_for_job(conn, job['id'])):
                 raise HTTPException(409, 'This quote is not available for acceptance yet.')
             if payload.get('version') != job['quote_version']:
                 raise HTTPException(409, 'The quote changed. Reload and review the latest version.')
@@ -1137,6 +1138,79 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             audit(conn, job_id, actor(user), 'quote.revised', {'version': revised['quote_version'],
                   'total_cents': summary['total_cents'], 'note': note, 'payment_link_cleared': True}, True)
         return {'ok': True}
+
+    @app.post('/api/staff/jobs/{job_id}/online-price-correction')
+    def correct_online_price(job_id: int, request: Request, payload: dict = Body(...), user=Depends(require_admin)):
+        if payload.get('confirm') is not True:
+            raise HTTPException(422, 'Confirm the corrected price and customer notification.')
+        new_price = cents(payload.get('new_price'), 'Corrected product price')
+        reason = text(payload.get('reason', ''), 'Price correction reason', 1000, True)
+        with transaction(database, True) as conn:
+            job = get_job(conn, job_id)
+            order = order_for_job(conn, job_id)
+            if not order or job['archived'] or production_started(conn, job_id):
+                raise HTTPException(409, 'Only an active, unstarted online order can be corrected here.')
+            if payload.get('version') != job['quote_version']:
+                raise HTTPException(409, 'This quote changed. Reload before correcting the price.')
+            if job['accepted_version'] != job['quote_version'] or not job['published']:
+                raise HTTPException(409, 'The current online quote must already be accepted.')
+            if conn.execute('SELECT id FROM online_payments WHERE job_id=?', (job_id,)).fetchone() or \
+               conn.execute('SELECT id FROM payments WHERE job_id=? AND voided_at IS NULL', (job_id,)).fetchone():
+                raise HTTPException(409, 'Payment was already recorded. Handle any refund separately.')
+            quote = json.loads(job['quote_snapshot'])
+            if len(quote['lines']) != 1 or job['extra_price_cents'] or job['price_override_cents'] is not None:
+                raise HTTPException(409, 'This correction is for a single product line without other price adjustments.')
+            old_price = quote['subtotal_cents']
+            minimum = cents(settings(conn)['minimum_order_price'], 'Shop minimum')
+            if new_price < minimum or new_price >= old_price:
+                raise HTTPException(422, f'Corrected product price must be at least ${minimum / 100:.2f} and below the current price.')
+            sessions = conn.execute('SELECT * FROM checkout_sessions WHERE order_id=? ORDER BY rowid', (order['id'],)).fetchall()
+            for session in sessions:
+                if session['status'] in ('paid', 'review'):
+                    raise HTTPException(409, 'A previous payment needs review before changing this order.')
+                if not session['stripe_id']:
+                    if session['status'] != 'expired':
+                        raise HTTPException(409, 'An interrupted payment link needs review before changing this order.')
+                    continue
+                live = app.state.gateway.retrieve_session(session['stripe_id'])
+                if live.get('payment_status') == 'paid' or live.get('status') == 'complete':
+                    raise HTTPException(409, 'Payment was completed or is processing. Review it before changing the price.')
+                if live.get('status') == 'open':
+                    expired = app.state.gateway.expire_session(session['stripe_id'])
+                    if expired.get('status') != 'expired':
+                        raise HTTPException(409, 'The previous payment link could not be closed.')
+                elif live.get('status') != 'expired':
+                    raise HTTPException(409, 'The previous payment link needs review.')
+                conn.execute("UPDATE checkout_sessions SET status='expired' WHERE id=?", (session['id'],))
+            line = quote['lines'][0]
+            line['sell_cents'] = new_price
+            line['price_per_item_cents'] = cent_round(Decimal(new_price) / Decimal(str(line['quantity'])))
+            quote['subtotal_cents'] = new_price
+            quote['minimum_order_cents'] = minimum
+            quote['minimum_order_adjustment_cents'] = 0
+            quote['meets_minimum_order'] = True
+            quote['settings_snapshot']['minimum_order_price'] = str(Decimal(minimum) / 100)
+            quote['pricing_basis'] = 'Owner-corrected product price for this unpaid online order; product scope unchanged.'
+            policy = json.loads(order['policy'])
+            tax = cent_round(Decimal(new_price) * Decimal(policy['tax_percent']) / 100) if order['fulfillment'] == 'pickup' else 0
+            note = f'Price corrected from ${old_price / 100:.2f} to ${new_price / 100:.2f}. {reason}'
+            conn.execute('''UPDATE jobs SET quote_snapshot=?,quote_version=quote_version+1,
+                accepted_version=NULL,accepted_name=NULL,accepted_at=NULL,tax_cents=?,adjustment_note=?
+                WHERE id=?''', (json.dumps(quote), tax, note, job_id))
+            audit(conn, job_id, actor(user), 'checkout.price_corrected',
+                  {'from_cents': old_price, 'to_cents': new_price, 'version': job['quote_version'] + 1,
+                   'reason': reason, 'old_links_expired': True}, True)
+            link = issue_email_portal(conn, job_id)
+            number = job['number']
+            version = job['quote_version'] + 1
+        notified = notify_customer(database, job_id, f'price_correction_{version}',
+                                   f'Lower price for {number} | Tampa Signs and Stickers',
+                                   'Your order price has been corrected',
+                                   f'We corrected your product price from ${old_price / 100:.2f} to ${new_price / 100:.2f}. '
+                                   'Your product and quantity are unchanged. Please review and accept the updated quote before payment.',
+                                   link)
+        return {'ok': True, 'new_total_cents': new_price + tax + policy['shipping_cents'],
+                'customer_notified': bool(notified)}
 
     @app.post('/api/staff/jobs/{job_id}/publish')
     def publish_quote(job_id: int, request: Request, payload: dict = Body(...), user=Depends(require_admin)):

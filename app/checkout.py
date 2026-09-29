@@ -61,6 +61,12 @@ class StripeGateway:
             raise HTTPException(422, 'Invalid payment session.')
         return self.request('checkout/sessions/' + session_id)
 
+    def expire_session(self, session_id):
+        if not re.fullmatch(r'cs_[A-Za-z0-9_]+', session_id):
+            raise HTTPException(422, 'Invalid payment session.')
+        return self.request('checkout/sessions/' + session_id + '/expire', {},
+                            'tampa-expire-' + session_id)
+
     def tax_rate(self, percentage):
         key = 'tampa-tax-' + digest(str(percentage))[:32]
         result = self.request('tax_rates', {'display_name': 'Sales tax', 'inclusive': 'false',
@@ -154,7 +160,9 @@ def order_summary(conn, job, gateway):
         status = 'payment_review' if latest and latest['status'] == 'review' else 'awaiting_payment'
     return {'status': status, 'fulfillment': order['fulfillment'],
             'pickup_address': policy['pickup_address'] if order['fulfillment']=='pickup' else '',
-            'can_pay': not receipt and not job['archived'] and status != 'payment_review' and availability(settings(conn), gateway)['available'],
+            'can_pay': not receipt and not job['archived'] and status != 'payment_review'
+                       and job['accepted_version'] == job['quote_version']
+                       and availability(settings(conn), gateway)['available'],
             'tax_pending': order['fulfillment']=='shipping' and not receipt,
             'test_mode': not gateway.live}
 
@@ -167,6 +175,8 @@ def start_checkout(database, job_id, gateway, public_url):
         order = order_for_job(conn, job_id)
         if not order or job['archived']:
             raise HTTPException(409, 'This order is not available for online checkout.')
+        if job['accepted_version'] != job['quote_version']:
+            raise HTTPException(409, 'Review and accept the updated quote before payment.')
         if conn.execute('SELECT id FROM online_payments WHERE job_id=?', (job_id,)).fetchone():
             raise HTTPException(409, 'A payment was already received. Contact the shop about adjustments; do not pay again.')
         available = availability(settings(conn), gateway)
