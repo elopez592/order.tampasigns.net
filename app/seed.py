@@ -69,6 +69,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
         wrap_print_workflow = conn.execute("SELECT id FROM workflows WHERE name='Print-only wrap panels'").fetchone()
         for old in conn.execute('SELECT id,name,category,config,workflow_id,active,public FROM products').fetchall():
             cfg = json.loads(old['config'])
+            cfg['min_quantity'] = '1'
             cfg.setdefault('requires_installation', old['id'] in (7, 8, 10))
             cfg.setdefault('is_wrap', 'wrap' in (old['name']+' '+old['category']).lower())
             cfg.setdefault('supports_installation', False)
@@ -148,7 +149,6 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             if any(x in lname for x in ('die-cut sticker', 'transfer sticker', 'magnet', 'banner')):
                 cfg['self_approve_artwork'] = True
             if 'die-cut sticker' in lname:
-                cfg['min_quantity'] = '50'
                 cfg['contour_customizer'] = True
             if 'magnet' in lname:
                 if str(cfg.get('min_quantity', '10')) == '10':
@@ -394,8 +394,8 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
         if not conn.execute('SELECT id FROM products LIMIT 1').fetchone():
             # Demonstration inputs only. Not competitor prices or supplier quotations.
             entries = [
-              ('Die-cut stickers', 'Stickers', 1, 'piece', '24', '4', '0', '8', '0', 50, 3, 3, 24, 48, True, 'Die-cut vinyl stickers with quantity-break pricing benchmarked to current Sticker Mule public pricing.'),
-              ('Labels', 'Labels', 1, 'piece', '18', '3', '30', '10', '45', 50, 2, 2, 12, 12, True, 'Example label configuration; confirm roll direction and packaging.'),
+              ('Die-cut stickers', 'Stickers', 1, 'piece', '24', '4', '0', '8', '0', 1, 3, 3, 24, 48, True, 'Die-cut vinyl stickers with quantity-break pricing benchmarked to current Sticker Mule public pricing.'),
+              ('Labels', 'Labels', 1, 'piece', '18', '3', '30', '10', '45', 1, 2, 2, 12, 12, True, 'Example label configuration; confirm roll direction and packaging.'),
               ('Magnets', 'Magnets', 1, 'piece', '18', '5', '20', '8', '50', 1, 18, 12, 48, 48, True, 'Printed magnetic stock. Thickness and suitability require confirmation.'),
               ('Banners', 'Banners', 2, 'sqft', '5', '1.5', '10', '4', '45', 1, 72, 36, 120, 1200, True, 'Single-sided banner, standard hem and grommets.'),
               ('ACM signs', 'Signs', 3, 'sqft', '14', '5', '20', '8', '65', 1, 24, 18, 48, 96, True, ACM_DESCRIPTION),

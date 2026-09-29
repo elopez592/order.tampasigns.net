@@ -130,7 +130,7 @@ def test_checkout_disabled_until_connected_and_reviewed(env):
     assert admin.put('/api/admin/settings',json={'checkout_enabled':True}).status_code==422
 
 
-@pytest.mark.parametrize('pid,width,height,quantity',[(1,3,3,50),(2,2,2,50),(3,3,3,10),(4,72,36,1)])
+@pytest.mark.parametrize('pid,width,height,quantity',[(1,3,3,50),(1,12,12,4),(2,2,2,50),(3,3,3,10),(4,72,36,1)])
 def test_standard_products_can_be_purchased(live_setup,pid,width,height,quantity):
     app,admin,employee=live_setup
     c,r,b=new_order(app,pid,width,height,quantity)
@@ -192,6 +192,21 @@ def test_standard_order_below_shop_minimum_cannot_checkout(live_setup):
     c,r,b=new_order(app,transfer['id'],3,3,1,client=client)
     assert r.status_code==422,r.text
     assert 'Minimum order is $35.00' in r.text
+
+
+def test_large_sticker_quantity_one_quotes_but_waits_for_cart_minimum(live_setup):
+    app, admin, employee = live_setup
+    client = anonymous(app)
+    sticker = next(p for p in client.get('/api/catalog').json()['products'] if p['name'] == 'Die-cut stickers')
+    item = {'product_id': sticker['id'], 'width': 12, 'height': 12,
+            'quantity': 1, 'lamination': 'none'}
+    quote = client.post('/api/calculate', json={'items': [item]})
+    assert quote.status_code == 200, quote.text
+    assert quote.json()['subtotal_cents'] == 930
+    assert quote.json()['meets_minimum_order'] is False
+    _, order, _ = new_order(app, sticker['id'], 12, 12, 1, client=client)
+    assert order.status_code == 422
+    assert 'Minimum order is $35.00' in order.text
 
 
 @pytest.mark.parametrize('pid,width,height',[(7,44,92),(8,120,30.5),(4,200,400)])

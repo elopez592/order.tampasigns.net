@@ -39,12 +39,12 @@ def test_decal_price_scales_with_size_while_project_minimum_stays_at_checkout(en
     assert combined.json()['meets_minimum_order'] is True
 
 
-def test_sticker_minimums_are_50_pieces_and_one_inch(env):
+def test_sticker_accepts_one_piece_and_preserves_size_limit(env):
     app, admin, employee = env
     client = anonymous(app)
     catalog = client.get('/api/catalog').json()
     sticker = next(p for p in catalog['products'] if p['name'] == 'Die-cut stickers')
-    assert sticker['config']['min_quantity'] == '50'
+    assert sticker['config']['min_quantity'] == '1'
     assert sticker['config']['min_width'] == '1'
     assert sticker['config']['min_height'] == '1'
     assert sticker['config']['self_approve_artwork'] is True
@@ -54,6 +54,12 @@ def test_sticker_minimums_are_50_pieces_and_one_inch(env):
         'lamination': 'none'
     }]})
     assert too_small.status_code == 422
+
+    zero_quantity = client.post('/api/calculate', json={'items': [{
+        'product_id': sticker['id'], 'width': 3, 'height': 3, 'quantity': 0,
+        'lamination': 'none'
+    }]})
+    assert zero_quantity.status_code == 422
 
     valid = client.post('/api/calculate', json={'items': [{
         'product_id': sticker['id'], 'width': 1, 'height': 1, 'quantity': 50,

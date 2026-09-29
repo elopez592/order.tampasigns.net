@@ -42,7 +42,7 @@ def initialize(path: Path) -> None:
         conn.execute('PRAGMA journal_mode=WAL')
         conn.executescript(Path(__file__).with_name('schema.sql').read_text())
         versions = [r[0] for r in conn.execute('SELECT version FROM schema_version ORDER BY version')]
-        if not versions or versions != list(range(1, max(versions) + 1)) or max(versions) > 9:
+        if not versions or versions != list(range(1, max(versions) + 1)) or max(versions) > 10:
             raise RuntimeError('Unsupported database schema; back up and migrate explicitly.')
         conn.execute('INSERT OR IGNORE INTO schema_version VALUES (2)')
         conn.execute('INSERT OR IGNORE INTO schema_version VALUES (3)')
@@ -88,6 +88,16 @@ def initialize(path: Path) -> None:
                     conn.execute('UPDATE products SET config=?,version=version+1,updated_at=? WHERE id=?',
                                  (json.dumps(cfg), now(), row['id']))
             conn.execute('INSERT OR IGNORE INTO schema_version VALUES (9)')
+        if 10 not in versions:
+            # Quantity is unrestricted above one; the $35 minimum applies to
+            # the combined cart at checkout, not to individual product counts.
+            for row in conn.execute('SELECT id,config FROM products').fetchall():
+                cfg = json.loads(row['config'])
+                if str(cfg.get('min_quantity', '1')) != '1':
+                    cfg['min_quantity'] = '1'
+                    conn.execute('UPDATE products SET config=?,version=version+1,updated_at=? WHERE id=?',
+                                 (json.dumps(cfg), now(), row['id']))
+            conn.execute('INSERT OR IGNORE INTO schema_version VALUES (10)')
     finally:
         conn.close()
     try:

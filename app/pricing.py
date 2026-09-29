@@ -134,14 +134,12 @@ def validate_config(cfg: dict) -> dict:
         ('min_short_axis', '0.1', '0.1', '10000'), ('min_long_axis', '0.1', '0.1', '10000'),
         ('min_width', '0.1', '0.1', '10000'), ('min_height', '0.1', '0.1', '10000'),
         ('max_width', '120', '0.1', '10000'), ('max_height', '1200', '0.1', '10000'),
-        ('min_quantity', '1', '1', '100000'), ('max_quantity', '100000', '1', '100000'),
+        ('max_quantity', '100000', '1', '100000'),
         ('default_width', '3', '0.1', '10000'), ('default_height', '3', '0.1', '10000')]:
         result[key] = str(number(cfg.get(key, default), key, lo, hi))
-    for field in ('min_quantity', 'max_quantity'):
-        if D(result[field]) != D(result[field]).to_integral():
-            raise HTTPException(422, 'Quantity limits must be whole numbers.')
-    if D(result['max_quantity']) < D(result['min_quantity']):
-        raise HTTPException(422, 'Maximum quantity must not be below minimum quantity.')
+    result['min_quantity'] = '1'
+    if D(result['max_quantity']) != D(result['max_quantity']).to_integral():
+        raise HTTPException(422, 'Maximum quantity must be a whole number.')
     if not isinstance(cfg.get('instant', True), bool):
         raise HTTPException(422, 'instant must be true or false.')
     result['instant'] = cfg.get('instant', True)
@@ -486,7 +484,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
         if not isinstance(include_roof_wrap, bool):
             raise HTTPException(422, 'Roof wrap selection must be true or false.')
         generated_usdot = usdot_design(item.get('usdot_design')) if cfg.get('usdot_customizer') else {}
-        qty = number(item.get('quantity', 1), 'Quantity', cfg['min_quantity'], cfg['max_quantity'])
+        qty = number(item.get('quantity', 1), 'Quantity', '1', cfg['max_quantity'])
         if qty != qty.to_integral():
             raise HTTPException(422, 'Quantity must be a whole number.')
         qty = int(qty)

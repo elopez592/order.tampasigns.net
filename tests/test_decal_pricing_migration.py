@@ -12,7 +12,7 @@ def test_legacy_decal_minimum_migrates_once_without_overwriting_owner_edits(tmp_
         for product_id, name in ((1, 'Decals'), (2, 'Magnets')):
             conn.execute('INSERT INTO products(id,name,category,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?)',
                          (product_id, name, 'Stickers', 1, json.dumps(legacy), now()))
-        conn.execute('DELETE FROM schema_version WHERE version IN (8,9)')
+        conn.execute('DELETE FROM schema_version WHERE version IN (8,9,10)')
 
     initialize(database)
     with transaction(database) as conn:

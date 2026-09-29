@@ -18,7 +18,7 @@ def test_existing_sticker_floor_and_order_minimum_migrate_once(tmp_path, legacy_
                 {'quantity': 50, 'total': '60'}]}
             conn.execute('INSERT INTO products(id,name,category,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?)',
                          (product_id, name, 'Stickers', 1, json.dumps(cfg), now()))
-        conn.execute('DELETE FROM schema_version WHERE version=9')
+        conn.execute('DELETE FROM schema_version WHERE version IN (9,10)')
 
     initialize(database)
     with transaction(database) as conn:
