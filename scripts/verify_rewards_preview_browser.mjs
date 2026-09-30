@@ -18,6 +18,7 @@ async function pageFor(){
   const context=await browser.newContext({viewport:{width:1440,height:1000}});
   await context.route('https://fonts.googleapis.com/**',route=>route.fulfill({status:200,contentType:'text/css',body:''}));
   await context.route('https://fonts.gstatic.com/**',route=>route.abort());
+  await context.route('https://checkout.stripe.com/**',route=>route.fulfill({status:200,contentType:'text/html',body:'<h1>Fake payment checkout</h1>'}));
   const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));return page;
 }
 async function waitText(page,text){await page.getByText(text,{exact:false}).first().waitFor();}
@@ -65,18 +66,18 @@ try{
   await checkout.locator('[name="title"]').fill('Repeat sticker order');
   await checkout.locator('[name="artwork"]').setInputFiles(artwork);
   await customer.locator('#checkout-preview-review img').first().waitFor();
-  await checkout.locator('[name="approve_uploads"]').waitFor();
+  assert.equal(await checkout.locator('[name="approve_uploads"]').count(),0);
   await checkout.locator('[name="reward_credit"]').fill('5');
   await checkout.locator('[name="reward_points"]').fill('100');
-  await checkout.locator('[name="approve_uploads"]').check();
   await checkout.locator('[name="confirm"]').check();
   await customer.locator('#checkout-preview-review').screenshot({path:output+'/Upload-Proof-Checkout.png'});
   await customer.setViewportSize({width:390,height:844});
   await customer.locator('#checkout-preview-review').screenshot({path:output+'/Upload-Proof-Mobile.png'});
   assert.equal(await customer.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),true);
   await customer.setViewportSize({width:1440,height:1000});
-  await checkout.getByRole('button',{name:'Save approval & continue to payment'}).click();
-  await customer.getByRole('heading',{name:'Artwork approved · ready for payment'}).waitFor({timeout:20000});
+  await checkout.getByRole('button',{name:'Approve artwork & go to payment'}).click();
+  await customer.waitForURL('https://checkout.stripe.com/**',{timeout:20000});
+  await customer.getByRole('heading',{name:'Fake payment checkout'}).waitFor();
   const job=await (await customer.request.get(root+'/api/portal/job')).json();
   assert.equal(job.proofs[0].status,'approved');
   assert.equal(job.proofs[0].decisions[0].method,'customer_upload_preview');
@@ -87,7 +88,8 @@ try{
   assert.equal(job.totals.rewards_discount_cents,600);
   assert.equal(job.totals.total_cents,3225);
   assert.equal(job.checkout.can_pay,true);
-  await customer.locator('#modal [data-action="close"]').first().click();
+  await customer.goto(root+'/portal');
+  await customer.getByText('Artwork & terms approved',{exact:false}).first().waitFor();
   await customer.screenshot({path:output+'/Approved-Preview-Order.png',fullPage:true});
   await customer.goto(root+'/account');
   await waitText(customer,'Your next project starts');
@@ -98,7 +100,7 @@ try{
   assert.deepEqual(errors,[]);
   await writeFile(output+'/browser-results.json',JSON.stringify({passed:true,
     checks:['Owner manual credit and points','Client balance and history','Instant upload previews',
-      'Explicit approval at checkout','Complete approved proof before payment',
+      'Explicit approval at checkout','Complete approved proof before payment','Direct automatic redirect to fake payment checkout',
       'Terms accepted with artwork and retained on the order',
       'Credits and points applied with adjusted tax','$35 cart minimum before rewards','Desktop/mobile layout'],
     job_id:job.id,proof_id:job.proofs[0].id,balance_due_cents:job.totals.balance_cents},null,2));

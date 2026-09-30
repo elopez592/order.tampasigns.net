@@ -514,3 +514,46 @@ def test_failed_v11_backup_stops_the_upgrade_before_schema_changes(tmp_path, mon
     with transaction(database) as conn:
         assert conn.execute('SELECT max(version) FROM schema_version').fetchone()[0] == 10
         assert not conn.execute("SELECT 1 FROM sqlite_master WHERE name='job_terms_acceptances'").fetchone()
+
+
+def test_standard_foam_board_preview_approval_can_start_payment_without_quote_reapproval(live_setup):
+    app, admin, employee = live_setup
+    buyer = anonymous(app)
+    catalog = buyer.get('/api/catalog').json()
+    assert catalog['approval_statement'] == job_terms.APPROVAL_STATEMENT
+    foam = next(p for p in catalog['products'] if p['name'] == 'Foam boards')
+    items = [{'product_id': foam['id'], 'width': 24, 'height': 36, 'quantity': 1}]
+    quote = buyer.post('/api/calculate', json={'items': items}).json()
+    assert not quote['review_required'] and not quote['meets_minimum_order']
+    body = {'items': items, 'fingerprint': quote['fingerprint'], 'request_id': str(uuid.uuid4()),
+            'customer_name': 'Local foam test', 'customer_email': 'foam@example.test',
+            'title': 'Foam board test', 'fulfillment': 'pickup', 'confirm': True,
+            'terms_version': job_terms.VERSION}
+    blocked = buyer.post('/api/orders', json=body)
+    assert blocked.status_code == 422 and 'Minimum order' in blocked.text
+    items[0]['quantity'] = 2
+    quote = buyer.post('/api/calculate', json={'items': items}).json()
+    assert quote['meets_minimum_order']
+    created = buyer.post('/api/orders', json=body | {'fingerprint': quote['fingerprint']})
+    assert created.status_code == 200, created.text
+    buyer.headers['X-CSRF-Token'] = created.json()['csrf']
+    jid = created.json()['job_id']
+    uploaded = buyer.post(f'/api/jobs/{jid}/artwork', files={
+        'file': ('items-1-foam.png', image_bytes(), 'image/png')})
+    assert uploaded.status_code == 200, uploaded.text
+    approved = buyer.post('/api/portal/artwork-preview/approve', json={
+        'name': body['customer_name'], 'confirm': True, 'terms_version': job_terms.VERSION,
+        'quote_version': 1, 'files': [{'asset_id': uploaded.json()['asset_id'],
+        'sha256': uploaded.json()['sha256'], 'line_indices': [0]}]})
+    assert approved.status_code == 200, approved.text
+    first = buyer.post('/api/portal/checkout', json={})
+    retry = buyer.post('/api/portal/checkout', json={})
+    assert first.status_code == retry.status_code == 200
+    assert first.json()['url'] == retry.json()['url']
+    assert first.json()['url'].startswith('https://checkout.stripe.com/')
+    assert len(app.state.gateway.creates) == 1
+    job = buyer.get('/api/portal/job').json()
+    assert job['accepted_version'] == job['quote_version'] == 1
+    assert job['proofs'][0]['status'] == 'approved'
+    assert len(job['proofs'][0]['decisions']) == 1
+    assert job['proofs'][0]['terms_acceptance']['signer_name'] == body['customer_name']

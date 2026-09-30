@@ -7,6 +7,20 @@ same artwork does not need a second approval. Uploading or paying by itself does
 not approve artwork. Clients can choose a shop proof instead, and custom design,
 installation and wrap projects retain shop review.
 
+## Instant checkout handoff
+
+Standard carts below the $35 merchandise minimum stay in the project cart with
+an explicit shortfall and disabled checkout action. They no longer fall into a
+quote request because checkout is unavailable. For qualifying carts, one
+required checkbox approves the exact selected artwork and accepts the terms.
+Changing files, product assignments, proof mode or site-survey selection resets
+that confirmation. The order saves its proof and applies credits/points before
+creating the payment session and immediately redirecting to Stripe; there is no
+intermediate approval or payment confirmation screen. A failed upload or
+approval stops payment. A failed payment handoff retains the approved proof and
+allows a payment-only retry. Custom quote and survey requests retain their
+review flow. No existing customer order is repriced or re-approved by this fix.
+
 ## Customer and owner behavior
 
 - **Staff > Client rewards:** the owner can search registered customer accounts,
@@ -79,7 +93,9 @@ authorize a changed print. A price-only change can keep the same artwork proof.
   pre-upgrade backup restoration/failure behavior. Tests use isolated databases,
   demo identities and a fake payment gateway. No real orders, charges or client
   messages were created during verification.
-- JavaScript: **all seven test files passed**, and every frontend module passed
+- Checkout fix: **77 focused Python checks passed**, including the foam-board
+  minimum, approved preview and direct payment session regression.
+- JavaScript: **all nine test files passed**, and every frontend module passed
   syntax checks. Coverage includes multi-product artwork assignment and complete
   selection before approval.
 - Financial checks include concurrent redemption, owner permissions, duplicate

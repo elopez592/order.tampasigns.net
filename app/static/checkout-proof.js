@@ -40,11 +40,12 @@ export function createCheckoutProof({state,esc,shop,toast}) {
         const url=URL.createObjectURL(item.file);urls.push(url);
         const raster=/\.(png|jpe?g)$/i.test(item.file.name);
         return `<article class="checkout-proof-file"><a href="${esc(url)}" target="_blank" rel="noopener" class="checkout-file-preview" aria-label="Open ${esc(item.file.name)}">${raster?`<img src="${esc(url)}" alt="Artwork preview: ${esc(item.file.name)}">`:'<span>PDF<br><small>Open & review every page ↗</small></span>'}</a><div><strong class="file-name">${esc(item.file.name)}</strong><label class="check mt-sm"><input type="checkbox" data-proof-file="${index}" ${item.approved?'checked':''}><span>Include this file in my approved proof</span></label><fieldset class="proof-file-mapping"><legend>Print this file on:</legend>${lines.map((line,lineIndex)=>line.artwork_upload_disabled?'':`<label class="check"><input type="checkbox" data-proof-line="${lineIndex}" data-proof-index="${index}" ${item.line_indices.includes(lineIndex)?'checked':''}><span>Item ${lineIndex+1} · ${esc(line.name)} · ${esc(line.width)} × ${esc(line.height)} in · Qty ${line.quantity}${line.shirt_color?' · '+esc(line.shirt_color):''}${line.print_locations?.length?' · '+esc(line.print_locations.join(', ')):''}</span></label>`).join('')}</fieldset></div></article>`;
-      }).join('')}</div>${state.canBuy?`<label class="field mt"><span>How should we handle this artwork?</span><select name="artwork_approval_mode"><option value="preview">Use these previews as my proof</option><option value="shop">Request a shop proof before printing</option></select></label><label class="check mt-sm" id="preview-approval-check"><input name="approve_uploads" type="checkbox" required ${form.elements.site_survey_requested?.checked?'disabled':''}><span>I reviewed all selected files, every printed side, the dimensions, quantity, spelling, layout and placement. I approve this artwork to print as supplied and understand changes after printing require a new paid order. I accept the Artwork, Sizing & Production Terms below.</span></label><p class="field-hint">Your approved preview is final for this artwork and scope. A second approval of the same artwork is not required. Any changed artwork needs a new approval.</p>`:'<p class="field-hint mt">Your custom project will receive a shop proof once the scope and any site survey are confirmed.</p>'}`:'<p class="field-hint">Attach finished artwork to review and approve it now, or upload it later in your private order page.</p>';
+      }).join('')}</div>${state.canBuy?`<label class="field mt"><span>How should we handle this artwork?</span><select name="artwork_approval_mode"><option value="preview">Use these previews as my proof</option><option value="shop">Request a shop proof before printing</option></select></label><p class="field-hint">Approve these previews and the terms together using the single checkbox below. Your approval is final for this artwork and scope; changed artwork needs a new approval.</p>`:'<p class="field-hint mt">Your custom project will receive a shop proof once the scope and any site survey are confirmed.</p>'}`:'<p class="field-hint">Attach finished artwork to review and approve it now, or upload it later in your private order page.</p>';
     target.querySelectorAll('[data-proof-file]').forEach(input=>input.onchange=()=>{files[Number(input.dataset.proofFile)].approved=input.checked;resetApproval(form);});
     target.querySelectorAll('[data-proof-line]').forEach(input=>input.onchange=()=>{const item=files[Number(input.dataset.proofIndex)],line=Number(input.dataset.proofLine);item.line_indices=input.checked?[...new Set([...item.line_indices,line])]:item.line_indices.filter(index=>index!==line);resetApproval(form);});
     const mode=form.elements.artwork_approval_mode;
-    if(mode)mode.onchange=()=>{const check=target.querySelector('#preview-approval-check');check.hidden=mode.value!=='preview';form.elements.approve_uploads.required=mode.value==='preview';resetApproval(form);};
+    if(mode)mode.onchange=()=>{resetApproval(form);updateConsent(form);};
+    updateConsent(form);
     }catch(error){
       if(current!==sequence)return;
       for(const url of urls)URL.revokeObjectURL(url);urls=[];files=[];
@@ -53,16 +54,23 @@ export function createCheckoutProof({state,esc,shop,toast}) {
       throw error;
     }finally{if(current===sequence)loading=false;}
   }
-  function resetApproval(form){if(form.elements.approve_uploads)form.elements.approve_uploads.checked=false;}
+  function resetApproval(form){if(form.elements.confirm)form.elements.confirm.checked=false;}
+  function updateConsent(form){
+    const approve=state.canBuy&&files.length&&form.elements.artwork_approval_mode?.value==='preview'&&!form.elements.site_survey_requested?.checked;
+    const label=form.elements.confirm?.closest('label')?.querySelector('span');
+    if(label)label.textContent=approve?state.catalog.approval_statement:state.catalog.job_terms.confirmation;
+    if(state.canBuy){const button=form.querySelector('button[type="submit"]');
+      if(button)button.textContent=form.elements.site_survey_requested?.checked?'Submit project & request survey':approve?'Approve artwork & go to payment':'Continue to secure payment';}
+  }
   function submission(form,buy){
     if(loading)throw new Error('Your artwork previews are still preparing. Please wait before submitting.');
     if(previewError)throw new Error(previewError);
     const approve=buy&&files.length&&form.elements.artwork_approval_mode?.value==='preview';
     if(approve){
       validateCoverage(files,state.quote.lines);
-      if(!form.elements.approve_uploads?.checked)throw new Error('Review and check the artwork approval box before continuing.');
+      if(!form.elements.confirm?.checked)throw new Error('Review and approve your artwork and terms using the checkbox below.');
     }
-    return {files:[...files],approve:!!approve};
+    return {files:files.map(item=>({...item,line_indices:[...item.line_indices]})),approve:!!approve};
   }
-  return {clear,refresh,submission};
+  return {clear,refresh,submission,updateConsent,resetApproval};
 }

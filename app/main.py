@@ -490,7 +490,8 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                     'config': {k: cfg.get(k, defaults.get(k)) for k in keys}})
             return {'products': products, 'shop': {k: shop[k] for k in ('shop_name','contact_email','contact_phone','rates_live','quote_note')},
                     'checkout': availability(shop, app.state.gateway), 'notifications': email_status(),
-                    'job_terms': job_terms.public_terms(), 'rewards': rewards.public_config(shop)}
+                    'job_terms': job_terms.public_terms(), 'approval_statement': APPROVAL_STATEMENT,
+                    'rewards': rewards.public_config(shop)}
 
     @app.get('/api/job-terms')
     def terms_content():
