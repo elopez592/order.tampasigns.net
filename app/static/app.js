@@ -1,8 +1,8 @@
 import {belowCheckoutMinimum,minimumCheckoutMessage,submitOrderCheckout} from './order-checkout.js?v=20260930-checkout-3';
 import {createMarketingDashboard} from './marketing-admin.js?v=20260924-1';
 import {createCrmDashboard} from './crm-admin.js?v=20260925-1';
-import {createShop} from './shop.js?v=20260930-contour-9';
-import {createRewards} from './rewards.js?v=20260930-first-order-1';
+import {createShop} from './shop.js?v=20260930-referrals-1';
+import {createRewards} from './rewards.js?v=20260930-referrals-1';
 import {createCheckoutProof,suggestedLines} from './checkout-proof.js?v=20260930-checkout-3';
 
 const state = {calcSequence:0, user:null, customer:null, csrf:'', catalog:null, jobs:[], job:null, jobTab:'overview', boardMode:'board',
