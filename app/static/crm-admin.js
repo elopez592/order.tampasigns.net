@@ -3,7 +3,7 @@ export function createCrmDashboard({api,staffShell,esc,money,showModal,closeModa
   const number=n=>new Intl.NumberFormat('en-US').format(n||0);
   const localDate=value=>value?new Date(value).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'—';
   const statusOptions=value=>Object.entries(labels).map(([v,l])=>`<option value="${v}" ${v===value?'selected':''}>${esc(l)}</option>`).join('');
-  let current=null, filters={status:'all',q:''};
+  let current=null, filters={status:'all',q:''}, creditOperationId=null;
 
   function contactForm(contact={}) {
     const tags=(contact.tags||[]).join(', ');
@@ -68,6 +68,7 @@ export function createCrmDashboard({api,staffShell,esc,money,showModal,closeModa
       <div class="kpis crm-mini-kpis"><section class="kpi"><div class="eyebrow">JOBS</div><div class="metric">${number(c.order_count)}</div></section><section class="kpi"><div class="eyebrow">QUOTED</div><div class="metric">${money(c.quoted_cents)}</div></section><section class="kpi"><div class="eyebrow">PAID</div><div class="metric">${money(c.paid_cents)}</div></section><section class="kpi last"><div class="eyebrow">BALANCE</div><div class="metric">${money(c.balance_cents)}</div></section></div>
       <div class="fields"><div><strong>Lead source</strong><p class="muted">${esc(c.source||'Not set')}</p></div><div><strong>Follow-up</strong><p class="muted">${esc(c.follow_up_date||'Not set')}</p></div></div>
       ${c.tags?.length?'<div><strong>Tags</strong><p class="muted">'+c.tags.map(x=>esc(x)).join(' · ')+'</p></div>':''}
+      <section class="notice info"><div class="row between wrap"><div><strong>Customer account</strong><p class="muted mt-sm">${c.account?(c.account.status==='active'?'Active account':'Invitation pending / not claimed'):'No account yet'}${c.account?' · Credit '+money(c.account.wallet.credit_cents):''}</p></div><div class="row wrap"><button class="btn light" data-action="crm-credit">Add credit</button>${c.account?.status==='active'?'':c.email?'<button class="btn primary" data-action="crm-invite-account">Invite to create account</button>':''}</div></div>${!c.email?'<p class="field-hint mt-sm">Add an email address before inviting this client.</p>':''}</section>
       <div><strong>Automatic reminders</strong><p class="muted">${c.auto_reminders?'On — quote, proof, and required-deposit nudges':'Paused for this contact'}</p></div>
       ${c.notes?'<div><strong>Internal notes</strong><p style="white-space:pre-wrap">'+esc(c.notes)+'</p></div>':''}
       ${c.reminders?.length?'<div class="notice info"><strong>Last project reminder</strong><br>'+esc(localDate(c.reminders[0].created_at))+' · '+esc(c.reminders[0].status==='sent'?'Sent to '+c.reminders[0].recipient:'Delivery failed')+'</div>':''}
@@ -93,7 +94,24 @@ export function createCrmDashboard({api,staffShell,esc,money,showModal,closeModa
     toast(result.message||'Project reminder sent.');
     await open(current.id);
   };
+  actions['crm-credit']=()=>{
+    if(!current)return;
+    creditOperationId=crypto.randomUUID();
+    showModal('Add client credit',`<form data-form="crm-credit" class="stack"><p class="muted">This credit is attached to ${esc(current.email||current.name)}. The client can claim it later by creating their customer account.</p><label class="field"><span>Account credit ($)</span><input name="credit" type="number" min=".01" max="1000000" step=".01" required></label><label class="field"><span>Reason visible to client</span><input name="reason" maxlength="500" required placeholder="Overpayment credit, goodwill credit, correction…"></label><div class="form-error"></div><div class="modal-footer"><button type="button" class="btn light" data-action="close">Cancel</button><button class="btn primary">Add credit</button></div></form>`,true);
+  };
+  actions['crm-invite-account']=async()=>{
+    if(!current)return;
+    if(!confirm('Email '+current.email+' a secure invitation to create their customer account?'))return;
+    const result=await api('/api/admin/crm/'+current.id+'/invite-account','POST',{});
+    toast(result.message||'Account invitation sent.');
+    await open(current.id);
+  };
   forms['crm-filter']=async(_f,d)=>render({status:d.status||'all',q:d.q||''});
+  forms['crm-credit']=async(_f,d)=>{
+    if(!current)return;
+    await api('/api/admin/crm/'+current.id+'/credit','POST',{credit:d.credit,reason:d.reason,operation_id:creditOperationId||crypto.randomUUID()});
+    closeModal();toast('Client credit added.');await open(current.id);
+  };
   forms['crm-contact']=async(_f,d)=>{
     const payload={...d,tags:d.tags||'',auto_reminders:d.auto_reminders==='true'};
     const saved=current?await api('/api/admin/crm/'+current.id,'PATCH',payload):await api('/api/admin/crm','POST',payload);
