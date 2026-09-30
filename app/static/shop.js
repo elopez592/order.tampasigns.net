@@ -1,7 +1,7 @@
 import {belowCheckoutMinimum,minimumCheckoutMessage} from './order-checkout.js?v=20260930-checkout-3';
 import {createWindowUploads, usesDirectArtwork} from './window-upload.js?v=20260930-previews-1';
 import {createEmbroidery, embroidered} from './embroidery.js?v=20260926-name-fee-1';
-import {autoContourArtwork,renderSticker,stickerBorderSettings,stickerShapeOptions,resolveStickerShape} from './contour-artwork.js?v=20260930-auto-contour-7';
+import {autoContourArtwork,renderSticker,stickerBorderSettings,stickerShapeOptions,resolveStickerShape,findContourProjectItem} from './contour-artwork.js?v=20260930-auto-contour-8';
 
 // Customer project cart and artwork attachments.
 export function createShop(ctx) {
@@ -346,7 +346,7 @@ export function createShop(ctx) {
   }
   let contourImage=null;
   async function contourView(options={}){
-    const item=project.find(x=>x.key===options.projectKey)||project.find(x=>x.contour_design_id===options.id),existing=options.id?await getDesign(options.id):null,p=product(item?.product_id||options.product_id||state.selectedProduct);
+    const item=findContourProjectItem(project,options),existing=options.id?await getDesign(options.id):null,p=product(item?.product_id||options.product_id||state.selectedProduct);
     draft=existing||{id:crypto.randomUUID(),mode:'contour',product_id:p.id,projectKey:item?.key||options.projectKey,width:Number(item?.width??options.width)||3,height:Number(item?.height??options.height)||3,image:null,original:null,addAfterSave:!!options.addAfterSave,settings:{shape:options.shape||'contour',border:.125,border_color:'#ffffff',scale:100}};draft.projectKey=item?.key||options.projectKey||draft.projectKey;draft.addAfterSave=!!options.addAfterSave||!!draft.addAfterSave;draft.settings??={shape:'contour',border:.125,border_color:'#ffffff',scale:100};contourImage=draft.image?await loadImage(draft.image):null;
     // Product/cart dimensions are authoritative; the proof cannot change pricing size.
     if(item){draft.width=Number(item.width)||3;draft.height=Number(item.height)||3;}

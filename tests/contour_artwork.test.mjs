@@ -112,3 +112,18 @@ console.log('contour artwork mask tests passed');
   assert.equal(resolveStickerShape('contour',3,3),'contour');
   assert.equal(resolveStickerShape('rounded',3,2),'rounded');
 }
+
+{
+  const {findContourProjectItem,resolveStickerShape}=await import('../app/static/contour-artwork.js');
+  const items=[{key:'old-square',width:3,height:3},{key:'saved-rectangle',width:4,height:2,contour_design_id:'proof-1'}];
+  const options={product_id:7,width:3.5,height:2,shape:'rectangle',addAfterSave:true};
+  const item=findContourProjectItem(items,options);
+  assert.equal(item,undefined,'new proof must not reuse an unrelated item without a proof ID');
+  const width=Number(item?.width??options.width),height=Number(item?.height??options.height);
+  assert.equal(width,3.5);assert.equal(height,2);
+  assert.equal(resolveStickerShape(options.shape,width,height),'rectangle');
+  assert.equal(findContourProjectItem(items,{projectKey:'old-square'}),items[0]);
+  assert.equal(findContourProjectItem(items,{id:'proof-1'}),items[1]);
+  assert.equal(findContourProjectItem(items,{id:'missing'}),undefined);
+  assert.equal(findContourProjectItem(items,{}),undefined);
+}

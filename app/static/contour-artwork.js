@@ -338,6 +338,12 @@ export function expandMask(mask,width,height,radius){
   return Uint8Array.from(distance,d=>d<=radius?255:0);
 }
 
+export function findContourProjectItem(items,{projectKey,id}={}){
+  // Missing IDs must not match unrelated cart lines whose proof ID is also missing.
+  return (projectKey?items.find(item=>item.key===projectKey):undefined)||
+    (id?items.find(item=>item.contour_design_id===id):undefined);
+}
+
 export function resolveStickerShape(shape,width,height){
   const equal=Math.abs(Number(width)-Number(height))<.001;
   if(['square','rectangle'].includes(shape))return equal?'square':'rectangle';
