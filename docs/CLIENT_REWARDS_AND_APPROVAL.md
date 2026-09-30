@@ -34,7 +34,8 @@ review flow. No existing customer order is repriced or re-approved by this fix.
   owner can safely return unused balances; an open provider checkout is expired
   first. A paid balance cannot be released as though it were unused.
 - **Default program:** 1 point per eligible merchandise dollar paid, with each
-  point worth 1 cent (1% back before rounding to whole points). The owner can
+  point worth 1 cent (1% back before rounding to whole points), plus **50 extra
+  points on the first paid order**, once per customer account. The owner can
   change the earning rate, point value or pause earning and redemption. The
   earning rate for a recorded payment is retained for later adjustments.
 - **Dollar credits:** promotional merchandise discounts recorded in the shop
@@ -48,6 +49,17 @@ card refunds return applied credit and points proportionally and only once.
 If already-spent earned points are reversed, the account displays an adjustment
 due; future points first cover it. A fully covered pickup order completes without
 creating an unnecessary card charge.
+
+The first-order bonus is recorded separately in the client's balance history
+when the first eligible payment is verified, including an owner-verified deposit.
+The first paid job is checked across all jobs with the account email, including
+unlinked guest orders. Duplicate webhooks, multiple receipts and later orders do
+not award another bonus. Partial refunds keep the 50-point bonus while a valid
+payment remains; a full refund, payment void or dispute reverses it. A resolved
+dispute can restore the same bonus, but does not award a new one. Already
+reconciled payments are not backfilled during a retry or payment adjustment.
+An order covered entirely by existing credits does not earn the payment bonus.
+This change uses the existing audit ledger and keeps schema version 11.
 
 ## Artwork, sizing and site surveys
 

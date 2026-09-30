@@ -17,6 +17,7 @@ from .security import text
 
 DEFAULTS = {'rewards_enabled': True, 'rewards_points_per_dollar': '1',
             'rewards_point_value_cents': '1'}
+FIRST_ORDER_BONUS_POINTS = 50
 
 
 def config(shop):
@@ -27,7 +28,12 @@ def public_config(shop):
     cfg = config(shop)
     return {'enabled': cfg['rewards_enabled'], 'points_per_dollar': cfg['rewards_points_per_dollar'],
             'point_value_cents': int(cfg['rewards_point_value_cents']),
+            'first_order_bonus_points': FIRST_ORDER_BONUS_POINTS,
             'terms': 'Earn points on verified payments for merchandise after account discounts. '
+                     'Your first paid order earns an extra 50 points once per customer account. '
+                     'Prior paid orders with the same email count, including guest orders. '
+                     'The bonus is reversed if that order is fully refunded, voided or disputed; '
+                     'a partial refund keeps the bonus while a valid payment remains. '
                      'Tax and shipping do not earn points. Account credits and redeemed points '
                      'reduce the merchandise price before tax; they do not pay shipping. '
                      'No expiry or maintenance fees. Balances are for this account and cannot '
@@ -163,6 +169,47 @@ def capture(conn, job_id):
     conn.execute("UPDATE reward_redemptions SET status='captured',updated_at=? WHERE job_id=? AND status='reserved'", (now(), job_id))
 
 
+def sync_first_order_bonus(conn, owner, job, eligible, net_paid, first_earning):
+    """Keep one lifetime bonus tied to the first paid job, including reversals.
+
+    The original ledger entry remains after a reversal. A refund cannot turn a
+    later order into another first order. The caller holds BEGIN IMMEDIATE, and
+    the original entry also has a unique operation identifier.
+    """
+    original = conn.execute("SELECT * FROM customer_reward_ledger WHERE customer_id=? "
+                            "AND kind='first_order_bonus' ORDER BY id LIMIT 1", (owner['id'],)).fetchone()
+    if not original:
+        # Payments already reconciled before this feature are not backfilled by
+        # a later refund, deposit balance or webhook retry.
+        if not first_earning or eligible <= 0 or net_paid <= 0:
+            return
+        first = conn.execute('''SELECT paid.job_id FROM (
+            SELECT job_id,created_at FROM online_payments WHERE amount_cents>0
+            UNION ALL SELECT job_id,created_at FROM payments WHERE amount_cents>0
+            ) paid JOIN jobs j ON j.id=paid.job_id
+            WHERE j.customer_email=? COLLATE NOCASE
+            ORDER BY paid.created_at,paid.job_id LIMIT 1''', (job['customer_email'],)).fetchone()
+        if not first or first['job_id'] != job['id']:
+            return
+        entry(conn, owner['id'], 0, FIRST_ORDER_BONUS_POINTS, 'first_order_bonus',
+              'First paid order bonus for ' + job['number'], 'Rewards system', job['id'],
+              'first-order-bonus-' + str(owner['id']))
+        return
+    if original['job_id'] != job['id']:
+        return
+    awarded = conn.execute("SELECT COALESCE(SUM(points),0) FROM customer_reward_ledger "
+                           "WHERE customer_id=? AND job_id=? AND kind IN "
+                           "('first_order_bonus','first_order_bonus_reversed','first_order_bonus_restored')",
+                           (owner['id'], job['id'])).fetchone()[0]
+    desired = original['points'] if net_paid > 0 else 0
+    delta = desired - awarded
+    if delta:
+        entry(conn, owner['id'], 0, delta,
+              'first_order_bonus_restored' if delta > 0 else 'first_order_bonus_reversed',
+              ('First-order bonus restored for ' if delta > 0 else 'First-order bonus reversed for ') + job['number'],
+              'Rewards system', job['id'])
+
+
 def sync_earnings(conn, job_id):
     """Idempotently reconcile earnings against receipts, refunds and voids."""
     from .domain import get_job, totals
@@ -174,6 +221,8 @@ def sync_earnings(conn, job_id):
     money = totals(conn, job)
     eligible = max(0, money['merchandise_cents'])
     cfg = config(settings(conn))
+    first_earning = cfg['rewards_enabled'] and not conn.execute(
+        'SELECT 1 FROM reward_earnings WHERE customer_id=? LIMIT 1', (owner['id'],)).fetchone()
     receipts = [('online-' + str(row['id']), row['amount_cents'],
                  0 if row['disputed'] else max(0, row['amount_cents'] - row['refunded_cents']))
                 for row in conn.execute('SELECT * FROM online_payments WHERE job_id=?', (job_id,))]
@@ -194,6 +243,7 @@ def sync_earnings(conn, job_id):
             entry(conn, old['customer_id'], 0, delta, 'earned' if delta > 0 else 'reversed',
                   ('Payment reward for ' if delta > 0 else 'Payment adjustment for ') + job['number'], 'Rewards system', job_id)
             conn.execute('UPDATE reward_earnings SET awarded_points=? WHERE source=?', (desired, source))
+    sync_first_order_bonus(conn, owner, job, eligible, sum(net for _, _, net in receipts), first_earning)
     redemption = active_redemption(conn, job_id)
     if redemption and redemption['status'] == 'captured':
         paid = conn.execute('SELECT COALESCE(SUM(amount_cents),0) FROM online_payments WHERE job_id=?', (job_id,)).fetchone()[0]

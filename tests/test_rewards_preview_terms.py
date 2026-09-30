@@ -74,7 +74,7 @@ def test_redemption_payment_and_full_refund_are_reconciled_once(live_setup):
     assert send_event(app, paid, event_id='evt_rewards_paid').json()['duplicate']
     assert send_event(app, paid, event_id='evt_rewards_paid_again').status_code == 200
     wallet = client.get('/api/customer').json()['wallet']
-    assert (wallet['credit_cents'], wallet['points']) == (500, 153)
+    assert (wallet['credit_cents'], wallet['points']) == (500, 203)
     assert client.get('/api/portal/job').json()['totals']['balance_cents'] == 0
     refund = {'payment_intent': paid['payment_intent'], 'amount_refunded': paid['amount_total']}
     assert send_event(app, refund, kind='charge.refunded').status_code == 200
@@ -152,12 +152,12 @@ def test_shipping_discount_and_partial_refund_exclude_tax_and_delivery(live_setu
     paid = paid_object(app, session)
     assert send_event(app, paid).status_code == 200
     wallet = client.get('/api/customer').json()['wallet']
-    assert (wallet['credit_cents'], wallet['points']) == (500, 153)
+    assert (wallet['credit_cents'], wallet['points']) == (500, 203)
     refund = {'payment_intent': paid['payment_intent'], 'amount_refunded': paid['amount_total'] // 2}
     assert send_event(app, refund, kind='charge.refunded').status_code == 200
     assert send_event(app, refund, kind='charge.refunded').status_code == 200
     wallet = client.get('/api/customer').json()['wallet']
-    assert (wallet['credit_cents'], wallet['points']) == (750, 226)
+    assert (wallet['credit_cents'], wallet['points']) == (750, 276)
     refund['amount_refunded'] = paid['amount_total']
     assert send_event(app, refund, kind='charge.refunded').status_code == 200
     wallet = client.get('/api/customer').json()['wallet']
@@ -171,9 +171,9 @@ def test_refund_reverses_spent_points_and_keeps_original_earning_rate(live_setup
     session = open_session(app, client, first.json()['job_id'])
     paid = paid_object(app, session)
     assert send_event(app, paid).status_code == 200
-    assert client.get('/api/customer').json()['wallet']['points'] == 60
+    assert client.get('/api/customer').json()['wallet']['points'] == 110
     client, second, _ = new_order(app, client=client)
-    assert apply(client, credit='0', points=60).status_code == 200
+    assert apply(client, credit='0', points=110).status_code == 200
     shop = admin.get('/api/admin/settings').json()
     shop['rewards_points_per_dollar'] = '5'
     assert admin.put('/api/admin/settings', json=shop).status_code == 200
@@ -183,7 +183,7 @@ def test_refund_reverses_spent_points_and_keeps_original_earning_rate(live_setup
     assert wallet['points'] == 0 and wallet['points_adjustment_due'] == 30
     refund['amount_refunded'] = paid['amount_total']
     assert send_event(app, refund, kind='charge.refunded').status_code == 200
-    assert client.get('/api/customer').json()['wallet']['points_adjustment_due'] == 60
+    assert client.get('/api/customer').json()['wallet']['points_adjustment_due'] == 110
     assert client.post('/api/portal/rewards/release', json={'confirm': True}).status_code == 200
     wallet = client.get('/api/customer').json()['wallet']
     assert wallet['points'] == wallet['points_adjustment_due'] == 0
@@ -200,6 +200,7 @@ def test_zero_due_order_is_covered_without_creating_a_card_charge(live_setup):
     assert payment.status_code == 200 and payment.json()['paid']
     assert client.get('/api/portal/job').json()['checkout']['status'] == 'paid'
     assert not app.state.gateway.creates
+    assert client.get('/api/customer').json()['wallet']['points'] == 0
 
 
 def test_account_balance_cannot_be_spent_concurrently(live_setup):
@@ -238,7 +239,7 @@ def test_verified_custom_payment_earns_points_and_void_reverses_them(env):
     assert buyer.post('/api/portal/rewards/link', json={}).status_code == 200
     result = payment(admin, jid, '10')
     assert result.status_code == 200, result.text
-    assert client.get('/api/customer').json()['wallet']['points'] == 10
+    assert client.get('/api/customer').json()['wallet']['points'] == 60
     pid = result.json()['payment_id']
     assert admin.post(f'/api/staff/payments/{pid}/void', json={'reason': 'Local correction'}).status_code == 200
     assert client.get('/api/customer').json()['wallet']['points'] == 0
