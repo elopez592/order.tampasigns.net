@@ -24,8 +24,32 @@ function opaqueResult(width,height,reason='uncertain'){
   return {mask,bounds:{left:0,top:0,right:width-1,bottom:height-1,count:width*height},method:'opaque',backgroundDetected:false,confidence:0,reason};
 }
 
-export function buildAutoMask(imageData,width,height){
-  const data=imageData?.data||imageData,total=width*height;
+function median(values){
+  if(!values.length)return 0;
+  const sorted=[...values].sort((a,b)=>a-b),middle=Math.floor(sorted.length/2);
+  return sorted.length%2?sorted[middle]:(sorted[middle-1]+sorted[middle])/2;
+}
+
+function robustBackground(data,width,height){
+  const patch=Math.max(2,Math.min(32,Math.round(Math.min(width,height)*.045))),samples=[];
+  const sampleRect=(x0,y0,x1,y1)=>{
+    const step=Math.max(1,Math.floor(Math.max(x1-x0,y1-y0)/18));
+    for(let y=y0;y<y1;y+=step)for(let x=x0;x<x1;x+=step){
+      const offset=(y*width+x)*4;
+      if(data[offset+3]<245)continue;
+      samples.push([data[offset],data[offset+1],data[offset+2]]);
+    }
+  };
+  sampleRect(0,0,patch,patch);sampleRect(width-patch,0,width,patch);
+  sampleRect(0,height-patch,patch,height);sampleRect(width-patch,height-patch,width,height);
+  if(samples.length<8)return null;
+  const color=[median(samples.map(v=>v[0])),median(samples.map(v=>v[1])),median(samples.map(v=>v[2]))];
+  const distances=samples.map(v=>Math.hypot(v[0]-color[0],v[1]-color[1],v[2]-color[2])).sort((a,b)=>a-b);
+  return {color,p90:distances[Math.min(distances.length-1,Math.floor(distances.length*.9))]||0};
+}
+
+export function buildAutoMask(imageData,width,height,options={}){
+  const data=imageData?.data||imageData,total=width*height,sensitivity=clamp(Number(options.sensitivity)||1,.65,1.65);
   if(!data||data.length<total*4||!width||!height)return opaqueResult(Math.max(1,width||1),Math.max(1,height||1),'invalid');
 
   let transparent=0;
@@ -38,7 +62,7 @@ export function buildAutoMask(imageData,width,height){
     return {mask,bounds,method:'alpha',backgroundDetected:true,confidence:1,reason:'transparent-alpha'};
   }
 
-  const samples=[],bins=new Map();
+  const robust=robustBackground(data,width,height),samples=[],bins=new Map();
   const addSample=index=>{
     const offset=index*4,r=data[offset],g=data[offset+1],b=data[offset+2],key=(r>>5)*64+(g>>5)*8+(b>>5);
     samples.push([r,g,b,key]);
@@ -51,44 +75,47 @@ export function buildAutoMask(imageData,width,height){
 
   let dominantKey=null,dominantCount=0;
   for(const [key,count] of bins)if(count>dominantCount){dominantKey=key;dominantCount=count;}
-  const dominant=samples.filter(sample=>sample[3]===dominantKey);
-  const dominantRatio=dominantCount/samples.length;
-  if(dominantRatio<.12)return opaqueResult(width,height,'mixed-edge-background');
+  const dominant=samples.filter(sample=>sample[3]===dominantKey),dominantRatio=dominantCount/samples.length;
+  if(dominantRatio<.08&&!robust)return opaqueResult(width,height,'mixed-edge-background');
 
-  const bg=[0,0,0];
-  for(const sample of dominant){bg[0]+=sample[0];bg[1]+=sample[1];bg[2]+=sample[2];}
-  bg[0]/=dominant.length;bg[1]/=dominant.length;bg[2]/=dominant.length;
+  let bg,p90;
+  if(robust){
+    bg=robust.color;p90=robust.p90;
+  }else{
+    bg=[0,0,0];
+    for(const sample of dominant){bg[0]+=sample[0];bg[1]+=sample[1];bg[2]+=sample[2];}
+    bg[0]/=dominant.length;bg[1]/=dominant.length;bg[2]/=dominant.length;
+    const deviations=dominant.map(sample=>Math.hypot(sample[0]-bg[0],sample[1]-bg[1],sample[2]-bg[2])).sort((a,b)=>a-b);
+    p90=deviations[Math.min(deviations.length-1,Math.floor(deviations.length*.9))]||0;
+  }
 
-  const deviations=dominant.map(sample=>{
-    const dr=sample[0]-bg[0],dg=sample[1]-bg[1],db=sample[2]-bg[2];
-    return Math.sqrt(dr*dr+dg*dg+db*db);
-  }).sort((a,b)=>a-b);
-  const p90=deviations[Math.min(deviations.length-1,Math.floor(deviations.length*.9))]||0;
-  const tolerance=clamp(24+p90*2.2,28,92),toleranceSq=tolerance*tolerance;
-
+  const strictTolerance=clamp((16+p90*1.35)*sensitivity,16,78),looseTolerance=clamp((32+p90*2.5)*sensitivity,30,138);
+  const strictSq=strictTolerance*strictTolerance,looseSq=looseTolerance*looseTolerance;
+  const bgLuma=.2126*bg[0]+.7152*bg[1]+.0722*bg[2],bgChroma=Math.max(...bg)-Math.min(...bg);
   const background=new Uint8Array(total),queue=new Int32Array(total);
   let head=0,tail=0;
-  const seed=index=>{
-    if(background[index])return;
+  const similar=(index,thresholdSq)=>{
     const offset=index*4;
-    if(distanceSq(data,offset,bg)>toleranceSq)return;
+    if(distanceSq(data,offset,bg)<=thresholdSq)return true;
+    const r=data[offset],g=data[offset+1],b=data[offset+2],luma=.2126*r+.7152*g+.0722*b,chroma=Math.max(r,g,b)-Math.min(r,g,b);
+    return bgLuma>210&&Math.abs(luma-bgLuma)<=42*sensitivity&&chroma<=Math.max(28,bgChroma+24)*sensitivity;
+  };
+  const seed=index=>{
+    if(background[index]||!similar(index,strictSq))return;
     background[index]=1;queue[tail++]=index;
   };
   for(let x=0;x<width;x++){seed(x);seed((height-1)*width+x);}
   for(let y=1;y<height-1;y++){seed(y*width);seed(y*width+width-1);}
 
   while(head<tail){
-    const index=queue[head++],x=index%width;
-    const visit=neighbor=>{
-      if(neighbor<0||neighbor>=total||background[neighbor])return;
-      const offset=neighbor*4;
-      if(distanceSq(data,offset,bg)>toleranceSq)return;
+    const index=queue[head++],x=index%width,y=Math.floor(index/width);
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+      if(!dx&&!dy)continue;
+      const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=width||ny>=height)continue;
+      const neighbor=ny*width+nx;
+      if(background[neighbor]||!similar(neighbor,looseSq))continue;
       background[neighbor]=1;queue[tail++]=neighbor;
-    };
-    if(index>=width)visit(index-width);
-    if(index<total-width)visit(index+width);
-    if(x>0)visit(index-1);
-    if(x<width-1)visit(index+1);
+    }
   }
 
   const mask=new Uint8Array(total);
@@ -97,12 +124,85 @@ export function buildAutoMask(imageData,width,height){
   const foregroundRatio=foregroundCount/total,removedRatio=1-foregroundRatio;
   if(foregroundRatio<.005||foregroundRatio>.985||removedRatio<.015)return opaqueResult(width,height,'background-not-separable');
 
-  const bounds=boundsFor(mask,width,height);
-  const confidence=clamp(.45+dominantRatio*.45+Math.min(.1,removedRatio*.12),.45,.99);
-  return {mask,bounds,method:'background',backgroundDetected:true,confidence,reason:'edge-connected-background',backgroundColor:bg,tolerance};
+  const bounds=boundsFor(mask,width,height),confidence=clamp(.5+Math.max(.12,dominantRatio)*.35+Math.min(.14,removedRatio*.16),.5,.99);
+  return {mask,bounds,method:'background',backgroundDetected:true,confidence,reason:'edge-connected-background',backgroundColor:bg,tolerance:looseTolerance};
 }
 
-export async function autoContourArtwork(source,{maskMaxDimension=900}={}){
+function componentFilter(mask,width,height){
+  const total=width*height,seen=new Uint8Array(total),queue=new Int32Array(total),components=[];
+  for(let start=0;start<total;start++){
+    if(!mask[start]||seen[start])continue;
+    let head=0,tail=0;queue[tail++]=start;seen[start]=1;const pixels=[];
+    while(head<tail){
+      const index=queue[head++],x=index%width,y=Math.floor(index/width);pixels.push(index);
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+        if(!dx&&!dy)continue;const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=width||ny>=height)continue;
+        const neighbor=ny*width+nx;if(!mask[neighbor]||seen[neighbor])continue;seen[neighbor]=1;queue[tail++]=neighbor;
+      }
+    }
+    components.push(pixels);
+  }
+  if(!components.length)return mask;
+  components.sort((a,b)=>b.length-a.length);
+  const threshold=Math.max(4,Math.round(components[0].length*.0015),Math.round(total*.000015)),out=new Uint8Array(total);
+  for(const pixels of components){if(pixels.length<threshold)continue;for(const index of pixels)out[index]=255;}
+  return out;
+}
+
+function dilateStep(mask,width,height){
+  const out=new Uint8Array(mask.length);
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    let on=0;
+    for(let dy=-1;dy<=1&&!on;dy++)for(let dx=-1;dx<=1;dx++){
+      const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=width||ny>=height)continue;
+      if(mask[ny*width+nx]){on=255;break;}
+    }
+    out[y*width+x]=on;
+  }
+  return out;
+}
+function erodeStep(mask,width,height){
+  const out=new Uint8Array(mask.length);
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    let on=255;
+    for(let dy=-1;dy<=1&&on;dy++)for(let dx=-1;dx<=1;dx++){
+      const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=width||ny>=height||!mask[ny*width+nx]){on=0;break;}
+    }
+    out[y*width+x]=on;
+  }
+  return out;
+}
+function fillHoles(mask,width,height){
+  const total=width*height,out=new Uint8Array(mask),outside=new Uint8Array(total),queue=new Int32Array(total);let head=0,tail=0;
+  const seed=index=>{if(mask[index]||outside[index])return;outside[index]=1;queue[tail++]=index;};
+  for(let x=0;x<width;x++){seed(x);seed((height-1)*width+x);}
+  for(let y=1;y<height-1;y++){seed(y*width);seed(y*width+width-1);}
+  while(head<tail){
+    const index=queue[head++],x=index%width,y=Math.floor(index/width);
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+      if(!dx&&!dy)continue;const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=width||ny>=height)continue;
+      const next=ny*width+nx;if(mask[next]||outside[next])continue;outside[next]=1;queue[tail++]=next;
+    }
+  }
+  for(let i=0;i<total;i++)if(!mask[i]&&!outside[i])out[i]=255;
+  return out;
+}
+
+export function buildSilhouetteMask(imageData,width,height,{joinRadius=0}={}){
+  const data=imageData?.data||imageData,total=width*height,mask=new Uint8Array(total);
+  if(!data)return mask;
+  if(data.length===total){for(let i=0;i<total;i++)mask[i]=data[i]?255:0;}
+  else for(let i=0;i<total;i++)mask[i]=data[i*4+3]>20?255:0;
+  let out=componentFilter(mask,width,height),radius=clamp(Math.round(joinRadius),0,28);
+  if(radius){
+    for(let i=0;i<radius;i++)out=dilateStep(out,width,height);
+    for(let i=0;i<radius;i++)out=erodeStep(out,width,height);
+  }
+  out=fillHoles(out,width,height);
+  return componentFilter(out,width,height);
+}
+
+export async function autoContourArtwork(source,{maskMaxDimension=900,sensitivity=1}={}){
   const sourceWidth=Math.max(1,source.naturalWidth||source.videoWidth||source.width||1);
   const sourceHeight=Math.max(1,source.naturalHeight||source.videoHeight||source.height||1);
   const maskScale=Math.min(1,maskMaxDimension/Math.max(sourceWidth,sourceHeight));
@@ -113,7 +213,7 @@ export async function autoContourArtwork(source,{maskMaxDimension=900}={}){
   workContext.imageSmoothingEnabled=true;workContext.imageSmoothingQuality='high';
   workContext.drawImage(source,0,0,work.width,work.height);
 
-  const detected=buildAutoMask(workContext.getImageData(0,0,work.width,work.height),work.width,work.height);
+  const detected=buildAutoMask(workContext.getImageData(0,0,work.width,work.height),work.width,work.height,{sensitivity});
   const pad=detected.backgroundDetected?2:0;
   const left=Math.max(0,detected.bounds.left-pad),top=Math.max(0,detected.bounds.top-pad);
   const right=Math.min(work.width-1,detected.bounds.right+pad),bottom=Math.min(work.height-1,detected.bounds.bottom+pad);
