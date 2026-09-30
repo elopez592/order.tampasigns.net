@@ -16,7 +16,11 @@ from .security import text
 
 def survey_pending(conn, job_id):
     row = conn.execute('SELECT status FROM job_site_surveys WHERE job_id=?', (job_id,)).fetchone()
-    return bool(row and row['status'] == 'requested')
+    if row and row['status'] == 'requested':
+        return True
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='employee_surveys'").fetchone():
+        return conn.execute("SELECT id FROM employee_surveys WHERE job_id=? AND status!='verified' LIMIT 1", (job_id,)).fetchone() is not None
+    return False
 
 
 def request_survey(conn, job_id, location='', note=''):
@@ -139,6 +143,8 @@ def install(app, database, uploads, portal_job, require_admin, add_proof, actor)
             job = get_job(conn, job_id)
             if not survey_pending(conn, job_id) or job['archived']:
                 raise HTTPException(409, 'No pending site survey exists for this job.')
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='employee_surveys'").fetchone() and conn.execute("SELECT id FROM employee_surveys WHERE job_id=? AND status!='verified' LIMIT 1", (job_id,)).fetchone():
+                raise HTTPException(409, 'Verify each structured employee survey in the employee app before completing project measurements.')
             conn.execute("UPDATE job_site_surveys SET status='complete',note=?,updated_at=? WHERE job_id=?", (note, now(), job_id))
             audit(conn, job_id, actor(user), 'site_survey.completed', {'note': note}, True)
             return {'ok': True}

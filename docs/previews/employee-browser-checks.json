@@ -1,0 +1,20 @@
+{
+  "checks": [
+    "Mobile sign-in, home layout and service worker",
+    "CRM creation, offline survey/photo retention, recovery, sync and submission",
+    "Survey dimensions to catalog estimate, tax total, publish and draft invoice",
+    "Task acceptance, personal queue, start timer and completion",
+    "Employee proof attachment, portal publication and truthful email status",
+    "Owner survey verification, unchanged customer terms, scope acceptance and issued invoice",
+    "Configured wrap pricing dimensions and apparel size/color/placement pricing"
+  ],
+  "errors": [],
+  "viewports": [
+    360,
+    390,
+    430,
+    768,
+    1280
+  ],
+  "productionWrites": false
+}
