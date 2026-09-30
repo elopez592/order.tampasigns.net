@@ -56,7 +56,7 @@ export function createWindowUploads(ctx) {
     if (record && record.kind !== 'window-upload') throw new Error('This artwork cannot be opened here.');
     return record;
   };
-  let active = null, busy = false;
+  let active = null, busy = false, thumbnailURLs = [];
 
   function button(item) {
     if (!supported(item.product_id)) return '';
@@ -78,9 +78,14 @@ export function createWindowUploads(ctx) {
   function renderFiles() {
     const target = document.querySelector('#window-upload-files');
     if (!target || !active) return;
+    for (const url of thumbnailURLs) URL.revokeObjectURL(url);
+    thumbnailURLs = [];
     target.innerHTML = active.files.length ? active.files.map((file, index) => {
       const check = active.checks?.[index];
-      return `<div class="artwork-file-check mt-sm"><div class="row between wrap"><span style="overflow-wrap:anywhere;min-width:0"><strong>${esc(file.name)}</strong> <small class="muted">(${(file.size / 1048576).toFixed(2)} MB)</small></span><button type="button" class="btn light small" data-action="window-upload-remove" data-index="${index}" aria-label="Remove ${esc(file.name)}">Remove</button></div>${check?`<div class="preflight-result ${esc(check.level)}"><strong>${esc(check.title)}</strong><span>${esc(check.detail)}</span></div>`:''}</div>`;
+      const url = URL.createObjectURL(file);
+      thumbnailURLs.push(url);
+      const preview = /\.(png|jpe?g)$/i.test(file.name) ? `<a href="${esc(url)}" target="_blank" rel="noopener"><img class="artwork-thumbnail" src="${esc(url)}" alt="Uploaded artwork preview: ${esc(file.name)}"></a>` : `<a class="link" href="${esc(url)}" target="_blank" rel="noopener">Open PDF and review all pages ↗</a>`;
+      return `<div class="artwork-file-check mt-sm"><div class="row between wrap"><span style="overflow-wrap:anywhere;min-width:0"><strong>${esc(file.name)}</strong> <small class="muted">(${(file.size / 1048576).toFixed(2)} MB)</small></span><button type="button" class="btn light small" data-action="window-upload-remove" data-index="${index}" aria-label="Remove ${esc(file.name)}">Remove</button></div>${preview}${check?`<div class="preflight-result ${esc(check.level)}"><strong>${esc(check.title)}</strong><span>${esc(check.detail)}</span></div>`:''}</div>`;
     }).join('') : '<p class="muted">No files selected yet.</p>';
   }
 
@@ -128,7 +133,7 @@ export function createWindowUploads(ctx) {
     const panes = !wrap && !!product(productId)?.config?.supports_multiple_dimensions;
     const extra = product(productId)?.config?.apparel_kind?.startsWith('embroidered_');
     const intro = extra ? 'Attach a PDF or another export of your logo as an optional digitizing reference. Your preview logo is already saved separately.' : wrap ? 'Upload your finished wrap artwork, logo, concept or reference photos.' : panes ? 'Upload finished artwork, a storefront concept, a sketch or reference photos.' : 'Upload your ready-to-print artwork, logo or reference files for this product.';
-    const instructions = extra ? 'Our shop will use the original logo and any extra reference to create the final embroidery proof.' : wrap ? 'Attach one PDF or separate files named for each side or panel, such as Driver Side, Passenger Side and Rear. We will review fit, placement and production layout.' : panes ? 'For multiple panes, attach a multi-page PDF or separate files named for each pane, such as Left Window, Door and Right Window. We will review the layout before production.' : 'Attach one file or separate files for each printed side, such as Front and Back. We will review your artwork before production.';
+    const instructions = extra ? 'Our shop will use the original logo and any extra reference to create the final embroidery proof.' : wrap ? 'Attach one PDF or separate files named for each side or panel, such as Driver Side, Passenger Side and Rear. We will review fit, placement and production layout.' : panes ? 'For multiple panes, attach a multi-page PDF or separate files named for each pane, such as Left Window, Door and Right Window. We will review the layout before production.' : 'Attach one file or separate files for each printed side, such as Front and Back. At checkout you can approve the exact uploaded previews as your proof and continue to payment.';
     showModal(wrap || panes ? 'Upload Design' : extra ? 'Upload extra file' : 'Upload File', `<div class="stack"><p>${esc(intro)}</p><p class="field-hint">${esc(instructions)}</p>${shared > 1 ? `<div class="notice info">These files are shared by ${shared} ${panes ? 'panes' : 'items'} in this project. Changes here apply to the whole group.</div>` : ''}<label class="field"><span>Choose design files</span><input id="window-upload-input" type="file" accept=".png,.jpg,.jpeg,.pdf" multiple></label><p class="field-hint">PDF, PNG or JPG. Up to 50 MB per file. Raster images receive an instant resolution check against the ordered size when available. PDFs are always verified by the shop before production.</p><div id="window-upload-error" class="form-error" role="alert"></div><div id="window-upload-files" aria-live="polite"></div><div class="notice info">Files are saved in this browser${key ? ' and attached to your project' : '. After choosing your options, click Add to project'}. They will be sent to Tampa Signs when you submit your project.${wrap || extra ? '' : ' No Canva account is needed.'}</div><div class="row mt"><button type="button" class="btn primary" data-action="close">Done</button></div></div>`);
     renderFiles();
     document.querySelector('#window-upload-input').onchange = async event => {

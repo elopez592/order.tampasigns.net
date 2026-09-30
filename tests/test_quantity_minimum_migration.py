@@ -14,7 +14,7 @@ def test_existing_product_quantities_migrate_once_and_future_edits_stay_at_one(t
             conn.execute('INSERT INTO products(id,name,category,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?)',
                          (product_id, name, 'Stickers', 1,
                           json.dumps({'min_quantity': minimum, 'max_quantity': '1000'}), now()))
-        conn.execute('DELETE FROM schema_version WHERE version=10')
+        conn.execute('DELETE FROM schema_version WHERE version>=10')
 
     initialize(database)
     with transaction(database) as conn:

@@ -2,6 +2,8 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import tempfile
+import zipfile
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -35,14 +37,47 @@ def transaction(path: Path, write: bool = False) -> Iterator[sqlite3.Connection]
         conn.close()
 
 
+def _backup_before_v11(conn: sqlite3.Connection, path: Path) -> Path:
+    """Keep the pre-upgrade database and its artwork together on the data volume."""
+    folder = path.parent / 'backups'
+    folder.mkdir(mode=0o700, exist_ok=True)
+    folder.chmod(0o700)
+    stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+    target = folder / f'pre-v11-{stamp}.zip'
+    with tempfile.TemporaryDirectory(dir=folder) as temp:
+        snapshot = Path(temp) / 'signshop.sqlite3'
+        destination = sqlite3.connect(snapshot)
+        try:
+            conn.backup(destination)
+        finally:
+            destination.close()
+        pending = Path(temp) / 'snapshot.zip'
+        with zipfile.ZipFile(pending, 'x', zipfile.ZIP_DEFLATED) as archive:
+            pending.chmod(0o600)
+            archive.write(snapshot, 'signshop.sqlite3')
+            for item in sorted((path.parent / 'uploads').glob('*')):
+                if item.is_file():
+                    archive.write(item, 'uploads/' + item.name)
+        pending.replace(target)
+    print(f'Created pre-upgrade database and artwork backup: {target}', flush=True)
+    return target
+
+
 def initialize(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = connect(path)
     try:
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_version'").fetchone():
+            previous = [r[0] for r in conn.execute('SELECT version FROM schema_version ORDER BY version')]
+            if not previous or previous != list(range(1, max(previous) + 1)) or max(previous) > 11:
+                raise RuntimeError('Unsupported database schema; back up and migrate explicitly.')
+            if max(previous) < 11:
+                # A failed backup stops startup before any migration changes.
+                _backup_before_v11(conn, path)
         conn.execute('PRAGMA journal_mode=WAL')
         conn.executescript(Path(__file__).with_name('schema.sql').read_text())
         versions = [r[0] for r in conn.execute('SELECT version FROM schema_version ORDER BY version')]
-        if not versions or versions != list(range(1, max(versions) + 1)) or max(versions) > 10:
+        if not versions or versions != list(range(1, max(versions) + 1)) or max(versions) > 11:
             raise RuntimeError('Unsupported database schema; back up and migrate explicitly.')
         conn.execute('INSERT OR IGNORE INTO schema_version VALUES (2)')
         conn.execute('INSERT OR IGNORE INTO schema_version VALUES (3)')
@@ -98,6 +133,19 @@ def initialize(path: Path) -> None:
                     conn.execute('UPDATE products SET config=?,version=version+1,updated_at=? WHERE id=?',
                                  (json.dumps(cfg), now(), row['id']))
             conn.execute('INSERT OR IGNORE INTO schema_version VALUES (10)')
+        if 11 not in versions:
+            row = conn.execute('SELECT data FROM settings WHERE id=1').fetchone()
+            if row:
+                from .job_terms import CHECKOUT_CONFIRMATION
+                from .rewards import DEFAULTS
+                shop = json.loads(row['data'])
+                legacy_terms = 'I confirm the product, size and quantity. I will review and approve a proof before production. Tax and any selected delivery charge are shown at secure checkout.'
+                if shop.get('checkout_terms') == legacy_terms:
+                    shop['checkout_terms'] = CHECKOUT_CONFIRMATION
+                for key, value in DEFAULTS.items():
+                    shop.setdefault(key, value)
+                conn.execute('UPDATE settings SET data=? WHERE id=1', (json.dumps(shop),))
+            conn.execute('INSERT OR IGNORE INTO schema_version VALUES (11)')
     finally:
         conn.close()
     try:

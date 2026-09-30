@@ -11,6 +11,7 @@ from .db import transaction, now
 from .domain import create_job, stage
 from .images import save_asset
 from .security import digest, password_hash, password_matches, email, text
+from .rewards import wallet
 
 COOKIE = 'signshop_customer'
 
@@ -29,6 +30,9 @@ def customer(conn, request):
 def link_order(conn, request, job_id):
     who = customer(conn, request)
     if who:
+        address = conn.execute('SELECT customer_email FROM jobs WHERE id=?', (job_id,)).fetchone()[0]
+        if who['email'].lower() != address.lower():
+            raise HTTPException(422, 'Use your signed-in customer account email for this order, or sign out first.')
         conn.execute('INSERT OR IGNORE INTO customer_orders(customer_id,job_id) VALUES(?,?)', (who['id'], job_id))
 
 
@@ -132,6 +136,7 @@ def install(app, database, production, throttle, issue_portal, uploads):
                 'orders': orders,
                 'profile': profile_row(conn, who['id']),
                 'saved_assets': saved_assets,
+                'wallet': wallet(conn, who['id']),
             }
 
     def signed_in(conn, who, request):

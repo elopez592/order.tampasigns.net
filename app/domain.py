@@ -7,9 +7,7 @@ from .db import now, settings, audit
 from .pricing import calculate, public_quote, number, cent_round
 from .security import text, email
 
-APPROVAL_STATEMENT = ('I approve this complete proof package for production, including wording, spelling, '
-                      'dimensions, layout and placement. I understand screen colors are not an exact print-color match. '
-                      'This approval applies only to the displayed proof version; later revisions require a new approval.')
+from .job_terms import APPROVAL_STATEMENT
 
 
 def get_job(conn, job_id: int):
@@ -22,13 +20,17 @@ def get_job(conn, job_id: int):
 def totals(conn, job) -> dict:
     quote = json.loads(job['quote_snapshot'])
     merchandise = job['price_override_cents'] if job['price_override_cents'] is not None else quote['subtotal_cents'] + job['extra_price_cents']
+    from .rewards import discount_for_job
+    rewards_discount = discount_for_job(conn, job['id'])
+    merchandise = max(0, merchandise - rewards_discount)
     pretax = merchandise + job['shipping_cents']
     total = pretax + job['tax_cents']
     paid = conn.execute('SELECT COALESCE(SUM(amount_cents),0) FROM payments WHERE job_id=? AND voided_at IS NULL', (job['id'],)).fetchone()[0]
     paid += conn.execute('SELECT COALESCE(SUM(CASE WHEN disputed=0 THEN amount_cents-refunded_cents ELSE 0 END),0) FROM online_payments WHERE job_id=?', (job['id'],)).fetchone()[0]
     cost = quote['cost_cents'] + job['extra_cost_cents']
     deposit = cent_round(Decimal(total) * Decimal(job['deposit_percent']) / 100)
-    return {'merchandise_cents': merchandise, 'shipping_cents': job['shipping_cents'],
+    return {'merchandise_cents': merchandise, 'rewards_discount_cents': rewards_discount,
+            'shipping_cents': job['shipping_cents'],
             'tax_cents': job['tax_cents'], 'total_cents': total, 'paid_cents': paid,
             'balance_cents': max(total - paid, 0), 'credit_cents': max(paid - total, 0),
             'deposit_cents': deposit, 'deposit_remaining_cents': max(deposit - paid, 0),
@@ -61,9 +63,16 @@ def gate_reason(conn, job, task) -> str:
     if gate in ('deposit', 'production', 'delivery') and financials['deposit_remaining_cents'] > 0:
         return 'Required deposit has not been verified.'
     if gate in ('production', 'delivery'):
+        from .artwork_approval import survey_pending
+        if survey_pending(conn, job['id']):
+            return 'Requested site survey and verified measurements must be completed.'
         proof = latest_proof(conn, job['id'])
         if not proof or proof['status'] != 'approved':
             return 'Latest complete proof package must be approved.'
+        specs = [{key: line[key] for key in ('name','description','width','height','quantity')}
+                 for line in json.loads(job['quote_snapshot'])['lines']]
+        if json.loads(proof['specs']) != specs:
+            return 'The approved proof sizing or scope differs from this order. Approve a revised proof before production.'
     if gate == 'delivery' and financials['balance_cents'] > 0:
         return 'Remaining balance must be verified before delivery.'
     return ''
@@ -202,12 +211,21 @@ def serialize_job(conn, job, audience='admin', detail=True, gateway=None):
     result['invoice_reference'] = job['invoice_reference']
     result['production_started'] = production_started(conn, job['id'])
     result['approval_statement'] = APPROVAL_STATEMENT
+    from .job_terms import public_terms
+    result['job_terms'] = public_terms()
+    survey = conn.execute('SELECT status,location,note,updated_at FROM job_site_surveys WHERE job_id=?', (job['id'],)).fetchone()
+    result['site_survey'] = dict(survey) if survey else None
+    if audience == 'customer' and result['site_survey']:
+        result['site_survey'].pop('note', None)
     result['charges_verified'] = bool(job['charges_verified'])
     result['extra_price_cents'] = job['extra_price_cents']
     result['price_override_cents'] = job['price_override_cents']
     result['adjustment_note'] = job['adjustment_note']
     if audience == 'admin':
         result['extra_cost_cents'] = job['extra_cost_cents']
+        from .rewards import active_redemption
+        redemption = active_redemption(conn, job['id'])
+        result['rewards_redemption'] = {key: redemption[key] for key in ('credit_cents','points','discount_cents','status')} if redemption else None
     result['tasks'] = []
     for t in ([] if audience=='customer' else tasks):
         item = {k: t[k] for k in ['id','position','title','department','status','assignee_id','assignee','started_at','completed_at']}
@@ -228,6 +246,11 @@ def serialize_job(conn, job, audience='admin', detail=True, gateway=None):
         item = dict(p)
         item['specs'] = json.loads(item['specs'])
         item['decisions'] = [dict(d) for d in conn.execute('SELECT * FROM proof_decisions WHERE proof_id=? ORDER BY id', (p['id'],))]
+        approval = conn.execute('SELECT terms_version,signer_name,created_at,terms_snapshot,file_manifest '
+                                'FROM job_terms_acceptances WHERE proof_id=? ORDER BY id DESC LIMIT 1', (p['id'],)).fetchone()
+        item['approved_files'] = json.loads(approval['file_manifest']) if approval else []
+        item['terms_acceptance'] = {'version': approval['terms_version'], 'signer_name': approval['signer_name'],
+                                    'accepted_at': approval['created_at'], 'terms': json.loads(approval['terms_snapshot'])} if approval else None
         result['proofs'].append(item)
     result['payments'] = [dict(p) for p in conn.execute('SELECT id,amount_cents,reference,note,created_at,voided_at,void_reason FROM payments WHERE job_id=? ORDER BY id DESC', (job['id'],))]
     event_query = 'SELECT * FROM events WHERE job_id=?' + (' AND public=1' if audience == 'customer' else '') + ' ORDER BY id DESC LIMIT 120'

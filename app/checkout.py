@@ -22,6 +22,8 @@ from fastapi import HTTPException
 from .db import audit, now, settings, transaction
 from .pricing import calculate, public_quote, cents, cent_round
 from .security import digest
+from . import rewards
+from .job_terms import public_terms
 
 API_VERSION = '2026-08-26.dahlia'
 
@@ -124,7 +126,8 @@ def checkout_policy(shop, fulfillment):
     return {'fulfillment': fulfillment, 'pickup_address': shop['checkout_pickup_address'],
             'tax_percent': shop['checkout_pickup_tax_percent'],
             'shipping_cents': cents(shop['checkout_shipping_price']) if fulfillment == 'shipping' else 0,
-            'terms': shop['checkout_terms'], 'tax_mode': 'automatic' if fulfillment == 'shipping' else 'pickup_fixed'}
+            'terms': shop['checkout_terms'], 'tax_mode': 'automatic' if fulfillment == 'shipping' else 'pickup_fixed',
+            'job_terms': public_terms()}
 
 
 def eligible_quote(conn, items, wholesale_client_id=None):
@@ -158,9 +161,13 @@ def order_summary(conn, job, gateway):
             status = 'payment_review'
     else:
         status = 'payment_review' if latest and latest['status'] == 'review' else 'awaiting_payment'
+        redemption = rewards.active_redemption(conn, job['id'])
+        from .domain import totals
+        if redemption and redemption['status'] == 'captured' and totals(conn, job)['total_cents'] == 0:
+            status = 'paid'
     return {'status': status, 'fulfillment': order['fulfillment'],
             'pickup_address': policy['pickup_address'] if order['fulfillment']=='pickup' else '',
-            'can_pay': not receipt and not job['archived'] and status != 'payment_review'
+            'can_pay': not receipt and not job['archived'] and status not in ('payment_review','paid')
                        and job['accepted_version'] == job['quote_version']
                        and availability(settings(conn), gateway)['available'],
             'tax_pending': order['fulfillment']=='shipping' and not receipt,
@@ -187,6 +194,11 @@ def start_checkout(database, job_id, gateway, public_url):
             raise HTTPException(409, 'Payment needs shop review before trying again.')
         quote = json.loads(job['quote_snapshot'])
         policy = json.loads(order['policy'])
+        merchandise = quote['subtotal_cents'] - rewards.discount_for_job(conn, job_id)
+        if merchandise == 0 and policy['shipping_cents'] == 0:
+            rewards.capture(conn, job_id)
+            conn.execute('UPDATE jobs SET charges_verified=1,tax_cents=0 WHERE id=?', (job_id,))
+            return {'paid': True, 'url': public_url + '/portal?payment=received'}
         # Never mark an old session expired from our clock alone: reconcile with Stripe first.
         current = dict(previous) if previous and previous['status'] in ('creating','open','paid') else None
         job_data, order_data = dict(job), dict(order)
@@ -194,7 +206,7 @@ def start_checkout(database, job_id, gateway, public_url):
             session_key = uuid.uuid4().hex
             expires_at = int(time.time()) + 3600
             conn.execute('''INSERT INTO checkout_sessions(id,order_id,quote_version,merchandise_cents,shipping_cents,expires_at,created_at)
-                VALUES(?,?,?,?,?,?,?)''', (session_key, order['id'], job['quote_version'], quote['subtotal_cents'], policy['shipping_cents'], expires_at, now()))
+                VALUES(?,?,?,?,?,?,?)''', (session_key, order['id'], job['quote_version'], merchandise, policy['shipping_cents'], expires_at, now()))
             current = dict(conn.execute('SELECT * FROM checkout_sessions WHERE id=?', (session_key,)).fetchone())
     if current['stripe_id']:
         live = gateway.retrieve_session(current['stripe_id'])
@@ -208,6 +220,7 @@ def start_checkout(database, job_id, gateway, public_url):
         if live.get('status') == 'expired' and current['status']=='open':
             with transaction(database, True) as conn:
                 conn.execute("UPDATE checkout_sessions SET status='expired' WHERE id=? AND status='open'", (current['id'],))
+                rewards.release(conn, job_id, 'Payment checkout expired; applied balance returned.')
             return start_checkout(database, job_id, gateway, public_url)
         if live.get('status') == 'complete':
             raise HTTPException(409, 'The payment provider is confirming this payment. Please refresh shortly; do not pay again.')
@@ -238,7 +251,7 @@ def start_checkout(database, job_id, gateway, public_url):
                 'line_items[0][price_data][tax_behavior]':'exclusive',
                 'line_items[0][quantity]':'1', 'billing_address_collection':'required',
                 'expires_at':str(int(current['expires_at'])),
-                'custom_text[submit][message]':'Your proof approval is required before production.'}
+                'custom_text[submit][message]':'Approved upload previews count as your proof. Review all artwork and sizing before production.'}
         if order_data['fulfillment'] == 'shipping':
             body.update({'automatic_tax[enabled]':'true', 'shipping_address_collection[allowed_countries][0]':'US',
                          'shipping_options[0][shipping_rate_data][type]':'fixed_amount',
@@ -356,6 +369,7 @@ def start_custom_checkout(database, job_id, payment_kind, gateway, public_url):
                     "UPDATE custom_checkout_sessions SET status='expired' WHERE id=? AND status='open'",
                     (current['id'],)
                 )
+                rewards.release(conn, job_id, 'Payment checkout expired; applied balance returned.')
             return start_custom_checkout(database, job_id, payment_kind, gateway, public_url)
         if live_session.get('status') == 'complete':
             raise HTTPException(409, 'The payment provider is confirming this payment. Please refresh shortly; do not pay again.')
@@ -424,6 +438,7 @@ def reconcile_custom_paid(conn, session, data, event_id, live):
     intent = data.get('payment_intent')
     total = data.get('amount_total')
     money = totals(conn, job)
+    existing = conn.execute('SELECT id FROM online_payments WHERE session_id=? OR payment_intent=?', (data.get('id'), intent)).fetchone()
     correct = (
         data.get('payment_status') == 'paid'
         and data.get('currency') == 'usd'
@@ -444,7 +459,7 @@ def reconcile_custom_paid(conn, session, data, event_id, live):
         and breakdown.get('amount_tax', 0) == 0
         and breakdown.get('amount_shipping', 0) == 0
         and breakdown.get('amount_discount', 0) == 0
-        and money['balance_cents'] >= session['amount_cents']
+        and (bool(existing) or money['balance_cents'] >= session['amount_cents'])
     )
     if not correct:
         conn.execute("UPDATE custom_checkout_sessions SET status='review' WHERE id=?", (session['id'],))
@@ -474,6 +489,8 @@ def reconcile_custom_paid(conn, session, data, event_id, live):
         "UPDATE custom_checkout_sessions SET status='paid',stripe_id=? WHERE id=?",
         (data['id'], session['id'])
     )
+    rewards.capture(conn, job['id'])
+    rewards.sync_earnings(conn, job['id'])
     return True
 
 
@@ -493,6 +510,7 @@ def reconcile_paid(conn, session, data, event_id, live):
         and metadata.get('checkout_id') == session['id'] and metadata.get('job_id') == str(job['id'])
         and metadata.get('quote_version') == str(session['quote_version'])
         and session['quote_version'] == job['quote_version'] and not job['archived']
+        and session['merchandise_cents'] == json.loads(job['quote_snapshot'])['subtotal_cents'] - rewards.discount_for_job(conn, job['id'])
         and (not session['stripe_id'] or session['stripe_id'] == data.get('id'))
         and isinstance(intent,str) and intent.startswith('pi_')
         and type(tax) is int and tax >= 0 and type(shipping) is int
@@ -520,6 +538,8 @@ def reconcile_paid(conn, session, data, event_id, live):
         if address:
             audit(conn,job['id'],'Payment provider','checkout.shipping_address',address,False)
     conn.execute("UPDATE checkout_sessions SET status='paid',stripe_id=? WHERE id=?",(data['id'],session['id']))
+    rewards.capture(conn, job['id'])
+    rewards.sync_earnings(conn, job['id'])
     return True
 
 
@@ -537,12 +557,17 @@ def process_event(conn, event, gateway):
             if kind=='checkout.session.expired':
                 if session['stripe_id']==data.get('id'):
                     conn.execute("UPDATE checkout_sessions SET status='expired' WHERE id=? AND status IN ('creating','open')",(key,))
+                    if session['status'] in ('creating', 'open'):
+                        job_id = conn.execute('SELECT job_id FROM checkout_orders WHERE id=?', (session['order_id'],)).fetchone()[0]
+                        rewards.release(conn, job_id, 'Payment checkout expired; applied balance returned.')
             elif data.get('payment_status')=='paid':
                 reconcile_paid(conn,session,data,event['id'],gateway.live)
         elif custom_session:
             if kind=='checkout.session.expired':
                 if custom_session['stripe_id']==data.get('id'):
                     conn.execute("UPDATE custom_checkout_sessions SET status='expired' WHERE id=? AND status IN ('creating','open')",(custom_key,))
+                    if custom_session['status'] in ('creating', 'open'):
+                        rewards.release(conn, custom_session['job_id'], 'Payment checkout expired; applied balance returned.')
             elif data.get('payment_status')=='paid':
                 reconcile_custom_paid(conn,custom_session,data,event['id'],gateway.live)
     elif kind in ('charge.refunded','charge.dispute.created','charge.dispute.closed'):
@@ -563,5 +588,6 @@ def process_event(conn, event, gateway):
             receipt=conn.execute('SELECT job_id FROM online_payments WHERE payment_intent=?',(intent,)).fetchone()
             if receipt:
                 audit(conn,receipt['job_id'],'Payment provider','payment.updated',{'refunded_cents':adj['refunded_cents'],'under_review':bool(adj['disputed'])},True)
+                rewards.sync_earnings(conn, receipt['job_id'])
     conn.execute('INSERT INTO webhook_events VALUES(?,?,?)',(event['id'],kind,now()))
     return {'received':True}

@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {suggestedLines,validateCoverage} from '../app/static/checkout-proof.js';
+const lines=[{name:'Stickers'},{name:'Banner'},{name:'No artwork',artwork_upload_disabled:true}];
+assert.deepEqual(suggestedLines('items-1-2-design.pdf',lines),[0,1]);
+assert.deepEqual(suggestedLines('item-2-front-production.png',lines),[1]);
+assert.deepEqual(suggestedLines('items-2-99-design.pdf',lines),[1]);
+assert.deepEqual(suggestedLines('item-3-ref.png',lines),[]);
+assert.deepEqual(suggestedLines('ready.pdf',[lines[0]]),[0]);
+assert.deepEqual(suggestedLines('ambiguous.pdf',lines),[]);
+assert.throws(()=>validateCoverage([],lines),/Choose/);
+assert.throws(()=>validateCoverage([{approved:true,line_indices:[]}],lines),/Assign/);
+assert.throws(()=>validateCoverage([{approved:true,line_indices:[0]}],lines),/item 2/);
+assert.throws(()=>validateCoverage([{approved:false,line_indices:[0,1]}],lines),/Choose/);
+assert.equal(validateCoverage([{approved:true,line_indices:[0]},{approved:true,line_indices:[1]}],lines).length,2);
+console.log('PASS: multi-product file assignment, excluded service items, exact coverage, and explicit file selection.');

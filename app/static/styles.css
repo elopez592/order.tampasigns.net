@@ -509,3 +509,37 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
   .contact-order-copy{padding:30px 24px}
   .contact-order-map{height:320px}
 }
+:root { --reward-teal: #067f7b; }
+.rewards-balances { display:flex; flex-wrap:wrap; gap:32px; padding:20px 0; }
+.rewards-balances>div { display:flex; flex-direction:column; gap:5px; min-width:130px; }
+.rewards-balances span { color:var(--muted); font-size:12px; }
+.rewards-balances strong { color:var(--reward-teal); font-size:29px; line-height:1.2; }
+.rewards-balances small { font-size:12px; color:var(--muted); }
+.rewards-account { border-top:4px solid var(--reward-teal); }
+.checkout-proof-review,.checkout-rewards,.site-survey-choice { padding:18px; border:1px solid #d6e5e3; border-radius:12px; background:#f8fbfa; }
+.checkout-proof-files { display:grid; gap:15px; margin-top:16px; }
+.checkout-proof-file { display:grid; grid-template-columns:150px minmax(0,1fr); gap:18px; padding:15px; background:white; border:1px solid #d6e5e3; border-radius:10px; }
+.checkout-file-preview { display:flex; align-items:center; justify-content:center; min-height:140px; max-height:190px; color:var(--reward-teal); font-weight:700; text-align:center; border-radius:8px; background:repeating-conic-gradient(#eef2f1 0% 25%,#fff 0% 50%) 50%/18px 18px; overflow:hidden; }
+.checkout-file-preview img { max-width:100%; max-height:190px; object-fit:contain; }
+.checkout-file-preview small { font-size:11px; font-weight:400; }
+.checkout-proof-file .file-name { overflow-wrap:anywhere; display:block; }
+.proof-file-mapping { padding:0; border:0; margin:14px 0 0; }
+.proof-file-mapping legend { font-size:12px; font-weight:700; margin-bottom:8px; }
+.proof-file-mapping .check { margin:8px 0; align-items:flex-start; font-size:12px; }
+.job-terms { padding:14px 16px; border:1px solid #d6e5e3; border-radius:10px; }
+.job-terms summary { font-weight:700; cursor:pointer; }
+.approval-agreement { display:grid; gap:14px; padding:18px; border:1px solid #bfded8; border-radius:12px; background:#f2f9f7; }
+.approval-agreement .job-terms { background:white; }
+.approval-agreement .check { align-items:flex-start; }
+.terms-content { max-width:1000px; }
+.terms-content>h1 { margin:14px 0; font-size:clamp(28px,4vw,42px); line-height:1.15; }
+.terms-intro { max-width:750px; font-size:16px; line-height:1.65; margin-bottom:12px; }
+.terms-section-links { display:flex; flex-wrap:wrap; gap:10px; margin:24px 0; }
+.terms-section-links a { border:1px solid #c6dcd7; border-radius:8px; background:white; padding:9px 12px; color:#087b78; font-size:13px; }
+.terms-document section+section { border-top:1px solid #d9e8e3; margin-top:24px; padding-top:24px; }
+.terms-document h2,.terms-confirmation h2 { color:#087b78; font-size:21px; margin-bottom:12px; scroll-margin-top:24px; }
+.terms-document p,.terms-confirmation>p { font-size:15px; line-height:1.75; }
+.terms-confirmation { margin-top:24px; background:#edf7f4; }
+@media(max-width:1100px) and (min-width:701px) { .public-header .nav-links { gap:16px; font-size:12px; } }
+.artwork-thumbnail { display:block; max-width:100%; max-height:200px; object-fit:contain; margin:10px 0; background:#eff4f3; }
+@media(max-width:600px) { .checkout-proof-file { grid-template-columns:1fr; gap:12px; } .checkout-file-preview { min-height:140px; max-height:220px; } .checkout-proof-review,.checkout-rewards,.site-survey-choice { padding:12px; } .rewards-balances { gap:20px; } }

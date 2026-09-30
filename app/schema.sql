@@ -200,3 +200,40 @@ CREATE TABLE IF NOT EXISTS custom_checkout_sessions (
  created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS custom_checkout_job_sessions ON custom_checkout_sessions(job_id,created_at);
+
+-- Customer rewards and versioned job terms are additive; existing orders retain their scope.
+CREATE TABLE IF NOT EXISTS customer_reward_ledger (
+ id INTEGER PRIMARY KEY, customer_id INTEGER NOT NULL REFERENCES customers(id),
+ job_id INTEGER REFERENCES jobs(id), credit_cents INTEGER NOT NULL DEFAULT 0,
+ points INTEGER NOT NULL DEFAULT 0, kind TEXT NOT NULL, reason TEXT NOT NULL,
+ operation_id TEXT NOT NULL UNIQUE, actor TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS customer_reward_ledger_account ON customer_reward_ledger(customer_id,id);
+CREATE TABLE IF NOT EXISTS reward_redemptions (
+ id INTEGER PRIMARY KEY, customer_id INTEGER NOT NULL REFERENCES customers(id),
+ job_id INTEGER NOT NULL REFERENCES jobs(id), quote_version INTEGER NOT NULL,
+ credit_cents INTEGER NOT NULL, points INTEGER NOT NULL, point_value_cents INTEGER NOT NULL,
+ discount_cents INTEGER NOT NULL, original_tax_cents INTEGER NOT NULL DEFAULT 0,
+ status TEXT NOT NULL DEFAULT 'reserved',
+ returned_credit_cents INTEGER NOT NULL DEFAULT 0, returned_points INTEGER NOT NULL DEFAULT 0,
+ created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS reward_redemptions_active ON reward_redemptions(job_id)
+ WHERE status IN ('reserved','captured');
+CREATE TABLE IF NOT EXISTS reward_earnings (
+ source TEXT PRIMARY KEY, customer_id INTEGER NOT NULL REFERENCES customers(id),
+ job_id INTEGER NOT NULL REFERENCES jobs(id), points_per_dollar TEXT NOT NULL,
+ eligible_cents INTEGER NOT NULL, paid_cents INTEGER NOT NULL,
+ awarded_points INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS job_terms_acceptances (
+ id INTEGER PRIMARY KEY, job_id INTEGER NOT NULL REFERENCES jobs(id),
+ proof_id INTEGER REFERENCES proofs(id), quote_version INTEGER NOT NULL,
+ terms_version TEXT NOT NULL, signer_name TEXT NOT NULL, method TEXT NOT NULL,
+ terms_snapshot TEXT NOT NULL, scope_snapshot TEXT NOT NULL, file_manifest TEXT NOT NULL,
+ site_survey_requested INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS job_site_surveys (
+ job_id INTEGER PRIMARY KEY REFERENCES jobs(id), status TEXT NOT NULL,
+ location TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL
+);

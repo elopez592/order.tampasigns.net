@@ -6,6 +6,7 @@ from .db import now, transaction
 from .security import password_hash, email
 from .pricing import validate_config
 from .domain import create_job, validate_steps
+from .job_terms import CHECKOUT_CONFIRMATION
 
 DEFAULT_SETTINGS = {
  'shop_name': 'Tampa Signs and Stickers', 'contact_email': '', 'contact_phone': '(813) 749-4500',
@@ -16,7 +17,8 @@ DEFAULT_SETTINGS = {
  'checkout_pickup_enabled': True, 'checkout_pickup_address': '',
  'checkout_pickup_tax_percent': '0', 'checkout_shipping_enabled': False,
  'checkout_shipping_price': '0',
- 'checkout_terms': 'I confirm the product, size and quantity. I will review and approve a proof before production. Tax and any selected delivery charge are shown at secure checkout.',
+ 'checkout_terms': CHECKOUT_CONFIRMATION,
+ 'rewards_enabled': True, 'rewards_points_per_dollar': '1', 'rewards_point_value_cents': '1',
 }
 
 ACM_DESCRIPTION = ('Single-sided printed ACM sign in 3 mm or 6 mm thickness. '

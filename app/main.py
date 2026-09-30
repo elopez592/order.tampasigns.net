@@ -32,6 +32,7 @@ from .checkout import (StripeGateway, availability, eligible_quote, checkout_pol
                        start_checkout, start_custom_checkout, process_event, order_for_job)
 from .mailer import public_status as email_status, notify_customer, notify_staff, send_test_email
 from . import canva, marketing, crm
+from . import rewards, job_terms, artwork_approval
 import uuid
 import qrcode
 
@@ -488,7 +489,17 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 products.append({k: row[k] for k in ('id','name','category','version')} | {
                     'config': {k: cfg.get(k, defaults.get(k)) for k in keys}})
             return {'products': products, 'shop': {k: shop[k] for k in ('shop_name','contact_email','contact_phone','rates_live','quote_note')},
-                    'checkout': availability(shop, app.state.gateway), 'notifications': email_status()}
+                    'checkout': availability(shop, app.state.gateway), 'notifications': email_status(),
+                    'job_terms': job_terms.public_terms(), 'rewards': rewards.public_config(shop)}
+
+    @app.get('/api/job-terms')
+    def terms_content():
+        return job_terms.public_terms()
+
+    @app.get('/terms', response_class=HTMLResponse)
+    def terms_page():
+        with transaction(database) as conn:
+            return HTMLResponse(job_terms.terms_page(settings(conn)))
 
     @app.post('/api/wholesale/activate')
     def activate_wholesale(request: Request, payload: dict = Body(...)):
@@ -522,6 +533,9 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         throttle(request, 'orders', 20, 3600)
         if payload.get('website') or payload.get('confirm') is not True:
             raise HTTPException(422, 'Confirm your product, size, quantity and checkout terms.')
+        job_terms.validate_version(payload)
+        if payload.get('site_survey_requested') is True:
+            raise HTTPException(422, 'Request a quote with a paid site survey before checkout so measurements can be verified.')
         request_id = str(payload.get('request_id',''))
         try:
             uuid.UUID(request_id)
@@ -563,12 +577,14 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 conn.execute("UPDATE jobs SET published=1,accepted_version=quote_version,accepted_name=customer_name,accepted_at=?,deposit_percent='100',shipping_cents=?,tax_cents=? WHERE id=?",(now(),policy['shipping_cents'],tax,job_id))
                 conn.execute('INSERT INTO checkout_orders VALUES(?,?,?,?,?,?,?,?)',
                     (uuid.uuid4().hex,job_id,request_id,request_hash,request.state.session['token_hash'],delivery,json.dumps(policy),now()))
+                if payload.get('terms_version') == job_terms.VERSION:
+                    job_terms.record_acceptance(conn, get_job(conn, job_id), order_payload['customer_name'], 'online_checkout')
                 audit(conn,job_id,'Online customer','checkout.order_submitted',{'terms':policy['terms'],'fulfillment':delivery},False)
             link = issue_portal(conn,job_id)
             generation = conn.execute('SELECT portal_hash FROM jobs WHERE id=?',(job_id,)).fetchone()[0]
             token,csrf = new_session(conn,portal_job_id=job_id,generation=generation)
         notify_customer(database, job_id, 'order_received', f'JOB-{job_id:04d} received | Tampa Signs and Stickers',
-                        'Order received', 'We have your order. We will keep you updated when a proof is ready, production begins, and your order is finished.', link)
+                        'Order received', 'We have your order. Your approved upload preview can be used as your proof. We will keep you updated when production begins and your order is finished.', link)
         notify_staff(database, job_id, 'order_received', f'New order JOB-{job_id:04d}',
                      'New order received', 'A new customer order has been received and is ready for review.', public_url)
         return session_response({'job_id':job_id,'number':f'JOB-{job_id:04d}','portal_url':link,'csrf':csrf},token)
@@ -619,6 +635,14 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             marketing.capture_conversion(conn, request, job_id)
             from .customers import link_order
             link_order(conn, request, job_id)
+            if payload.get('site_survey_requested') is True:
+                artwork_approval.request_survey(conn, job_id, text(payload.get('survey_location', ''), 'Site survey location', 500),
+                                               'Paid site survey requested at project submission; confirm fee before scheduling.')
+                audit(conn, job_id, 'Public customer', 'site_survey.requested', {'extra_cost': True}, True)
+            if payload.get('confirm') is True:
+                job_terms.validate_version(payload)
+                if payload.get('terms_version') == job_terms.VERSION:
+                    job_terms.record_acceptance(conn, get_job(conn, job_id), request_payload['customer_name'], 'quote_request', survey=payload.get('site_survey_requested') is True)
             link = issue_portal(conn, job_id)
         notify_customer(database, job_id, 'order_received', f'{f"JOB-{job_id:04d}"} received | Tampa Signs and Stickers',
                         'Project received', 'We received your project. Our team will review the details and keep you updated as it moves forward.', link)
@@ -723,6 +747,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         signer = text(payload.get('name', ''), 'Full name', 120, True)
         if payload.get('confirm') is not True:
             raise HTTPException(422, 'Confirm acceptance of the current quote.')
+        job_terms.validate_version(payload)
         with transaction(database, True) as conn:
             job = portal_job(conn, request)
             if job['archived'] or not job['published'] or (not job['charges_verified'] and not order_for_job(conn, job['id'])):
@@ -733,6 +758,8 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 return {'ok': True}
             conn.execute('UPDATE jobs SET accepted_version=quote_version,accepted_name=?,accepted_at=? WHERE id=?',
                          (signer, now(), job['id']))
+            if payload.get('terms_version') == job_terms.VERSION:
+                job_terms.record_acceptance(conn, job, signer, 'quote_acceptance')
             audit(conn, job['id'], signer + ' (private job link)', 'quote.accepted',
                   {'version': job['quote_version'], 'total_cents': totals(conn, job)['total_cents'], 'method': 'private_job_link'}, True)
         return {'ok': True}
@@ -755,6 +782,10 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 raise HTTPException(409, 'Accept the current quote before reviewing the proof.')
             if action_ == 'approve' and payload.get('confirm') is not True:
                 raise HTTPException(422, 'Confirm the proof approval checklist.')
+            if action_ == 'approve':
+                job_terms.validate_version(payload)
+                if artwork_approval.survey_pending(conn, job['id']):
+                    raise HTTPException(409, 'Your requested site survey must be completed before approving sizing for print.')
             asset = conn.execute('SELECT * FROM assets WHERE id=?', (proof['asset_id'],)).fetchone()
             try:
                 actual_hash = hashlib.sha256((uploads / asset['stored_name']).read_bytes()).hexdigest()
@@ -765,6 +796,9 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             conn.execute('INSERT INTO proof_decisions(proof_id,action,signer_name,comment,statement,quote_version,file_hash,created_at) VALUES(?,?,?,?,?,?,?,?)',
                          (proof_id, action_, signer, comment, APPROVAL_STATEMENT if action_ == 'approve' else 'Changes requested; not approved for production.', job['quote_version'], asset['sha256'], now()))
             conn.execute('UPDATE proofs SET status=? WHERE id=?', ('approved' if action_ == 'approve' else 'changes_requested', proof_id))
+            if action_ == 'approve' and payload.get('terms_version') == job_terms.VERSION:
+                job_terms.record_acceptance(conn, job, signer, 'shop_proof', proof_id=proof_id,
+                    files=[{'asset_id': asset['id'], 'sha256': asset['sha256'], 'filename': asset['filename']}])
             audit(conn, job['id'], signer + ' (private job link)', 'proof.' + action_,
                   {'proof_version': proof['version'], 'comment': comment, 'sha256': asset['sha256']}, True)
             decision_job_id = job['id']
@@ -908,6 +942,10 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         note = text(payload.get('note', ''), 'Scheduling note', 2000)
         with transaction(database, True) as conn:
             job = portal_job(conn, request)
+            if kind == 'site_survey':
+                if production_started(conn, job['id']):
+                    raise HTTPException(409, 'Request a survey before production begins. Contact the shop about a new scope.')
+                artwork_approval.request_survey(conn, job['id'], location, note)
             audit(conn, job['id'], 'Customer via private job link', 'appointment.requested',
                   {'kind': labels[kind], 'requested_date': requested_date, 'window': window,
                    'location': location, 'note': note}, True)
@@ -1093,6 +1131,9 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             job = get_job(conn, job_id)
             if job['archived']:
                 return {'ok': True, 'already_cancelled': True}
+            redemption = rewards.active_redemption(conn, job_id)
+            if redemption and redemption['status'] == 'reserved':
+                raise HTTPException(409, 'Return this order\'s unused credits and points before cancelling it.')
             conn.execute('UPDATE time_entries SET stopped_at=? WHERE task_id IN (SELECT id FROM tasks WHERE job_id=?) AND stopped_at IS NULL',
                          (now(), job_id))
             conn.execute("UPDATE tasks SET status=CASE WHEN status='done' THEN status ELSE 'blocked' END, note=CASE WHEN status='done' THEN note ELSE ? END WHERE job_id=?",
@@ -1109,6 +1150,8 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 raise HTTPException(409, 'Online orders have a locked checkout total. Use a separately reviewed change order; handle refunds in Stripe.')
             if job['archived'] or production_started(conn, job_id):
                 raise HTTPException(409, 'Financial revisions after production begins require a separate change-order job.')
+            if rewards.active_redemption(conn, job_id):
+                raise HTTPException(409, 'Return the applied rewards before revising this quote; paid jobs require a separate change order.')
             if payload.get('version') != job['quote_version']:
                 raise HTTPException(409, 'This quote was edited elsewhere. Reload before saving.')
             quote_snapshot = job['quote_snapshot']
@@ -1146,6 +1189,8 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         new_price = cents(payload.get('new_price'), 'Corrected product price')
         reason = text(payload.get('reason', ''), 'Price correction reason', 1000, True)
         with transaction(database, True) as conn:
+            if rewards.active_redemption(conn, job_id):
+                raise HTTPException(409, 'Return the applied rewards before correcting this unpaid order price.')
             job = get_job(conn, job_id)
             order = order_for_job(conn, job_id)
             if not order or job['archived'] or production_started(conn, job_id):
@@ -1291,6 +1336,8 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 raise HTTPException(422, 'Payment exceeds the remaining balance. Credits/refunds require separate reconciliation.')
             pid = conn.execute('INSERT INTO payments(job_id,amount_cents,reference,note,verified_by,created_at) VALUES(?,?,?,?,?,?)',
                                (job_id, amount, reference, note, user['id'], now())).lastrowid
+            rewards.capture(conn, job_id)
+            rewards.sync_earnings(conn, job_id)
             audit(conn, job_id, actor(user), 'payment.verified', {'amount_cents': amount, 'reference': reference}, True)
         return {'ok': True, 'payment_id': pid}
 
@@ -1302,6 +1349,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             if not payment or payment['voided_at']:
                 raise HTTPException(409, 'Payment is missing or already voided.')
             conn.execute('UPDATE payments SET voided_at=?,void_reason=? WHERE id=?', (now(), reason, payment_id))
+            rewards.sync_earnings(conn, payment['job_id'])
             audit(conn, payment['job_id'], actor(user), 'payment.record_voided', {'reference': payment['reference'], 'reason': reason, 'not_a_quickbooks_refund': True}, True)
         return {'ok': True}
 
@@ -1398,6 +1446,8 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             job, who = access_job(conn, request, job_id)
             if job['archived']:
                 raise HTTPException(409, 'Job is archived.')
+            if not request.state.user and production_started(conn, job_id):
+                raise HTTPException(409, 'Artwork is final once production starts. Contact the shop for a new order.')
             draft = None
             generated = re.fullmatch(r'item-(\d+)-usdot-print-ready-([\d.]+)x([\d.]+)in\.png', name)
             if generated and mime == 'image/png':
@@ -1421,7 +1471,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         if customer_upload:
             notify_staff(database, job_id, f'artwork_uploaded_{aid}', f'Artwork uploaded for {artwork_number}',
                          'Customer uploaded artwork', f'New customer artwork is attached: {name}', public_url)
-        return {'ok': True, 'asset_id': aid, 'generated_proof_asset_id': draft_id}
+        return {'ok': True, 'asset_id': aid, 'sha256': hashlib.sha256(raw).hexdigest(), 'generated_proof_asset_id': draft_id}
 
     @app.post('/api/portal/artwork/{asset_id}/approve')
     def approve_uploaded_artwork(asset_id: int, request: Request, payload: dict = Body(...)):
@@ -1437,6 +1487,11 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             quote = json.loads(job['quote_snapshot'])
             if not quote['lines'] or not all(bool(line.get('self_approve_artwork')) for line in quote['lines']):
                 raise HTTPException(409, 'This product requires a shop proof before artwork approval.')
+            if len(quote['lines']) != 1:
+                raise HTTPException(409, 'Review and approve the complete upload preview package for a project with multiple products.')
+            if artwork_approval.survey_pending(conn, job['id']) or production_started(conn, job['id']):
+                raise HTTPException(409, 'Complete the requested survey and approve artwork before production.')
+            job_terms.validate_version(payload)
             if latest_proof(conn, job['id']):
                 raise HTTPException(409, 'A proof already exists for this job. Review the latest proof instead.')
             asset = conn.execute("SELECT * FROM assets WHERE id=? AND job_id=? AND kind='artwork'", (asset_id, job['id'])).fetchone()
@@ -1455,6 +1510,9 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                          (pid, 'approve', signer, 'Customer approved uploaded artwork as supplied.',
                           APPROVAL_STATEMENT, job['quote_version'], asset['sha256'], now()))
             conn.execute("UPDATE proofs SET status='approved' WHERE id=?", (pid,))
+            if payload.get('terms_version') == job_terms.VERSION:
+                job_terms.record_acceptance(conn, job, signer, 'uploaded_artwork', proof_id=pid,
+                    files=[{'asset_id': asset['id'], 'sha256': asset['sha256'], 'filename': asset['filename'], 'line_indices': [0]}])
             audit(conn, job['id'], signer + ' (private job link)', 'artwork.self_approved',
                   {'proof_version': 1, 'filename': asset['filename'], 'sha256': asset['sha256']}, True)
             job_id = job['id']
@@ -1482,7 +1540,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             email_link = issue_email_portal(conn, job_id)
             job_number = job['number']
         notify_customer(database, job_id, f'proof_pending_{pid}', f'Proof ready for {job_number} | Tampa Signs and Stickers',
-                        'Your proof is ready', 'A new proof is waiting for your review. Please check the artwork carefully and approve it or request changes.', email_link)
+                        'Review your artwork & terms', job_terms.PROOF_REVIEW_NOTICE, email_link)
         notify_staff(database, job_id, f'proof_pending_{pid}', f'Proof pending for {job_number}',
                      'Proof sent for approval', 'The current proof is now waiting for customer review.', public_url)
         return {'ok': True, 'proof_id': pid}
@@ -1500,8 +1558,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             audit(conn, job_id, actor(user), 'proof.sent_for_approval', {'version': version}, True)
         sent = notify_customer(database, job_id, f'proof_pending_{proof_id}',
                                f'Proof ready for {job_number} | Tampa Signs and Stickers',
-                               'Your proof is ready',
-                               'A proof is waiting for your review. Please check the artwork carefully and approve it or request changes.',
+                               'Review your artwork & terms', job_terms.PROOF_REVIEW_NOTICE,
                                email_link, force=True)
         return {'ok': True, 'email_sent': bool(sent)}
 
@@ -1534,7 +1591,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 audit(conn, job_id, actor(user), 'layout.generated', {'asset_id': aid, 'approval_eligible': False})
         if is_proof:
             notify_customer(database, job_id, f'proof_pending_{pid}', f'Proof ready for {job_number} | Tampa Signs and Stickers',
-                            'Your proof is ready', 'A new proof is waiting for your review. Please check the artwork carefully and approve it or request changes.', email_link)
+                            'Review your artwork & terms', job_terms.PROOF_REVIEW_NOTICE, email_link)
             notify_staff(database, job_id, f'proof_pending_{pid}', f'Proof pending for {job_number}',
                          'Proof sent for approval', 'The current proof is now waiting for customer review.', public_url)
         return {'ok': True, 'asset_id': aid}
@@ -1714,12 +1771,14 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     @app.get('/api/admin/settings')
     def get_settings(request: Request, user=Depends(require_admin)):
         with transaction(database) as conn:
-            return settings(conn) | {'checkout_connection': {'configured': app.state.gateway.ready, 'test_mode': not app.state.gateway.live}}
+            shop = settings(conn)
+            return shop | rewards.config(shop) | {'checkout_connection': {'configured': app.state.gateway.ready, 'test_mode': not app.state.gateway.live}}
 
     @app.put('/api/admin/settings')
     def save_settings(request: Request, payload: dict = Body(...), user=Depends(require_admin)):
         with transaction(database, True) as conn:
             shop = settings(conn)
+            rewards.validate_settings(shop, payload)
             for key, maxlen in [('shop_name',120),('contact_phone',60),('quote_note',1000)]:
                 shop[key] = text(payload.get(key, shop[key]), key, maxlen, required=key == 'shop_name')
             shop['contact_email'] = email(payload['contact_email']) if payload.get('contact_email') else ''
@@ -1801,6 +1860,8 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     crm.install(app, database, require_admin, issue_email_portal)
     from .customers import install as install_customers
     install_customers(app, database, production, throttle, issue_portal, uploads)
+    rewards.install(app, database, require_admin, portal_job)
+    artwork_approval.install(app, database, uploads, portal_job, require_admin, add_proof, actor)
 
     app.mount('/static', StaticFiles(directory=STATIC), name='static')
 
