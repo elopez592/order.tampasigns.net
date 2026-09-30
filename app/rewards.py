@@ -183,14 +183,19 @@ def sync_referral_reward(conn, referred_email):
         return
     cfg = public_config(settings(conn))
     qualifying_job_id = referral['qualifying_job_id']
+    reward_amount = int(referral['reward_credit_cents'] or 0)
     if qualifying_job_id is None:
+        if not cfg['referrals_enabled']:
+            return
         valid = _valid_paid_jobs(conn, referral['referred_email'])
         if not valid:
             return
         qualifying_job_id = valid[0]['job_id']
+        reward_amount = cfg['referral_credit_cents']
         conn.execute(
-            'UPDATE customer_referrals SET qualifying_job_id=?,updated_at=? WHERE id=?',
-            (qualifying_job_id, now(), referral['id']),
+            """UPDATE customer_referrals
+               SET qualifying_job_id=?,reward_credit_cents=?,updated_at=? WHERE id=?""",
+            (qualifying_job_id, reward_amount, now(), referral['id']),
         )
     net_online = conn.execute(
         """SELECT COALESCE(SUM(CASE WHEN disputed=0 THEN amount_cents-refunded_cents ELSE 0 END),0)
@@ -202,7 +207,7 @@ def sync_referral_reward(conn, referred_email):
            FROM payments WHERE job_id=?""",
         (qualifying_job_id,),
     ).fetchone()[0]
-    desired = cfg['referral_credit_cents'] if cfg['referrals_enabled'] and (net_online + net_manual) > 0 else 0
+    desired = reward_amount if (net_online + net_manual) > 0 else 0
     awarded = conn.execute(
         """SELECT COALESCE(SUM(credit_cents),0) FROM customer_reward_ledger
            WHERE customer_id=? AND job_id=? AND kind IN
@@ -225,7 +230,7 @@ def sync_referral_reward(conn, referred_email):
         """UPDATE customer_referrals SET status=?,reward_credit_cents=?,
            rewarded_at=CASE WHEN ?='rewarded' AND rewarded_at IS NULL THEN ? ELSE rewarded_at END,
            updated_at=? WHERE id=?""",
-        (status, desired, status, now(), now(), referral['id']),
+        (status, reward_amount, status, now(), now(), referral['id']),
     )
 
 
