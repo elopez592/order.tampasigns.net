@@ -16,6 +16,16 @@ let logs='';server.stderr.on('data',chunk=>logs=(logs+chunk.toString()).slice(-5
 const output=resolve('docs/previews');await mkdir(output,{recursive:true});
 const errors=[],checks=[];
 let browser;
+async function pinnedMenu(page){
+  const original=await page.locator('.bottom-nav').boundingBox();
+  await page.locator('.content').evaluate(node=>node.scrollTo(0,node.scrollHeight));
+  await expect.poll(()=>page.locator('.content').evaluate(node=>node.scrollTop)).toBeGreaterThan(0);
+  const current=await page.locator('.bottom-nav').boundingBox();
+  assert(Math.abs(original.y-current.y)<1,'Menu moved during content scroll.');
+  assert(Math.abs(current.y+current.height-page.viewportSize().height)<1,'Menu is not at the viewport bottom.');
+  assert.equal(await page.evaluate(()=>window.scrollY),0,'The document must not scroll behind the app frame.');
+  await page.locator('.content').evaluate(node=>node.scrollTo(0,0));
+}
 try {
   let ready=false;
   for(let i=0;i<100;i++){
@@ -40,15 +50,10 @@ try {
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'Mobile home overflows.');
   await page.screenshot({path:output+'/Employee-App-Mobile.png',fullPage:true});
   checks.push('Mobile sign-in, home layout and service worker');
+  await pinnedMenu(page);
+  checks.push('Long-page content scroll keeps the menu at the viewport bottom');
   console.log('Mobile home verified');
-  await page.getByRole('link',{name:/Add client/}).click();
-  await page.locator('[name="name"]').fill('Sample Site Contact');
-  await page.locator('[name="company"]').fill('Sample Storefront');
-  await page.locator('[name="email"]').fill(`field.browser.${Date.now()}@example.test`);
-  await page.locator('[name="phone"]').fill('813-555-0101');
-  await page.getByRole('button',{name:'Save client',exact:false}).click();
-  await page.getByRole('heading',{name:'Sample Storefront',exact:true}).waitFor();
-  await page.getByRole('button',{name:'New site survey',exact:false}).click();
+  await page.getByRole('link',{name:/Site survey/}).click();
   await page.locator('[name="title"]').fill('Sample storefront survey');
   await page.locator('[name="address"]').fill('123 Sample Street, Tampa, FL');
   await page.locator('[name="site_contact"]').fill('Sample Contact · 813-555-0101');
@@ -58,8 +63,23 @@ try {
   await area.locator('[name="width"]').fill('3');
   await area.locator('[name="height"]').fill('6');
   await area.locator('[name="product_id"]').selectOption('4');
+  await area.locator('[data-survey-photo-input]').setInputFiles(process.env.EMPLOYEE_PREVIEW_PHOTO);
+  await expect(area.locator('.panel-photo-preview')).toBeVisible();
+  await page.getByRole('button',{name:'New client',exact:false}).click();
+  await page.locator('#employee-dialog [name="name"]').fill('Sample Site Contact');
+  await page.locator('#employee-dialog [name="company"]').fill('Sample Storefront');
+  await page.locator('#employee-dialog [name="email"]').fill(`field.browser.${Date.now()}@example.test`);
+  await page.locator('#employee-dialog [name="phone"]').fill('813-555-0101');
+  await page.getByRole('button',{name:'Save client & use in survey',exact:true}).click();
+  await expect(page.locator('#employee-dialog')).not.toBeVisible();
+  await expect(page.locator('[name="title"]')).toHaveValue('Sample storefront survey');
+  await expect(page.locator('[name="contact_id"] option:checked')).toContainText('Sample Storefront');
+  await expect(area.locator('[name="width"]')).toHaveValue('3');
+  await expect(area.locator('.panel-photo-preview')).toBeVisible();
+  checks.push('Inline survey client creation preserves measurements and panel photos');
   await page.locator('#survey-files').setInputFiles(process.env.EMPLOYEE_PREVIEW_PHOTO);
   await expect(page.locator('.file-chip')).toContainText('Device only');
+  await expect(page.locator('[data-area] .panel-photo-preview')).toBeVisible();
   await context.setOffline(true);
   await page.locator('[name="surface_notes"]').fill('Glass clear. Door decals cover the top glass only.');
   await page.getByRole('button',{name:'Save device draft',exact:true}).click();
@@ -83,6 +103,7 @@ try {
   await page.getByRole('button',{name:'Create estimate',exact:false}).click();
   await expect(page.locator('[name="width"]')).toHaveValue('36.0000');
   await expect(page.locator('[name="height"]')).toHaveValue('72.0000');
+  await expect(page.locator('[data-estimate-photo] .panel-photo-preview')).toBeVisible();
   await page.getByRole('button',{name:'Calculate estimate',exact:true}).click();
   await page.getByRole('button',{name:'Create order estimate',exact:false}).waitFor();
   await page.screenshot({path:output+'/Employee-App-Estimate.png',fullPage:true});
@@ -92,6 +113,9 @@ try {
   const jobResponse=await page.request.get(root+'/api/staff/jobs/'+jobId),job=await jobResponse.json();
   assert(job.charges_verified);
   assert.equal(job.quote.lines[0].width,'36.0000');
+  assert.equal(job.panel_photos.length,1);
+  assert.equal((await page.request.get(root+'/api/quote-photos/'+job.panel_photos[0].id)).status(),200);
+  assert((await (await page.request.get(root+'/api/staff/jobs/'+jobId+'/estimate-document')).text()).includes('/api/quote-photos/'+job.panel_photos[0].id));
   await page.getByRole('button',{name:'Send estimate',exact:true}).click();
   await page.getByRole('button',{name:'Confirm & send estimate',exact:true}).click();
   await page.getByRole('button',{name:'Send estimate again',exact:true}).waitFor();
@@ -141,6 +165,10 @@ try {
   const customerSession=await (await customer.request.get(root+'/api/session')).json();
   const exchange=await (await customer.request.post(root+'/api/portal/exchange',{headers:{'X-CSRF-Token':customerSession.csrf},data:{token:new URLSearchParams(new URL(shared.portal_url).hash.slice(1)).get('token')}})).json();
   const customerJob=await (await customer.request.get(root+'/api/portal/job')).json();
+  await customer.reload();
+  await expect(customer.getByRole('img',{name:'Panel reference photo',exact:true})).toBeVisible();
+  assert(await customer.getByRole('img',{name:'Panel reference photo',exact:true}).evaluate(image=>image.complete&&image.naturalWidth>0));
+  checks.push('Panel survey photo is carried into the staff estimate, printable quote and customer portal');
   assert(customerJob.job_terms.sections.length>0,'Proof terms must remain available.');
   const accepted=await customer.request.post(root+'/api/portal/accept-quote',{headers:{'X-CSRF-Token':exchange.csrf},data:{name:'Sample Site Contact',confirm:true,version:customerJob.quote_version}});
   assert.equal(accepted.status(),200,await accepted.text());
@@ -156,6 +184,8 @@ try {
   await page.getByRole('button',{name:'Close',exact:true}).click();
   await page.goto(root+'/staff/app#estimate/new');
   await page.getByRole('heading',{name:'Build an estimate.',exact:true}).waitFor();
+  await page.locator('[data-estimate-photo-input]').setInputFiles(process.env.EMPLOYEE_PREVIEW_PHOTO);
+  await expect(page.locator('[data-estimate-photo] .panel-photo-preview')).toBeVisible();
   const catalog=await (await page.request.get(root+'/api/catalog')).json();
   const clients=await (await page.request.get(root+'/api/staff/clients')).json();
   await page.locator('[name="contact_id"]').selectOption(String(clients.contacts.find(c=>c.company==='Sample Storefront').id));
@@ -173,12 +203,24 @@ try {
   await page.getByRole('button',{name:'Create order estimate',exact:false}).waitFor();
   await expect(page.locator('#estimate-price')).toContainText('Garment sizes / placements in scope');
   checks.push('Configured wrap pricing dimensions and apparel size/color/placement pricing');
+  await expect(page.locator('[data-estimate-photo] .panel-photo-preview')).toBeVisible();
+  await page.getByRole('button',{name:'Create order estimate',exact:false}).click();
+  await page.getByRole('heading',{name:'Catalog option check',exact:true}).waitFor();
+  const manualId=Number(new URL(page.url()).hash.split('/')[1]);
+  const manual=await (await page.request.get(root+'/api/staff/jobs/'+manualId)).json();
+  assert.equal(manual.panel_photos.length,1);
+  checks.push('Optional quote photo survives product changes and uploads with the saved estimate');
   for(const width of [360,430,768]){
     await page.setViewportSize({width,height:900});
     await page.goto(root+'/staff/app#home');
     await page.getByRole('heading',{name:/Let’s get to work/}).waitFor();
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'Home overflow at '+width);
+    if(width<760)await pinnedMenu(page);
   }
+  await page.setViewportSize({width:390,height:420});
+  await pinnedMenu(page);
+  await page.setViewportSize({width:844,height:390});
+  await pinnedMenu(page);
   assert.deepEqual(errors,[],'Browser console errors: '+errors.join('; '));
   await writeFile(output+'/employee-browser-checks.json',JSON.stringify({checks,errors,viewports:[360,390,430,768,1280],productionWrites:false},null,2));
   console.log(JSON.stringify({checks:checks.length,errors,viewports:[360,390,430,768,1280]}));

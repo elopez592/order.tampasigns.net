@@ -1868,7 +1868,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     rewards.install(app, database, require_admin, portal_job)
     artwork_approval.install(app, database, uploads, portal_job, require_admin, add_proof, actor)
     from . import employee_mobile
-    employee_mobile.install(app, database, uploads, require_staff, require_admin, actor, issue_email_portal, STATIC)
+    employee_mobile.install(app, database, uploads, require_staff, require_admin, actor, issue_email_portal, STATIC, access_job)
 
     app.mount('/static', StaticFiles(directory=STATIC), name='static')
 
