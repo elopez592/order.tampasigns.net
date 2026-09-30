@@ -6,15 +6,17 @@ import io
 import json
 import hmac
 import os
+import secrets
 import sqlite3
+import time
 from datetime import date, datetime, timezone, timedelta
 
 from fastapi import Body, Depends, HTTPException, Request
 from fastapi.responses import Response
 
 from .db import audit, now, transaction
-from .security import email, text
-from .mailer import notify_one
+from .security import digest, email, password_hash, text
+from .mailer import notify_direct, notify_one
 from .domain import totals, production_started
 
 STATUSES = (
@@ -126,7 +128,9 @@ def _source_label(value: str) -> str:
 def sync_jobs(conn) -> None:
     """Backfill/link CRM contacts from jobs without overwriting staff-maintained CRM fields."""
     rows = conn.execute(
-        "SELECT id,customer_name,customer_email,phone,source,created_at FROM jobs ORDER BY id DESC"
+        """SELECT id,customer_name,customer_email,phone,source,created_at,
+                  accepted_version,quote_version
+           FROM jobs ORDER BY id DESC"""
     ).fetchall()
     for job in rows:
         address = str(job["customer_email"] or "").strip().lower()
@@ -156,6 +160,7 @@ def sync_jobs(conn) -> None:
                 ),
             )
             contact_id = cursor.lastrowid
+            contact = conn.execute("SELECT * FROM crm_contacts WHERE id=?", (contact_id,)).fetchone()
         else:
             contact_id = contact["id"]
             updates = {}
@@ -174,6 +179,24 @@ def sync_jobs(conn) -> None:
                     f"UPDATE crm_contacts SET {clause} WHERE id=?",
                     (*updates.values(), contact_id),
                 )
+        # A real website order is immediately a customer. Custom/staff work
+        # becomes a customer once the current quote is accepted. Quote requests
+        # remain leads until one of those events occurs.
+        converts_to_customer = (
+            str(job["source"] or "").lower() == "checkout"
+            or (
+                job["accepted_version"] is not None
+                and job["accepted_version"] == job["quote_version"]
+            )
+        )
+        current_status = (contact["status"] if contact else "new_lead")
+        if converts_to_customer and current_status in {
+            "new_lead", "contacted", "quote_sent", "awaiting_approval"
+        }:
+            conn.execute(
+                "UPDATE crm_contacts SET status='customer',follow_up_date=NULL,updated_at=? WHERE id=?",
+                (now(), contact_id),
+            )
         conn.execute(
             "INSERT OR IGNORE INTO crm_contact_jobs(contact_id,job_id) VALUES(?,?)",
             (contact_id, job["id"]),
@@ -316,6 +339,18 @@ def _detail(conn, contact_id: int):
            FROM crm_reminders WHERE contact_id=? ORDER BY id DESC LIMIT 20""",
         (contact_id,),
     )]
+    account = None
+    if contact["email"]:
+        row = conn.execute(
+            "SELECT id,name,email,claimed_at,created_at FROM customers WHERE lower(email)=lower(?)",
+            (contact["email"],),
+        ).fetchone()
+        if row:
+            from .rewards import wallet
+            account = dict(row)
+            account["status"] = "active" if row["claimed_at"] else "pending"
+            account["wallet"] = wallet(conn, row["id"], history=False)
+    contact["account"] = account
     return contact
 
 
@@ -747,6 +782,114 @@ def install(app, database, require_admin, issue_email_portal):
                 {"contact_id": contact_id, "status": values["status"]},
             )
             return _detail(conn, contact_id)
+
+    def _ensure_customer_account(conn, contact):
+        if not contact["email"]:
+            raise HTTPException(422, "Add an email address before creating a customer account.")
+        existing = conn.execute(
+            "SELECT * FROM customers WHERE lower(email)=lower(?)", (contact["email"],)
+        ).fetchone()
+        if existing:
+            return existing
+        stamp = now()
+        cursor = conn.execute(
+            """INSERT INTO customers(name,email,password_hash,created_at,claimed_at)
+               VALUES(?,?,?,?,NULL)""",
+            (
+                contact["name"] or contact["company"] or "Customer",
+                contact["email"],
+                password_hash(secrets.token_urlsafe(32)),
+                stamp,
+            ),
+        )
+        customer_id = cursor.lastrowid
+        conn.execute(
+            """INSERT OR IGNORE INTO customer_orders(customer_id,job_id)
+               SELECT ?,j.id FROM crm_contact_jobs cj
+               JOIN jobs j ON j.id=cj.job_id
+               WHERE cj.contact_id=?""",
+            (customer_id, contact["id"]),
+        )
+        return conn.execute("SELECT * FROM customers WHERE id=?", (customer_id,)).fetchone()
+
+    @app.post("/api/admin/crm/{contact_id}/credit")
+    def crm_credit(contact_id: int, request: Request, payload: dict = Body(...), user=Depends(require_admin)):
+        from .pricing import cents
+        from .rewards import entry, wallet
+        credit = cents(payload.get("credit", "0"), "Account credit amount")
+        if not credit or credit > 100_000_000:
+            raise HTTPException(422, "Enter a positive account credit amount.")
+        reason = text(payload.get("reason", ""), "Credit reason", 500, True)
+        operation = text(payload.get("operation_id", ""), "Adjustment identifier", 80, True)
+        with transaction(database, True) as conn:
+            sync_jobs(conn)
+            contact = conn.execute("SELECT * FROM crm_contacts WHERE id=?", (contact_id,)).fetchone()
+            if not contact:
+                raise HTTPException(404, "CRM contact not found.")
+            account = _ensure_customer_account(conn, contact)
+            previous = conn.execute(
+                "SELECT * FROM customer_reward_ledger WHERE operation_id=?", (operation,)
+            ).fetchone()
+            if previous:
+                if (
+                    previous["customer_id"] != account["id"]
+                    or previous["credit_cents"] != credit
+                    or previous["reason"] != reason
+                ):
+                    raise HTTPException(409, "This credit adjustment identifier was already used.")
+                return {"ok": True, "wallet": wallet(conn, account["id"])}
+            actor_name = f'{user["name"]} (staff #{user["id"]})'
+            entry(conn, account["id"], credit, 0, "manual", reason, actor_name, operation_id=operation)
+            audit(
+                conn, None, actor_name, "crm.account_credit_added",
+                {"contact_id": contact_id, "customer_id": account["id"], "credit_cents": credit, "reason": reason},
+            )
+            return {"ok": True, "wallet": wallet(conn, account["id"])}
+
+    @app.post("/api/admin/crm/{contact_id}/invite-account")
+    def crm_invite_account(contact_id: int, request: Request, user=Depends(require_admin)):
+        with transaction(database, True) as conn:
+            sync_jobs(conn)
+            contact = conn.execute("SELECT * FROM crm_contacts WHERE id=?", (contact_id,)).fetchone()
+            if not contact:
+                raise HTTPException(404, "CRM contact not found.")
+            account = _ensure_customer_account(conn, contact)
+            if account["claimed_at"]:
+                raise HTTPException(409, "This client already has an active customer account.")
+            token = secrets.token_urlsafe(32)
+            conn.execute(
+                "UPDATE customer_account_claims SET used_at=? WHERE customer_id=? AND used_at IS NULL",
+                (now(), account["id"]),
+            )
+            conn.execute(
+                """INSERT INTO customer_account_claims(token_hash,customer_id,expires_at,used_at,created_at)
+                   VALUES(?,?,?,NULL,?)""",
+                (digest(token), account["id"], time.time() + 7 * 86400, now()),
+            )
+            actor_name = f'{user["name"]} (staff #{user["id"]})'
+            audit(
+                conn, None, actor_name, "crm.account_invited",
+                {"contact_id": contact_id, "customer_id": account["id"], "recipient": contact["email"]},
+            )
+            recipient = contact["email"]
+            first_name = (contact["name"] or "there").strip().split()[0]
+            claim_url = str(request.base_url).rstrip("/") + "/account?claim=" + token
+        ok = notify_direct(
+            recipient,
+            "Set up your Tampa Signs customer account",
+            "Your customer account is ready",
+            (
+                f"Hi {first_name},\n\n"
+                "We created your customer account so you can view your project history, "
+                "account credits and rewards in one place. Choose your password using the secure link below. "
+                "The invitation expires in 7 days."
+            ),
+            claim_url,
+            "Create my account",
+        )
+        if not ok:
+            raise HTTPException(503, "The invitation could not be sent. Check email delivery settings and try again.")
+        return {"ok": True, "message": "Account invitation sent."}
 
     @app.post("/api/admin/crm/{contact_id}/remind")
     def crm_remind(contact_id: int, request: Request, user=Depends(require_admin)):
