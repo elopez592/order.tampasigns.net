@@ -48,8 +48,20 @@ def reorder_item(line):
 
 def install(app, database, production, throttle, issue_portal, uploads):
     with transaction(database, True) as conn:
-        conn.execute('CREATE TABLE IF NOT EXISTS customers(id INTEGER PRIMARY KEY,name TEXT NOT NULL,email TEXT NOT NULL UNIQUE COLLATE NOCASE,password_hash TEXT NOT NULL,created_at TEXT NOT NULL)')
+        conn.execute('CREATE TABLE IF NOT EXISTS customers(id INTEGER PRIMARY KEY,name TEXT NOT NULL,email TEXT NOT NULL UNIQUE COLLATE NOCASE,password_hash TEXT NOT NULL,created_at TEXT NOT NULL,claimed_at TEXT)')
+        customer_columns = {row[1] for row in conn.execute('PRAGMA table_info(customers)')}
+        if 'claimed_at' not in customer_columns:
+            conn.execute('ALTER TABLE customers ADD COLUMN claimed_at TEXT')
+            conn.execute('UPDATE customers SET claimed_at=created_at WHERE claimed_at IS NULL')
         conn.execute('CREATE TABLE IF NOT EXISTS customer_sessions(token_hash TEXT PRIMARY KEY,customer_id INTEGER NOT NULL REFERENCES customers(id),expires_at REAL NOT NULL)')
+        conn.execute("""CREATE TABLE IF NOT EXISTS customer_account_claims(
+            token_hash TEXT PRIMARY KEY,
+            customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+            expires_at REAL NOT NULL,
+            used_at TEXT,
+            created_at TEXT NOT NULL
+        )""")
+        conn.execute('CREATE INDEX IF NOT EXISTS customer_account_claims_customer ON customer_account_claims(customer_id,expires_at)')
         conn.execute('CREATE TABLE IF NOT EXISTS customer_orders(customer_id INTEGER NOT NULL REFERENCES customers(id),job_id INTEGER NOT NULL REFERENCES jobs(id),PRIMARY KEY(customer_id,job_id))')
         conn.execute("""CREATE TABLE IF NOT EXISTS customer_profiles(
             customer_id INTEGER PRIMARY KEY REFERENCES customers(id),
@@ -87,6 +99,18 @@ def install(app, database, production, throttle, issue_portal, uploads):
         if not who:
             raise HTTPException(401, 'Sign in to your customer account.')
         return who
+
+    def link_existing_orders(conn, customer_id, address):
+        conn.execute(
+            """INSERT OR IGNORE INTO customer_orders(customer_id,job_id)
+               SELECT ?,j.id FROM jobs j
+               WHERE lower(j.customer_email)=lower(?)
+                 AND NOT EXISTS (
+                   SELECT 1 FROM customer_orders other
+                   WHERE other.job_id=j.id AND other.customer_id<>?
+                 )""",
+            (customer_id, address, customer_id),
+        )
 
     def profile_row(conn, customer_id):
         row = conn.execute('SELECT * FROM customer_profiles WHERE customer_id=?', (customer_id,)).fetchone()
@@ -158,8 +182,13 @@ def install(app, database, production, throttle, issue_portal, uploads):
         hashed = password_hash(password)
         with transaction(database, True) as conn:
             if conn.execute('SELECT id FROM customers WHERE email=?', (address,)).fetchone():
-                raise HTTPException(409, 'Unable to create this account. Try signing in or contact the shop.')
-            cursor = conn.execute('INSERT INTO customers(name,email,password_hash,created_at) VALUES(?,?,?,?)', (name, address, hashed, now()))
+                raise HTTPException(409, 'Unable to create this account. Try signing in or use the invitation link from the shop.')
+            stamp = now()
+            cursor = conn.execute(
+                'INSERT INTO customers(name,email,password_hash,created_at,claimed_at) VALUES(?,?,?,?,?)',
+                (name, address, hashed, stamp, stamp),
+            )
+            link_existing_orders(conn, cursor.lastrowid, address)
             return signed_in(conn, {'id': cursor.lastrowid, 'name': name, 'email': address}, request)
 
     @app.post('/api/customer/login')
@@ -168,11 +197,59 @@ def install(app, database, production, throttle, issue_portal, uploads):
         address = email(payload.get('email', ''))
         password = text(payload.get('password', ''), 'Password', 128, True)
         with transaction(database, True) as conn:
-            who = conn.execute('SELECT * FROM customers WHERE email=?', (address,)).fetchone()
+            who = conn.execute('SELECT * FROM customers WHERE email=? AND claimed_at IS NOT NULL', (address,)).fetchone()
             if not who or not password_matches(password, who['password_hash']):
                 if not who:
                     password_hash('unavailable-account')
                 raise HTTPException(401, 'Email or password is incorrect.')
+            link_existing_orders(conn, who['id'], who['email'])
+            return signed_in(conn, who, request)
+
+    @app.post('/api/customer/claim/preview')
+    def claim_preview(request: Request, payload: dict = Body(...)):
+        throttle(request, 'customer_claim_preview', 20, 900)
+        token = text(payload.get('token', ''), 'Invitation token', 200, True)
+        with transaction(database) as conn:
+            row = conn.execute(
+                """SELECT c.id,c.name,c.email,cl.expires_at
+                   FROM customer_account_claims cl
+                   JOIN customers c ON c.id=cl.customer_id
+                   WHERE cl.token_hash=? AND cl.used_at IS NULL
+                     AND cl.expires_at>? AND c.claimed_at IS NULL""",
+                (digest(token), time.time()),
+            ).fetchone()
+            if not row:
+                raise HTTPException(410, 'This account invitation is invalid or has expired. Ask the shop to send a new invitation.')
+            return {'name': row['name'], 'email': row['email']}
+
+    @app.post('/api/customer/claim')
+    def claim_account(request: Request, payload: dict = Body(...)):
+        throttle(request, 'customer_claim', 10, 900)
+        token = text(payload.get('token', ''), 'Invitation token', 200, True)
+        password = text(payload.get('password', ''), 'Password', 128, True)
+        if len(password) < 12:
+            raise HTTPException(422, 'Use a password of at least 12 characters.')
+        with transaction(database, True) as conn:
+            claim = conn.execute(
+                """SELECT cl.*,c.name,c.email,c.claimed_at
+                   FROM customer_account_claims cl
+                   JOIN customers c ON c.id=cl.customer_id
+                   WHERE cl.token_hash=? AND cl.used_at IS NULL AND cl.expires_at>?""",
+                (digest(token), time.time()),
+            ).fetchone()
+            if not claim or claim['claimed_at'] is not None:
+                raise HTTPException(410, 'This account invitation is invalid or has expired. Ask the shop to send a new invitation.')
+            stamp = now()
+            conn.execute(
+                'UPDATE customers SET password_hash=?,claimed_at=? WHERE id=? AND claimed_at IS NULL',
+                (password_hash(password), stamp, claim['customer_id']),
+            )
+            conn.execute(
+                'UPDATE customer_account_claims SET used_at=? WHERE customer_id=? AND used_at IS NULL',
+                (stamp, claim['customer_id']),
+            )
+            link_existing_orders(conn, claim['customer_id'], claim['email'])
+            who = {'id': claim['customer_id'], 'name': claim['name'], 'email': claim['email']}
             return signed_in(conn, who, request)
 
     @app.post('/api/customer/logout')
