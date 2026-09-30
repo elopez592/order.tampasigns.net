@@ -201,6 +201,25 @@ export function buildSilhouetteMask(imageData,width,height,{joinRadius=0}={}){
   }
   // A die-cut sticker is one solid piece. Join lettering across each scanline;
   // do not turn the spaces between letters into internal cutting paths.
+  const labels=new Int32Array(total),queue=new Int32Array(total);let label=0,joinStart=height;
+  for(let start=0;start<total;start++){
+    if(!out[start]||labels[start])continue;
+    label++;let head=0,tail=0;queue[tail++]=start;labels[start]=label;
+    while(head<tail){
+      const i=queue[head++],x=i%width,y=Math.floor(i/width);
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+        const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=width||ny>=height)continue;
+        const n=ny*width+nx;if(!out[n]||labels[n])continue;labels[n]=label;queue[tail++]=n;
+      }
+    }
+  }
+  for(let y=0;y<height;y++){
+    let first=0;
+    for(let x=0;x<width;x++){
+      const id=labels[y*width+x];if(!id)continue;
+      if(first&&id!==first){joinStart=Math.min(joinStart,y);break;}first=id;
+    }
+  }
   let previous=null;
   for(let y=0;y<height;y++){
     let left=width,right=-1;
@@ -213,7 +232,7 @@ export function buildSilhouetteMask(imageData,width,height,{joinRadius=0}={}){
         out.fill(255,row*width+a,row*width+b+1);
       }
     }
-    out.fill(255,y*width+left,y*width+right+1);
+    if(y>=joinStart)out.fill(255,y*width+left,y*width+right+1);
     previous={y,left,right};
   }
   // Bridge stacked logo/text groups without thin necks or deep notches.
@@ -225,7 +244,7 @@ export function buildSilhouetteMask(imageData,width,height,{joinRadius=0}={}){
   for(let y=0;y<height;y++){
     let left=width,right=-1;
     for(let x=0;x<width;x++)if(out[y*width+x]){left=Math.min(left,x);right=x;}
-    if(right>=0)out.fill(255,y*width+left,y*width+right+1);
+    if(right>=0&&y>=joinStart)out.fill(255,y*width+left,y*width+right+1);
   }
   out=fillHoles(out,width,height);
   return componentFilter(out,width,height);
