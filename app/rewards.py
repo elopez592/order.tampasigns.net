@@ -155,7 +155,7 @@ def record_referral(conn, job_id, referred_email, code):
 
 def _valid_paid_jobs(conn, address):
     return conn.execute(
-        """SELECT job_id,MIN(created_at) AS first_paid_at,SUM(net_paid) AS net_paid
+        """SELECT paid.job_id,MIN(paid.created_at) AS first_paid_at,SUM(paid.net_paid) AS net_paid
            FROM (
              SELECT op.job_id,op.created_at,
                     CASE WHEN op.disputed=0 THEN MAX(0,op.amount_cents-op.refunded_cents) ELSE 0 END AS net_paid
