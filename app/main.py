@@ -568,6 +568,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 if wholesale:
                     order_payload['_wholesale_client_id'] = wholesale['id']
                 job_id = create_job(conn,order_payload,source='checkout',actor='Online customer')
+                rewards.record_referral(conn, job_id, order_payload.get('customer_email', ''), payload.get('referral_code', ''))
                 marketing.capture_conversion(conn, request, job_id)
                 from .customers import link_order
                 link_order(conn, request, job_id)
@@ -634,6 +635,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             if wholesale:
                 request_payload['_wholesale_client_id'] = wholesale['id']
             job_id = create_job(conn, request_payload, source='customer', actor='Public estimate request')
+            rewards.record_referral(conn, job_id, request_payload.get('customer_email', ''), payload.get('referral_code', ''))
             marketing.capture_conversion(conn, request, job_id)
             from .customers import link_order
             link_order(conn, request, job_id)
@@ -712,6 +714,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 'notes': details,
                 'items': items
             }, source='custom', actor='Custom quote request')
+            rewards.record_referral(conn, job_id, customer_email, payload.get('referral_code', ''))
             marketing.capture_conversion(conn, request, job_id)
             link = issue_portal(conn, job_id)
         notify_customer(database, job_id, 'order_received', f'JOB-{job_id:04d} received | Tampa Signs and Stickers',
