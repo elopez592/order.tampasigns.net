@@ -150,7 +150,7 @@ def create_job(conn, payload, source='staff', actor='staff'):
     # production steps before its delivery gate. Each product retains its own
     # prerequisite graph, and delivery waits for every branch to finish.
     extra_workflows = {}
-    if source == 'checkout':
+    if source in ('checkout', 'staff'):
         for line in quote['lines'][1:]:
             if line['workflow_id'] != workflow_id:
                 extra_workflows.setdefault(line['workflow_id'], line['name'])

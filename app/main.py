@@ -358,7 +358,8 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['Referrer-Policy'] = 'no-referrer'
-        response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+        response.headers['Permissions-Policy'] = ('camera=(self), microphone=(), geolocation=()'
+                                                  if request.url.path == '/staff/app' else 'camera=(), microphone=(), geolocation=()')
         response.headers.setdefault('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' blob: data:; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
         if production:
             response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
@@ -1071,9 +1072,12 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                         headers={'Content-Disposition': 'attachment; filename="tampa-signs-owner-report.csv"', 'Cache-Control': 'no-store'})
 
     @app.get('/api/staff/task-queue')
-    def task_queue(request: Request, user=Depends(require_staff)):
+    def task_queue(request: Request, scope: str = 'all', user=Depends(require_staff)):
+        if scope not in ('all', 'mine', 'available'):
+            raise HTTPException(422, 'Choose all, mine or available tasks.')
         with transaction(database) as conn:
-            rows = conn.execute("SELECT t.*,j.number,j.title AS job_title,u.name AS assignee FROM tasks t JOIN jobs j ON j.id=t.job_id LEFT JOIN users u ON u.id=t.assignee_id WHERE j.archived=0 AND t.status!='done' ORDER BY j.priority DESC,j.id,t.position LIMIT 300").fetchall()
+            condition = ' AND t.assignee_id=?' if scope == 'mine' else ' AND t.assignee_id IS NULL' if scope == 'available' else ''
+            rows = conn.execute("SELECT t.*,j.number,j.title AS job_title,j.customer_name,j.due_date,j.priority,u.name AS assignee FROM tasks t JOIN jobs j ON j.id=t.job_id LEFT JOIN users u ON u.id=t.assignee_id WHERE j.archived=0 AND t.status!='done'" + condition + " ORDER BY CASE j.priority WHEN 'rush' THEN 0 ELSE 1 END,COALESCE(j.due_date,'9999-12-31'),j.id,t.position LIMIT 300", (user['id'],) if scope == 'mine' else ()).fetchall()
             cache = {}
             output = []
             for row in rows:
@@ -1540,11 +1544,11 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             pid = add_proof(conn, job, aid, label, note, actor(user))
             email_link = issue_email_portal(conn, job_id)
             job_number = job['number']
-        notify_customer(database, job_id, f'proof_pending_{pid}', f'Proof ready for {job_number} | Tampa Signs and Stickers',
+        sent = notify_customer(database, job_id, f'proof_pending_{pid}', f'Proof ready for {job_number} | Tampa Signs and Stickers',
                         'Review your artwork & terms', job_terms.PROOF_REVIEW_NOTICE, email_link)
         notify_staff(database, job_id, f'proof_pending_{pid}', f'Proof pending for {job_number}',
                      'Proof sent for approval', 'The current proof is now waiting for customer review.', public_url)
-        return {'ok': True, 'proof_id': pid}
+        return {'ok': True, 'proof_id': pid, 'email_sent': bool(sent)}
 
     @app.post('/api/staff/jobs/{job_id}/proofs/{proof_id}/send')
     def send_proof_for_approval(job_id: int, proof_id: int, request: Request, user=Depends(require_staff)):
@@ -1863,6 +1867,8 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     install_customers(app, database, production, throttle, issue_portal, uploads)
     rewards.install(app, database, require_admin, portal_job)
     artwork_approval.install(app, database, uploads, portal_job, require_admin, add_proof, actor)
+    from . import employee_mobile
+    employee_mobile.install(app, database, uploads, require_staff, require_admin, actor, issue_email_portal, STATIC)
 
     app.mount('/static', StaticFiles(directory=STATIC), name='static')
 
