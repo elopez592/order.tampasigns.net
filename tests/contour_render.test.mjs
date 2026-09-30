@@ -11,7 +11,7 @@ s.font='bold 78px serif';s.fillText('BELLA',70,220);s.fillStyle='#b88932';s.font
 const jpg=await loadImage(source.toBuffer('image/jpeg',55));
 const detected=await autoContourArtwork(jpg);assert.equal(detected.method,'background');
 const samples=[];
-for(const shape of ['contour','circle','rectangle','rounded'])for(const mode of ['default','custom']){
+for(const shape of ['contour','circle','oval','square','rectangle','rounded'])for(const mode of ['default','custom']){
  const canvas=createCanvas(600,600),design={width:3,height:3,settings:{shape,border:.125,border_color:'#365678',custom_border_color:mode==='custom',scale:100}};
  renderSticker(canvas,detected.canvas,design,true);
  const data=canvas.getContext('2d').getImageData(0,0,600,600).data;
@@ -47,3 +47,17 @@ if(process.env.CONTOUR_QA_IMAGE){
  writeFileSync(process.env.CONTOUR_QA_IMAGE,gallery.toBuffer('image/png'));
 }
 console.log('Compressed JPG, shape geometry, minimum border, and production-guide tests passed');
+
+{
+  const tall=createCanvas(400,600),art=createCanvas(30,30);
+  const design={width:2,height:3,settings:{shape:'oval',border:.06}};
+  renderSticker(tall,art,design,false);
+  const ctx=tall.getContext('2d');
+  assert.equal(ctx.getImageData(200,10,1,1).data[3],255,'oval uses the full height');
+  design.settings.shape='circle';renderSticker(tall,art,design,false);
+  assert.equal(ctx.getImageData(200,10,1,1).data[3],0,'circle retains equal axes');
+  design.settings.shape='square';renderSticker(tall,art,design,false);
+  assert.equal(ctx.getImageData(10,10,1,1).data[3],0,'square retains equal sides');
+  design.settings.shape='rectangle';renderSticker(tall,art,design,false);
+  assert.equal(ctx.getImageData(10,10,1,1).data[3],255,'rectangle uses the full height');
+}

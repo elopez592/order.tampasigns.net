@@ -338,6 +338,11 @@ export function expandMask(mask,width,height,radius){
   return Uint8Array.from(distance,d=>d<=radius?255:0);
 }
 
+export function stickerShapeOptions(width,height){
+  const equal=Math.abs(Number(width)-Number(height))<.001;
+  return [['contour','Contour around artwork'],...(equal?[['square','Square'],['circle','Circle']]:[['rectangle','Rectangle'],['oval','Oval']]),['rounded',equal?'Rounded square':'Rounded rectangle']];
+}
+
 export const MIN_STICKER_BORDER_INCHES=.06;
 export function stickerBorderSettings(settings={}){
   const requested=Number(settings.border??.125);
@@ -357,7 +362,7 @@ export function renderSticker(canvas,artwork,design,proof=true){
   const layer=document.createElement('canvas');layer.width=w;layer.height=h;
   const l=layer.getContext('2d',{willReadFrequently:true});
   // An ellipse must contain the whole fitted artwork at 100%, including corners.
-  const fit=s.shape==='circle'?Math.SQRT1_2:1;
+  const fit=['circle','oval'].includes(s.shape)?Math.SQRT1_2:1;
   const scale=Math.min(innerW/artwork.width,innerH/artwork.height)*fit*clamp(Number(s.scale??100)||100,55,100)/100;
   const iw=artwork.width*scale,ih=artwork.height*scale;
   l.drawImage(artwork,(w-iw)/2,(h-ih)/2,iw,ih);
@@ -368,8 +373,9 @@ export function renderSticker(canvas,artwork,design,proof=true){
     mask=expandMask(smoothMask(silhouette,w,h,Math.max(1,Math.min(iw,ih)*.008)),w,h,border);
   }else{
     m.fillStyle='#fff';m.beginPath();
-    if(s.shape==='circle')m.ellipse(w/2,h/2,boxW/2,boxH/2,0,0,Math.PI*2);
+    if(['circle','oval'].includes(s.shape)){const rx=s.shape==='circle'?Math.min(boxW,boxH)/2:boxW/2,ry=s.shape==='circle'?Math.min(boxW,boxH)/2:boxH/2;m.ellipse(w/2,h/2,rx,ry,0,0,Math.PI*2);}
     else if(s.shape==='rounded')m.roundRect(margin,margin,boxW,boxH,Math.min(boxW,boxH)*.08);
+    else if(s.shape==='square'){const side=Math.min(boxW,boxH);m.rect((w-side)/2,(h-side)/2,side,side);}
     else m.rect(margin,margin,boxW,boxH);
     m.fill();const rgba=m.getImageData(0,0,w,h).data;
     mask=Uint8Array.from({length:w*h},(_,i)=>rgba[i*4+3]);

@@ -90,3 +90,13 @@ console.log('contour artwork mask tests passed');
   assert.equal(stickerBorderSettings({border_color:'#123456',custom_border_color:false}).border_color,'#ffffff');
   assert.equal(stickerBorderSettings({border_color:'#123456',custom_border_color:true}).border_color,'#123456');
 }
+
+{
+  const {stickerShapeOptions}=await import('../app/static/contour-artwork.js');
+  const square=stickerShapeOptions(3,3).map(([shape])=>shape);
+  assert.ok(square.includes('square')&&square.includes('circle'));
+  assert.ok(!square.includes('oval')&&!square.includes('rectangle'));
+  const rectangle=stickerShapeOptions(3,2).map(([shape])=>shape);
+  assert.ok(rectangle.includes('oval')&&rectangle.includes('rectangle'));
+  assert.ok(!rectangle.includes('square')&&!rectangle.includes('circle'));
+}
