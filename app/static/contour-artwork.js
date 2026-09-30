@@ -118,12 +118,13 @@ export function buildAutoMask(imageData,width,height,options={}){
     }
   }
 
-  const mask=new Uint8Array(total);
+  let mask=new Uint8Array(total);
   let foregroundCount=0;
   for(let i=0;i<total;i++){if(!background[i]){mask[i]=255;foregroundCount++;}}
   const foregroundRatio=foregroundCount/total,removedRatio=1-foregroundRatio;
   if(foregroundRatio<.005||foregroundRatio>.985||removedRatio<.015)return opaqueResult(width,height,'background-not-separable');
 
+  mask=componentFilter(mask,width,height);
   const bounds=boundsFor(mask,width,height),confidence=clamp(.5+Math.max(.12,dominantRatio)*.35+Math.min(.14,removedRatio*.16),.5,.99);
   return {mask,bounds,method:'background',backgroundDetected:true,confidence,reason:'edge-connected-background',backgroundColor:bg,tolerance:looseTolerance};
 }
@@ -198,6 +199,34 @@ export function buildSilhouetteMask(imageData,width,height,{joinRadius=0}={}){
     for(let i=0;i<radius;i++)out=dilateStep(out,width,height);
     for(let i=0;i<radius;i++)out=erodeStep(out,width,height);
   }
+  // A die-cut sticker is one solid piece. Join lettering across each scanline;
+  // do not turn the spaces between letters into internal cutting paths.
+  let previous=null;
+  for(let y=0;y<height;y++){
+    let left=width,right=-1;
+    for(let x=0;x<width;x++)if(out[y*width+x]){left=Math.min(left,x);right=x;}
+    if(right<0)continue;
+    if(previous&&y>previous.y+1){
+      for(let row=previous.y+1;row<y;row++){
+        const t=(row-previous.y)/(y-previous.y);
+        const a=Math.floor(previous.left+(left-previous.left)*t),b=Math.ceil(previous.right+(right-previous.right)*t);
+        out.fill(255,row*width+a,row*width+b+1);
+      }
+    }
+    out.fill(255,y*width+left,y*width+right+1);
+    previous={y,left,right};
+  }
+  // Bridge stacked logo/text groups without thin necks or deep notches.
+  for(let x=0;x<width;x++){
+    let top=height,bottom=-1;
+    for(let y=0;y<height;y++)if(out[y*width+x]){top=Math.min(top,y);bottom=y;}
+    for(let y=top;y<=bottom;y++)out[y*width+x]=255;
+  }
+  for(let y=0;y<height;y++){
+    let left=width,right=-1;
+    for(let x=0;x<width;x++)if(out[y*width+x]){left=Math.min(left,x);right=x;}
+    if(right>=0)out.fill(255,y*width+left,y*width+right+1);
+  }
   out=fillHoles(out,width,height);
   return componentFilter(out,width,height);
 }
@@ -241,4 +270,96 @@ export async function autoContourArtwork(source,{maskMaxDimension=900,sensitivit
   }
 
   return {canvas:output,method:detected.method,backgroundDetected:detected.backgroundDetected,confidence:detected.confidence,reason:detected.reason};
+}
+
+// Smooth raster stair steps at a scale proportional to the sticker artwork.
+export function smoothMask(mask,width,height,radius=2){
+  const r=Math.max(1,Math.round(radius)),span=2*r+1;
+  let values=Float32Array.from(mask),temp=new Float32Array(mask.length);
+  for(let pass=0;pass<3;pass++){
+    for(let y=0;y<height;y++){
+      let sum=0;for(let x=0;x<=r&&x<width;x++)sum+=values[y*width+x];
+      for(let x=0;x<width;x++){
+        temp[y*width+x]=sum/span;
+        if(x-r>=0)sum-=values[y*width+x-r];
+        if(x+r+1<width)sum+=values[y*width+x+r+1];
+      }
+    }
+    for(let x=0;x<width;x++){
+      let sum=0;for(let y=0;y<=r&&y<height;y++)sum+=temp[y*width+x];
+      for(let y=0;y<height;y++){
+        values[y*width+x]=sum/span;
+        if(y-r>=0)sum-=temp[(y-r)*width+x];
+        if(y+r+1<height)sum+=temp[(y+r+1)*width+x];
+      }
+    }
+  }
+  return Uint8Array.from(values,v=>v>=127.5?255:0);
+}
+
+// Linear-time distance field, avoiding shifted alpha stamps and their seams.
+export function expandMask(mask,width,height,radius){
+  if(radius<=0)return new Uint8Array(mask);
+  const distance=new Float32Array(mask.length),diagonal=Math.SQRT2;
+  for(let i=0;i<mask.length;i++)distance[i]=mask[i]?0:1e9;
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    const i=y*width+x;
+    if(x)distance[i]=Math.min(distance[i],distance[i-1]+1);
+    if(y){distance[i]=Math.min(distance[i],distance[i-width]+1);
+      if(x)distance[i]=Math.min(distance[i],distance[i-width-1]+diagonal);
+      if(x+1<width)distance[i]=Math.min(distance[i],distance[i-width+1]+diagonal);}
+  }
+  for(let y=height-1;y>=0;y--)for(let x=width-1;x>=0;x--){
+    const i=y*width+x;
+    if(x+1<width)distance[i]=Math.min(distance[i],distance[i+1]+1);
+    if(y+1<height){distance[i]=Math.min(distance[i],distance[i+width]+1);
+      if(x)distance[i]=Math.min(distance[i],distance[i+width-1]+diagonal);
+      if(x+1<width)distance[i]=Math.min(distance[i],distance[i+width+1]+diagonal);}
+  }
+  return Uint8Array.from(distance,d=>d<=radius?255:0);
+}
+
+export function renderSticker(canvas,artwork,design,proof=true){
+  const c=canvas.getContext('2d'),w=canvas.width,h=canvas.height,s=design.settings;
+  c.clearRect(0,0,w,h);if(!artwork)return;
+  const margin=proof?Math.min(w,h)*.13:0;
+  const boxW=w-2*margin,boxH=h-2*margin;
+  const pxPerInch=Math.min(boxW/Number(design.width||3),boxH/Number(design.height||3));
+  const border=s.border_mode==='none'?0:Math.max(0,Number(s.border??.125))*pxPerInch;
+  const innerW=Math.max(1,boxW-border*2),innerH=Math.max(1,boxH-border*2);
+  const layer=document.createElement('canvas');layer.width=w;layer.height=h;
+  const l=layer.getContext('2d',{willReadFrequently:true});
+  // An ellipse must contain the whole fitted artwork at 100%, including corners.
+  const fit=s.shape==='circle'?Math.SQRT1_2:1;
+  const scale=Math.min(innerW/artwork.width,innerH/artwork.height)*fit*Number(s.scale??100)/100;
+  const iw=artwork.width*scale,ih=artwork.height*scale;
+  l.drawImage(artwork,(w-iw)/2,(h-ih)/2,iw,ih);
+  const cut=document.createElement('canvas');cut.width=w;cut.height=h;const m=cut.getContext('2d',{willReadFrequently:true});
+  let mask;
+  if(s.shape==='contour'){
+    const silhouette=buildSilhouetteMask(l.getImageData(0,0,w,h),w,h,{joinRadius:Math.min(14,Math.max(2,Math.round(Math.min(iw,ih)*.012)))});
+    mask=expandMask(smoothMask(silhouette,w,h,Math.max(1,Math.min(iw,ih)*.008)),w,h,border);
+  }else{
+    m.fillStyle='#fff';m.beginPath();
+    if(s.shape==='circle')m.ellipse(w/2,h/2,boxW/2,boxH/2,0,0,Math.PI*2);
+    else if(s.shape==='rounded')m.roundRect(margin,margin,boxW,boxH,Math.min(boxW,boxH)*.08);
+    else m.rect(margin,margin,boxW,boxH);
+    m.fill();const rgba=m.getImageData(0,0,w,h).data;
+    mask=Uint8Array.from({length:w*h},(_,i)=>rgba[i*4+3]);
+  }
+  const color=s.border_color||'#ffffff';
+  const paintMask=(target,alpha,fill)=>{
+    const context=target.getContext('2d'),pixels=context.createImageData(w,h);
+    for(let i=0;i<alpha.length;i++){pixels.data[i*4]=255;pixels.data[i*4+1]=255;pixels.data[i*4+2]=255;pixels.data[i*4+3]=alpha[i];}
+    context.putImageData(pixels,0,0);context.globalCompositeOperation='source-in';context.fillStyle=fill;context.fillRect(0,0,w,h);context.globalCompositeOperation='source-over';
+  };
+  paintMask(cut,mask,color);
+  if(proof){
+    const outer=expandMask(mask,w,h,Math.max(2,Math.min(w,h)*.004));
+    const ring=Uint8Array.from(outer,(a,i)=>mask[i]?0:a);
+    const line=document.createElement('canvas');line.width=w;line.height=h;paintMask(line,ring,'#d81b60');c.drawImage(line,0,0);
+  }
+  // Solid substrate inside the cut; the pink proof guide never enters print art.
+  c.drawImage(cut,0,0);
+  l.globalCompositeOperation='destination-in';l.drawImage(cut,0,0);c.drawImage(layer,0,0);
 }

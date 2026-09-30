@@ -59,3 +59,25 @@ console.log('contour artwork mask tests passed');
   assert.equal(result.mask[10*width+10],255);
   assert.equal(result.mask[0],0);
 }
+
+{
+  // Letter gaps and separated lines must remain substrate, never internal cuts.
+  const width=40,height=40,mask=new Uint8Array(width*height);
+  for(let y=5;y<12;y++)for(let x=7;x<14;x++)mask[y*width+x]=255;
+  for(let y=5;y<12;y++)for(let x=24;x<31;x++)mask[y*width+x]=255;
+  for(let y=22;y<28;y++)for(let x=12;x<27;x++)mask[y*width+x]=255;
+  const solid=buildSilhouetteMask(mask,width,height);
+  assert.equal(solid[8*width+20],255,'letter gaps stay inside one sticker');
+  assert.equal(solid[17*width+20],255,'separated text lines are connected');
+  assert.equal(solid[0],0,'exterior remains outside');
+}
+
+{
+  const {expandMask}=await import('../app/static/contour-artwork.js');
+  const mask=new Uint8Array(21*21);mask[10*21+10]=255;
+  assert.deepEqual(expandMask(mask,21,21,0),mask,'zero offset must be zero');
+  const expanded=expandMask(mask,21,21,3);
+  assert.equal(expanded[10*21+13],255);
+  assert.equal(expanded[10*21+14],0);
+  assert.equal(expanded[13*21+13],0,'border is rounded, not a square stamp');
+}
