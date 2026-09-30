@@ -237,6 +237,17 @@ export function createShop(ctx) {
   async function accountView(){
     const r=await api('/api/customer');state.customer=r.customer;
     if(!state.customer){
+      const claimToken=new URLSearchParams(location.search).get('claim');
+      if(claimToken){
+        try{
+          const invitation=await api('/api/customer/claim/preview','POST',{token:claimToken});
+          page('Create your account',`<section class="panel account-claim"><div class="eyebrow">CLIENT INVITATION</div><h2>Welcome, ${esc(invitation.name)}</h2><p class="muted mt-sm">Set a password for <strong>${esc(invitation.email)}</strong>. Your existing projects, credits and rewards will be waiting in this account.</p><form data-form="customer-claim" class="stack mt"><input type="hidden" name="token" value="${esc(claimToken)}">${input('password','Choose a password (12+ characters)','','password','required minlength="12" maxlength="128" autocomplete="new-password"')}${input('confirm_password','Confirm password','','password','required minlength="12" maxlength="128" autocomplete="new-password"')}${formFooter('Activate my account')}</form></section>`);
+          return;
+        }catch(error){
+          page('Account invitation',`<section class="panel"><h2>This invitation can’t be used</h2><p class="muted mt">${esc(error.message||'Ask the shop to send you a new account invitation.')}</p><a class="btn primary mt" href="/account">Go to customer sign in</a></section>`);
+          return;
+        }
+      }
       page('Sign in',`<div class="account-grid"><section class="panel"><h2>Customer sign in</h2><form data-form="customer-login" class="stack mt">${input('email','Email','','email','required autocomplete="email"')}${input('password','Password','','password','required autocomplete="current-password" maxlength="128"')}${formFooter('Sign in')}</form><p class="field-hint">For help accessing your account, contact the shop.</p></section><section class="panel"><h2>Create a customer account</h2><form data-form="customer-register" class="stack mt">${input('name','Name','','text','required maxlength="120" autocomplete="name"')}${input('email','Email','','email','required autocomplete="email"')}${input('password','Password (12+ characters)','','password','required minlength="12" maxlength="128" autocomplete="new-password"')}${formFooter('Create account')}</form></section></div>`);
       app.querySelector('main').insertAdjacentHTML('beforeend',`<section class="panel mt"><h2>Wholesale account</h2><p class="muted mt">${state.wholesaleToken?'Signed in as '+esc(state.wholesaleName):'Sign in with your approved wholesale username and password.'}</p><button class="btn light mt" data-action="${state.wholesaleToken?'wholesale-clear':'wholesale-login'}">${state.wholesaleToken?'Sign out of wholesale':'Wholesale sign in'}</button></section>`);
       return;
@@ -490,6 +501,14 @@ export function createShop(ctx) {
     'help-choose':()=>showProductFinder(),
   });
   for(const mode of ['login','register'])forms['customer-'+mode]=async(f,d)=>{const r=await api('/api/customer/'+mode,'POST',d);state.customer=r.customer;await accountView();};
+  forms['customer-claim']=async(f,d)=>{
+    if(d.password!==d.confirm_password)throw new Error('Passwords do not match.');
+    const r=await api('/api/customer/claim','POST',{token:d.token,password:d.password});
+    state.customer=r.customer;
+    history.replaceState(null,'','/account');
+    toast('Your customer account is active. Your credits and projects are ready.');
+    await accountView();
+  };
   forms['customer-profile']=async(f,d)=>{await api('/api/customer/profile','PUT',d);toast('Account profile saved.');await accountView();};
   forms['product-finder']=async(f,d)=>{
     const map={storefront:'Storefront',vehicle:'Vehicles',fleet:'Fleet Services',construction:'Construction signs',event:'Events',apparel:'Apparel',sign:'Signs',sticker:'Stickers'},category=map[d.surface]||'Signs';

@@ -106,6 +106,20 @@ def notify_one(database, job_id: int, event_key: str, recipient: str, audience: 
     return ok
 
 
+def notify_direct(recipient: str, subject: str, title: str, message: str,
+                  action_url: str | None = None, action_label: str = "View account") -> bool:
+    """Send a branded transactional email that is not tied to a specific job."""
+    if not enabled() or not recipient:
+        return False
+    ok, _error = _send(
+        recipient,
+        subject,
+        _brand_html(title, message, action_url, action_label),
+        f"{title}\n\n{message}" + (f"\n\n{action_url}" if action_url else ""),
+    )
+    return ok
+
+
 def staff_addresses(database) -> list[str]:
     with transaction(database) as conn:
         return [row["email"] for row in conn.execute("SELECT email FROM users WHERE active=1 ORDER BY role DESC,id")]
