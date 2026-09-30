@@ -1912,6 +1912,8 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
     @app.get('/account', response_class=HTMLResponse)
     @app.get('/contact', response_class=HTMLResponse)
     @app.get('/contact.html', response_class=HTMLResponse)
+    @app.get('/industries', response_class=HTMLResponse)
+    @app.get('/industries/{slug}', response_class=HTMLResponse)
     def frontend(request: Request):
         path = request.url.path
         if path == '/products':
