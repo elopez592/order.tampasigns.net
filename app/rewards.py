@@ -5,7 +5,9 @@ are never trusted from the browser. Reservations prevent concurrent spending;
 only provider-verified payments earn points. Credits in this program are shop
 account discounts, not purchased gift cards or cash refunds.
 """
+import hashlib
 import json
+import re
 import uuid
 from decimal import Decimal, ROUND_FLOOR
 
@@ -16,7 +18,8 @@ from .pricing import cents, cent_round, number
 from .security import text
 
 DEFAULTS = {'rewards_enabled': True, 'rewards_points_per_dollar': '1',
-            'rewards_point_value_cents': '1'}
+            'rewards_point_value_cents': '1', 'rewards_referrals_enabled': True,
+            'rewards_referral_credit': '25'}
 FIRST_ORDER_BONUS_POINTS = 50
 
 
@@ -26,14 +29,19 @@ def config(shop):
 
 def public_config(shop):
     cfg = config(shop)
+    referral_credit_cents = cents(cfg['rewards_referral_credit'], 'Referral credit')
     return {'enabled': cfg['rewards_enabled'], 'points_per_dollar': cfg['rewards_points_per_dollar'],
             'point_value_cents': int(cfg['rewards_point_value_cents']),
             'first_order_bonus_points': FIRST_ORDER_BONUS_POINTS,
+            'referrals_enabled': bool(cfg['rewards_referrals_enabled']),
+            'referral_credit_cents': referral_credit_cents,
             'terms': 'Earn points on verified payments for merchandise after account discounts. '
                      'Your first paid order earns an extra 50 points once per customer account. '
                      'Prior paid orders with the same email count, including guest orders. '
-                     'The bonus is reversed if that order is fully refunded, voided or disputed; '
-                     'a partial refund keeps the bonus while a valid payment remains. '
+                     'Referral credit is awarded to the referring customer only after the referred '
+                     'customer makes a first verified payment. Self-referrals, repeat customers and '
+                     'duplicate referrals are excluded. A referral reward is reversed if that '
+                     'qualifying first payment is fully refunded, voided or disputed. '
                      'Tax and shipping do not earn points. Account credits and redeemed points '
                      'reduce the merchandise price before tax; they do not pay shipping. '
                      'No expiry or maintenance fees. Balances are for this account and cannot '
@@ -51,10 +59,179 @@ def validate_settings(shop, payload):
                   'Points per paid dollar', '0', '100')
     value = number(payload.get('rewards_point_value_cents', cfg['rewards_point_value_cents']),
                    'Point value in cents', '1', '100')
+    referrals_enabled = payload.get('rewards_referrals_enabled', cfg['rewards_referrals_enabled'])
+    if type(referrals_enabled) is not bool:
+        raise HTTPException(422, 'Referral rewards enabled must be true or false.')
+    referral_credit = number(payload.get('rewards_referral_credit', cfg['rewards_referral_credit']),
+                             'Referral account credit', '0', '1000')
     if value != value.to_integral_value():
         raise HTTPException(422, 'Point value must be a whole number of cents.')
     shop.update(rewards_enabled=enabled, rewards_points_per_dollar=str(rate),
-                rewards_point_value_cents=str(int(value)))
+                rewards_point_value_cents=str(int(value)),
+                rewards_referrals_enabled=referrals_enabled,
+                rewards_referral_credit=str(referral_credit))
+
+
+def referral_code(customer_id, address):
+    checksum = hashlib.sha256(str(address or '').strip().lower().encode()).hexdigest()[:8].upper()
+    return f'TS{int(customer_id)}-{checksum}'
+
+
+def referral_summary(conn, customer_id):
+    who = conn.execute('SELECT id,email FROM customers WHERE id=?', (customer_id,)).fetchone()
+    if not who:
+        return None
+    cfg = public_config(settings(conn))
+    rows = conn.execute(
+        """SELECT status,reward_credit_cents FROM customer_referrals
+           WHERE referrer_customer_id=? ORDER BY id DESC""",
+        (customer_id,),
+    ).fetchall()
+    return {
+        'code': referral_code(who['id'], who['email']),
+        'enabled': cfg['referrals_enabled'],
+        'reward_credit_cents': cfg['referral_credit_cents'],
+        'referrals': len(rows),
+        'rewarded': sum(row['status'] == 'rewarded' for row in rows),
+        'pending': sum(row['status'] == 'pending' for row in rows),
+        'earned_credit_cents': sum(max(0, int(row['reward_credit_cents'] or 0)) for row in rows if row['status'] == 'rewarded'),
+    }
+
+
+def _referrer_for_code(conn, code):
+    match = re.fullmatch(r'TS([1-9][0-9]*)-([A-F0-9]{8})', str(code or '').strip().upper())
+    if not match:
+        return None
+    row = conn.execute(
+        'SELECT id,name,email,claimed_at FROM customers WHERE id=? AND claimed_at IS NOT NULL',
+        (int(match.group(1)),),
+    ).fetchone()
+    if not row or referral_code(row['id'], row['email']) != str(code).strip().upper():
+        return None
+    return row
+
+
+def _has_valid_payment_for_email(conn, address):
+    return bool(conn.execute(
+        """SELECT 1 FROM jobs j
+           WHERE lower(j.customer_email)=lower(?)
+             AND (
+               EXISTS (SELECT 1 FROM payments p WHERE p.job_id=j.id AND p.amount_cents>0 AND p.voided_at IS NULL)
+               OR EXISTS (
+                 SELECT 1 FROM online_payments op
+                 WHERE op.job_id=j.id AND op.disputed=0
+                   AND op.amount_cents-op.refunded_cents>0
+               )
+             )
+           LIMIT 1""",
+        (address,),
+    ).fetchone())
+
+
+def record_referral(conn, job_id, referred_email, code):
+    cfg = config(settings(conn))
+    if not cfg['rewards_referrals_enabled'] or not code:
+        return False
+    referrer = _referrer_for_code(conn, code)
+    address = str(referred_email or '').strip().lower()
+    if not referrer or not address or referrer['email'].lower() == address:
+        return False
+    if _has_valid_payment_for_email(conn, address):
+        return False
+    if conn.execute(
+        'SELECT 1 FROM customer_referrals WHERE lower(referred_email)=lower(?) LIMIT 1',
+        (address,),
+    ).fetchone():
+        return False
+    conn.execute(
+        """INSERT INTO customer_referrals(
+             referrer_customer_id,referred_email,source_job_id,qualifying_job_id,status,
+             reward_credit_cents,created_at,updated_at
+           ) VALUES(?,?,?,NULL,'pending',0,?,?)""",
+        (referrer['id'], address, job_id, now(), now()),
+    )
+    return True
+
+
+def _valid_paid_jobs(conn, address):
+    return conn.execute(
+        """SELECT paid.job_id,MIN(paid.created_at) AS first_paid_at,SUM(paid.net_paid) AS net_paid
+           FROM (
+             SELECT op.job_id,op.created_at,
+                    CASE WHEN op.disputed=0 THEN MAX(0,op.amount_cents-op.refunded_cents) ELSE 0 END AS net_paid
+             FROM online_payments op
+             UNION ALL
+             SELECT p.job_id,p.created_at,
+                    CASE WHEN p.voided_at IS NULL THEN MAX(0,p.amount_cents) ELSE 0 END AS net_paid
+             FROM payments p
+           ) paid
+           JOIN jobs j ON j.id=paid.job_id
+           WHERE lower(j.customer_email)=lower(?)
+           GROUP BY job_id
+           HAVING SUM(net_paid)>0
+           ORDER BY first_paid_at,job_id""",
+        (address,),
+    ).fetchall()
+
+
+def sync_referral_reward(conn, referred_email):
+    referral = conn.execute(
+        'SELECT * FROM customer_referrals WHERE lower(referred_email)=lower(?) LIMIT 1',
+        (str(referred_email or '').strip().lower(),),
+    ).fetchone()
+    if not referral:
+        return
+    cfg = public_config(settings(conn))
+    qualifying_job_id = referral['qualifying_job_id']
+    reward_amount = int(referral['reward_credit_cents'] or 0)
+    if qualifying_job_id is None:
+        if not cfg['referrals_enabled']:
+            return
+        valid = _valid_paid_jobs(conn, referral['referred_email'])
+        if not valid:
+            return
+        qualifying_job_id = valid[0]['job_id']
+        reward_amount = cfg['referral_credit_cents']
+        conn.execute(
+            """UPDATE customer_referrals
+               SET qualifying_job_id=?,reward_credit_cents=?,updated_at=? WHERE id=?""",
+            (qualifying_job_id, reward_amount, now(), referral['id']),
+        )
+    net_online = conn.execute(
+        """SELECT COALESCE(SUM(CASE WHEN disputed=0 THEN amount_cents-refunded_cents ELSE 0 END),0)
+           FROM online_payments WHERE job_id=?""",
+        (qualifying_job_id,),
+    ).fetchone()[0]
+    net_manual = conn.execute(
+        """SELECT COALESCE(SUM(CASE WHEN voided_at IS NULL THEN amount_cents ELSE 0 END),0)
+           FROM payments WHERE job_id=?""",
+        (qualifying_job_id,),
+    ).fetchone()[0]
+    desired = reward_amount if (net_online + net_manual) > 0 else 0
+    awarded = conn.execute(
+        """SELECT COALESCE(SUM(credit_cents),0) FROM customer_reward_ledger
+           WHERE customer_id=? AND job_id=? AND kind IN
+             ('referral_reward','referral_reward_reversed','referral_reward_restored')""",
+        (referral['referrer_customer_id'], qualifying_job_id),
+    ).fetchone()[0]
+    delta = desired - awarded
+    if delta:
+        kind = 'referral_reward' if awarded == 0 and delta > 0 else 'referral_reward_restored' if delta > 0 else 'referral_reward_reversed'
+        reason = (
+            ('Referral reward for ' if delta > 0 else 'Referral reward reversed for ')
+            + referral['referred_email']
+        )
+        entry(
+            conn, referral['referrer_customer_id'], delta, 0, kind, reason,
+            'Rewards system', qualifying_job_id,
+        )
+    status = 'rewarded' if desired > 0 else 'reversed'
+    conn.execute(
+        """UPDATE customer_referrals SET status=?,reward_credit_cents=?,
+           rewarded_at=CASE WHEN ?='rewarded' AND rewarded_at IS NULL THEN ? ELSE rewarded_at END,
+           updated_at=? WHERE id=?""",
+        (status, reward_amount, status, now(), now(), referral['id']),
+    )
 
 
 def wallet(conn, customer_id, history=True):
@@ -213,11 +390,12 @@ def sync_first_order_bonus(conn, owner, job, eligible, net_paid, first_earning):
 def sync_earnings(conn, job_id):
     """Idempotently reconcile earnings against receipts, refunds and voids."""
     from .domain import get_job, totals
+    job = get_job(conn, job_id)
+    sync_referral_reward(conn, job['customer_email'])
     owner = conn.execute('SELECT c.id FROM customer_orders o JOIN customers c ON c.id=o.customer_id '
                          'JOIN jobs j ON j.id=o.job_id WHERE o.job_id=? AND c.email=j.customer_email COLLATE NOCASE', (job_id,)).fetchone()
     if not owner:
         return
-    job = get_job(conn, job_id)
     money = totals(conn, job)
     eligible = max(0, money['merchandise_cents'])
     cfg = config(settings(conn))
@@ -262,6 +440,21 @@ def sync_earnings(conn, job_id):
 
 def install(app, database, require_admin, portal_job):
     from .customers import customer
+
+    with transaction(database, True) as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS customer_referrals(
+            id INTEGER PRIMARY KEY,
+            referrer_customer_id INTEGER NOT NULL REFERENCES customers(id),
+            referred_email TEXT NOT NULL COLLATE NOCASE UNIQUE,
+            source_job_id INTEGER NOT NULL REFERENCES jobs(id),
+            qualifying_job_id INTEGER REFERENCES jobs(id),
+            status TEXT NOT NULL CHECK(status IN ('pending','rewarded','reversed')),
+            reward_credit_cents INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            rewarded_at TEXT,
+            updated_at TEXT NOT NULL
+        )""")
+        conn.execute('CREATE INDEX IF NOT EXISTS customer_referrals_referrer ON customer_referrals(referrer_customer_id,id)')
 
     def account_for_job(conn, request):
         who = customer(conn, request)

@@ -11,7 +11,7 @@ from .db import transaction, now
 from .domain import create_job, stage
 from .images import save_asset
 from .security import digest, password_hash, password_matches, email, text
-from .rewards import wallet
+from .rewards import referral_summary, wallet
 
 COOKIE = 'signshop_customer'
 
@@ -161,6 +161,7 @@ def install(app, database, production, throttle, issue_portal, uploads):
                 'profile': profile_row(conn, who['id']),
                 'saved_assets': saved_assets,
                 'wallet': wallet(conn, who['id']),
+                'referral': referral_summary(conn, who['id']),
             }
 
     def signed_in(conn, who, request):
