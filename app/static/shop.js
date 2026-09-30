@@ -323,6 +323,7 @@ export function createShop(ctx) {
       for(let i=0;i<silhouette.length;i++){const o=i*4;image.data[o]=255;image.data[o+1]=255;image.data[o+2]=255;image.data[o+3]=silhouette[i];}
       m.putImageData(image,0,0);
     }
+    if(s.shape!=='contour'){l.save();l.globalCompositeOperation='destination-in';l.drawImage(cutMask,0,0);l.restore();}
     const coloredMask=color=>{const mask=document.createElement('canvas');mask.width=w;mask.height=h;const mc=mask.getContext('2d');mc.drawImage(cutMask,0,0);mc.globalCompositeOperation='source-in';mc.fillStyle=color;mc.fillRect(0,0,w,h);return mask;};
     const outline=(mask,radius)=>{const steps=64;for(let i=0;i<steps;i++){const angle=i/steps*Math.PI*2;c.drawImage(mask,Math.cos(angle)*radius,Math.sin(angle)*radius);}};
     if(proof)outline(coloredMask('#d81b60'),border+Math.max(3,Math.min(w,h)*.006));outline(coloredMask(s.border_color||'#ffffff'),border);
