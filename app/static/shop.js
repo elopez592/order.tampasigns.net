@@ -97,7 +97,7 @@ export function createShop(ctx) {
       if(kind==='custom_shirt')$('.product-preview').innerHTML=`<img class="shirt-sample" src="${imageFor(defaultColor)}" alt="${esc(defaultColor)} Gildan Heavy Cotton 5000 sample"><span class="preview-label">Gildan 5000 · Supplier sample</span>`;
       f.addEventListener('change',e=>{if(kind==='custom_shirt'&&e.target.name==='shirt_color')$('.shirt-sample').src=imageFor(e.target.value);recalculate();});
     }
-    if(p.config.contour_customizer)f.insertAdjacentHTML('afterend','<p class="field-hint mt">Upload your PNG or JPEG artwork when submitting the project. We will generate an approximate contour outline preview for review; the final cut path may differ slightly after production setup.</p>');
+    if(p.config.contour_customizer)f.insertAdjacentHTML('afterend','<div class="notice info mt"><strong>Die-cut artwork proofing</strong><br>Choose your size and quantity, then click Add to project. In your Project, use <strong>Upload & proof artwork</strong> before checkout to see the detected cut shape and border.</div>');
     if(!p.config.artwork_upload_disabled&&!p.config.contour_customizer){
       if(usesDirectArtwork(p))f.insertAdjacentHTML('afterend',`${p.config.is_wrap?wrapArtworkNote:multiPanelNote}<div class="row wrap mt">${windowUploads.button({product_id:p.id})}<button type="button" class="btn light" data-action="photo-mockup">Preview on your photo</button><button type="button" class="btn light" data-action="design-quote">Request design help</button></div>`);
       else if(embroidered(p))f.insertAdjacentHTML('afterend',`<p class="field-hint mt-sm">Have a vector or PDF logo too? ${windowUploads.button({product_id:p.id})} Attach it as an extra reference for our digitizer.</p>`);
@@ -123,7 +123,7 @@ export function createShop(ctx) {
     const p=product(line.product_id);
     if(line.artwork_upload_disabled)return '';
     if(embroidered(p))return `<button class="btn light" data-action="embroidery-view" data-index="${index}">View embroidery preview</button>${windowUploads.button(project[index])}`;
-    if(p?.config.contour_customizer)return '<span class="badge blue">Upload artwork at checkout</span>';
+    if(p?.config.contour_customizer)return `<button class="btn light" data-action="contour-project" data-index="${index}">${project[index]?.contour_design_id?'Edit die-cut proof':'Upload & proof artwork'}</button>`;
     if(usesDirectArtwork(p))return `${windowUploads.button(project[index])}<button class="btn light" data-action="design-quote">Request design help</button>`;
     return `${canvaButton(line.width,line.height,publicProductName(p))}${windowUploads.button(project[index])}`;
   }
@@ -131,7 +131,7 @@ export function createShop(ctx) {
     const p=product(line.product_id);
     if(line.artwork_upload_disabled)return '';
     if(embroidered(p))return '<p class="field-hint mt">Your logo and digital mockup are saved for this garment and will be attached when you submit. Upload extra file accepts an optional PDF or vector export as an additional digitizing reference. Remove and add this garment again to change the mockup.</p>';
-    if(p?.config.contour_customizer)return '<p class="field-hint mt">Upload PNG/JPEG artwork at checkout and we will attach an approximate contour outline preview. Final cut paths may differ slightly after shop review.</p>';
+    if(p?.config.contour_customizer)return `<p class="field-hint mt">${project.find(item=>item.product_id===line.product_id&&Number(item.width)===Number(line.width)&&Number(item.height)===Number(line.height))?.contour_design_id?'Your die-cut proof is saved. You can edit it before checkout; the original artwork and generated proof will be included automatically.':'Upload your PNG/JPEG here before checkout. We will auto-detect the artwork edge, show the proposed cut shape, and save the proof with this project.'}</p>`;
     if(p?.config.is_wrap)return '<p class="field-hint mt">Upload your wrap artwork, logo or references. Label separate files by side or panel; we will review fit and placement before production.</p>';
     if(multiPanelArtwork(p))return '<p class="field-hint mt">For multiple panes or full storefront coverage, upload your overall concept, logo, measurements or references. We will split and align the artwork for production.</p>';
     return '<p class="field-hint mt">Use Upload File to attach finished artwork. For Canva designs, export PDF Print or a high-resolution PNG first. Attached files are included when you submit this project.</p>';
@@ -443,6 +443,8 @@ export function createShop(ctx) {
     'canva-open':async b=>openCanvaDesign(b.dataset.width,b.dataset.height,b.dataset.label),
     'product-canva':async()=>{await recalculate();const item=state.currentQuoteItems?.[0];if(!item)throw new Error('Complete your options before designing in Canva.');const p=product(item.product_id);if(usesDirectArtwork(p)){toast('For wraps or multiple panes, use Upload Design or Request design help.',true);return;}await openCanvaDesign(item.width,item.height,publicProductName(p));},
     'project-remove':async b=>{project.splice(Number(b.dataset.index),1);persist();await projectView();},
+    'contour-project':async b=>{const item=project[Number(b.dataset.index)];if(!item)throw new Error('This project item is no longer available.');await contourView({projectKey:item.key,id:item.contour_design_id,product_id:item.product_id});},
+    'contour-save':async()=>{if(!draft?.image)throw new Error('Upload artwork before saving the die-cut proof.');await saveDesign(draft);const item=project.find(i=>i.key===draft.projectKey);if(!item)throw new Error('Add this product to your Project before saving the proof.');item.contour_design_id=draft.id;persist();toast('Die-cut proof saved to your project.');history.pushState(null,'','/project');await projectView();},
     'embroidery-view':async b=>{const item=project[Number(b.dataset.index)];if(!item?.embroidery_id)throw new Error('The saved embroidery preview is missing. Remove and add the garment again.');showModal('Embroidery preview',`<canvas id="embroidery-modal-canvas" width="800" height="680" class="embroidery-modal-canvas" aria-label="Embroidery preview on garment"></canvas><p class="field-hint mt-sm">Digital representation only. Our shop will digitize your original artwork and provide a proof before production.</p>`,true);await embroidery.show(item);},
     'project-checkout':async()=>{await quoteProject();state.projectCheckout=true;await orderModal();window.TampaAnalytics?.track('begin_checkout');await windowUploads.checkoutHint(project);},
     'browse-product':async b=>{state.selectedProduct=Number(b.dataset.id);state.selectedCategory=product(b.dataset.id).config.storefront_categories[0];sessionStorage.setItem('storefront_category',state.selectedCategory);history.pushState(null,'',productPath(product(b.dataset.id)));await calculatorView();},
