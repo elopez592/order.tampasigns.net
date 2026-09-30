@@ -338,6 +338,13 @@ export function expandMask(mask,width,height,radius){
   return Uint8Array.from(distance,d=>d<=radius?255:0);
 }
 
+export function resolveStickerShape(shape,width,height){
+  const equal=Math.abs(Number(width)-Number(height))<.001;
+  if(['square','rectangle'].includes(shape))return equal?'square':'rectangle';
+  if(['circle','oval'].includes(shape))return equal?'circle':'oval';
+  return shape==='rounded'?'rounded':'contour';
+}
+
 export function stickerShapeOptions(width,height){
   const equal=Math.abs(Number(width)-Number(height))<.001;
   return [['contour','Contour around artwork'],...(equal?[['square','Square'],['circle','Circle']]:[['rectangle','Rectangle'],['oval','Oval']]),['rounded',equal?'Rounded square':'Rounded rectangle']];

@@ -100,3 +100,15 @@ console.log('contour artwork mask tests passed');
   assert.ok(rectangle.includes('oval')&&rectangle.includes('rectangle'));
   assert.ok(!rectangle.includes('square')&&!rectangle.includes('circle'));
 }
+
+{
+  const {resolveStickerShape}=await import('../app/static/contour-artwork.js');
+  let shape='rectangle';
+  shape=resolveStickerShape(shape,3,3);assert.equal(shape,'square');
+  shape=resolveStickerShape(shape,3,2);assert.equal(shape,'rectangle');
+  shape=resolveStickerShape(shape,2,2);assert.equal(shape,'square');
+  assert.equal(resolveStickerShape('oval',3,3),'circle');
+  assert.equal(resolveStickerShape('circle',3,2),'oval');
+  assert.equal(resolveStickerShape('contour',3,3),'contour');
+  assert.equal(resolveStickerShape('rounded',3,2),'rounded');
+}
