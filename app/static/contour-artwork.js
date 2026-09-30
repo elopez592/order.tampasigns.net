@@ -338,19 +338,27 @@ export function expandMask(mask,width,height,radius){
   return Uint8Array.from(distance,d=>d<=radius?255:0);
 }
 
+export const MIN_STICKER_BORDER_INCHES=.06;
+export function stickerBorderSettings(settings={}){
+  const requested=Number(settings.border??.125);
+  const border=Math.max(MIN_STICKER_BORDER_INCHES,Number.isFinite(requested)?requested:.125);
+  const custom=settings.custom_border_color??(!!settings.border_color&&settings.border_color.toLowerCase()!=='#ffffff');
+  return {border,custom_border_color:!!custom,border_color:custom?(settings.border_color||'#ffffff'):'#ffffff'};
+}
+
 export function renderSticker(canvas,artwork,design,proof=true){
   const c=canvas.getContext('2d'),w=canvas.width,h=canvas.height,s=design.settings;
   c.clearRect(0,0,w,h);if(!artwork)return;
   const margin=proof?Math.min(w,h)*.13:0;
   const boxW=w-2*margin,boxH=h-2*margin;
   const pxPerInch=Math.min(boxW/Number(design.width||3),boxH/Number(design.height||3));
-  const border=s.border_mode==='none'?0:Math.max(0,Number(s.border??.125))*pxPerInch;
+  const borderSettings=stickerBorderSettings(s),border=borderSettings.border*pxPerInch;
   const innerW=Math.max(1,boxW-border*2),innerH=Math.max(1,boxH-border*2);
   const layer=document.createElement('canvas');layer.width=w;layer.height=h;
   const l=layer.getContext('2d',{willReadFrequently:true});
   // An ellipse must contain the whole fitted artwork at 100%, including corners.
   const fit=s.shape==='circle'?Math.SQRT1_2:1;
-  const scale=Math.min(innerW/artwork.width,innerH/artwork.height)*fit*Number(s.scale??100)/100;
+  const scale=Math.min(innerW/artwork.width,innerH/artwork.height)*fit*clamp(Number(s.scale??100)||100,55,100)/100;
   const iw=artwork.width*scale,ih=artwork.height*scale;
   l.drawImage(artwork,(w-iw)/2,(h-ih)/2,iw,ih);
   const cut=document.createElement('canvas');cut.width=w;cut.height=h;const m=cut.getContext('2d',{willReadFrequently:true});
@@ -366,7 +374,7 @@ export function renderSticker(canvas,artwork,design,proof=true){
     m.fill();const rgba=m.getImageData(0,0,w,h).data;
     mask=Uint8Array.from({length:w*h},(_,i)=>rgba[i*4+3]);
   }
-  const color=s.border_color||'#ffffff';
+  const color=borderSettings.border_color;
   const paintMask=(target,alpha,fill)=>{
     const context=target.getContext('2d'),pixels=context.createImageData(w,h);
     for(let i=0;i<alpha.length;i++){pixels.data[i*4]=255;pixels.data[i*4+1]=255;pixels.data[i*4+2]=255;pixels.data[i*4+3]=alpha[i];}

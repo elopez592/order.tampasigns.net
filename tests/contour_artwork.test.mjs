@@ -81,3 +81,12 @@ console.log('contour artwork mask tests passed');
   assert.equal(expanded[10*21+14],0);
   assert.equal(expanded[13*21+13],0,'border is rounded, not a square stamp');
 }
+
+{
+  const {stickerBorderSettings}=await import('../app/static/contour-artwork.js');
+  assert.equal(stickerBorderSettings({border:0,border_mode:'none'}).border,.06,'old no-border proofs keep the minimum');
+  assert.equal(stickerBorderSettings({border:.02}).border,.06);
+  assert.equal(stickerBorderSettings({border:.125}).border,.125);
+  assert.equal(stickerBorderSettings({border_color:'#123456',custom_border_color:false}).border_color,'#ffffff');
+  assert.equal(stickerBorderSettings({border_color:'#123456',custom_border_color:true}).border_color,'#123456');
+}

@@ -11,8 +11,8 @@ s.font='bold 78px serif';s.fillText('BELLA',70,220);s.fillStyle='#b88932';s.font
 const jpg=await loadImage(source.toBuffer('image/jpeg',55));
 const detected=await autoContourArtwork(jpg);assert.equal(detected.method,'background');
 const samples=[];
-for(const shape of ['contour','circle','rectangle','rounded'])for(const mode of ['border','none']){
- const canvas=createCanvas(600,600),design={width:3,height:3,settings:{shape,border:.125,border_color:'#fff',border_mode:mode,scale:100}};
+for(const shape of ['contour','circle','rectangle','rounded'])for(const mode of ['default','custom']){
+ const canvas=createCanvas(600,600),design={width:3,height:3,settings:{shape,border:.125,border_color:'#365678',custom_border_color:mode==='custom',scale:100}};
  renderSticker(canvas,detected.canvas,design,true);
  const data=canvas.getContext('2d').getImageData(0,0,600,600).data;
  const pink=(d,i)=>d[i]>190&&d[i+1]<70&&d[i+2]>60&&d[i+3]>0;
@@ -38,7 +38,7 @@ for(const shape of ['contour','circle','rectangle','rounded'])for(const mode of 
  samples.push(canvas);
 }
 // Equal dimensions give a true circle regardless of the wide source logo.
-const circle=createCanvas(600,600);renderSticker(circle,detected.canvas,{width:3,height:3,settings:{shape:'circle',border_mode:'none',scale:100}},true);
+const circle=createCanvas(600,600);renderSticker(circle,detected.canvas,{width:3,height:3,settings:{shape:'circle',border:0,border_mode:'none',scale:100}},true);
 const cd=circle.getContext('2d').getImageData(0,0,600,600).data;
 assert.equal(cd[(300*600+100)*4+3],cd[(100*600+300)*4+3]);
 if(process.env.CONTOUR_QA_IMAGE){
@@ -46,4 +46,4 @@ if(process.env.CONTOUR_QA_IMAGE){
  samples.forEach((sample,i)=>g.drawImage(sample,(i%4)*300,Math.floor(i/4)*300,300,300));
  writeFileSync(process.env.CONTOUR_QA_IMAGE,gallery.toBuffer('image/png'));
 }
-console.log('Compressed JPG, shape geometry, zero border, and production-guide tests passed');
+console.log('Compressed JPG, shape geometry, minimum border, and production-guide tests passed');
