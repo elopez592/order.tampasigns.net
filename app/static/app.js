@@ -9,6 +9,11 @@ const state = {calcSequence:0, user:null, customer:null, csrf:'', catalog:null, 
   products:[], workflows:[], users:[], product:null, quote:null, selectedProduct:1, tasks:[], queueFilter:'available',
   wholesaleToken:localStorage.getItem('wholesale_token')||'', wholesaleName:localStorage.getItem('wholesale_name')||'', wholesaleEmail:localStorage.getItem('wholesale_email')||'', selectedCategory:sessionStorage.getItem('storefront_category')||'Storefront', reportTrendRange:'month', reportData:null};
 let shop=null, rewardsUi=null, checkoutProof=null;
+const incomingReferral=new URLSearchParams(location.search).get('ref');
+if(incomingReferral&&/^TS[1-9][0-9]*-[A-F0-9]{8}$/i.test(incomingReferral)){
+  localStorage.setItem('tampa_referral_code',incomingReferral.toUpperCase());
+}
+const referralCode=()=>localStorage.getItem('tampa_referral_code')||'';
 const app = document.querySelector('#app');
 const modal = document.querySelector('#modal');
 const $ = (q, root=document) => root.querySelector(q);
@@ -939,7 +944,7 @@ const forms = {
  'design-quote':async(f,d)=>{
    const files=[...f.elements.artwork.files];delete d.artwork;
    if(files.some(file=>file.size>50*1024*1024))throw new Error('Each reference file must be 50 MB or smaller.');
-   const r=await api('/api/custom-requests','POST',{customer_name:d.customer_name,customer_email:d.customer_email,phone:d.phone,project_type:'Design services — '+d.title,notes:d.notes,website:d.website||'',dimensions:[]});
+   const r=await api('/api/custom-requests','POST',{customer_name:d.customer_name,customer_email:d.customer_email,phone:d.phone,project_type:'Design services — '+d.title,notes:d.notes,website:d.website||'',dimensions:[],referral_code:referralCode()});
    const token=new URL(r.portal_url).hash.slice(7);const x=await api('/api/portal/exchange','POST',{token});state.csrf=x.csrf;
    let uploadError='';
    for(const file of files){try{const fd=new FormData();fd.append('file',file);await api(`/api/jobs/${r.job_id}/artwork`,'POST',fd);}catch(e){uploadError=e.message;break;}}
@@ -953,7 +958,7 @@ const forms = {
    const review=checkoutProof.submission(f,buy),files=review.files;
    delete d.artwork;
    if(files.some(item=>item.file.size>50*1024*1024))throw new Error('Each artwork file must be 50 MB or smaller.');
-   const {order:r,problem,checkout,artworkApproved,paymentFailed}=await submitOrderCheckout({api,setCsrf:value=>{state.csrf=value;},buy,quote:state.quote,review,payload:{...d,confirm:!!d.confirm,terms_version:state.catalog.job_terms.version,site_survey_requested:!!d.site_survey_requested,rush_requested:!!d.rush_requested,request_id:state.orderRequestId,items:state.currentQuoteItems,fingerprint:state.quote.fingerprint,wholesale_token:state.wholesaleToken}});
+   const {order:r,problem,checkout,artworkApproved,paymentFailed}=await submitOrderCheckout({api,setCsrf:value=>{state.csrf=value;},buy,quote:state.quote,review,payload:{...d,confirm:!!d.confirm,terms_version:state.catalog.job_terms.version,site_survey_requested:!!d.site_survey_requested,rush_requested:!!d.rush_requested,request_id:state.orderRequestId,items:state.currentQuoteItems,fingerprint:state.quote.fingerprint,wholesale_token:state.wholesaleToken,referral_code:referralCode()}});
    if(state.projectCheckout&&!problem)shop.clear();
    checkoutProof.clear();closeModal();history.pushState(null,'','/portal');
    if(checkout?.url){location.href=checkout.url;return;}
@@ -964,7 +969,7 @@ const forms = {
    const files=[...f.elements.artwork.files];delete d.artwork;
    if(files.some(file=>file.size>50*1024*1024))throw new Error('Each artwork file must be 50 MB or smaller.');
    const dimensions=all('[data-custom-dimension]',f).map(row=>{const fields=all('input',row);return {label:fields[0].value,width:fields[1].value,height:fields[2].value,quantity:fields[3].value};}).filter(x=>x.width||x.height);
-   const r=await api('/api/custom-requests','POST',{...d,dimensions});
+   const r=await api('/api/custom-requests','POST',{...d,dimensions,referral_code:referralCode()});
    const token=new URL(r.portal_url).hash.slice(7);const x=await api('/api/portal/exchange','POST',{token});state.csrf=x.csrf;
    let uploadError='';
    for(const file of files){try{const fd=new FormData();fd.append('file',file);await api(`/api/jobs/${r.job_id}/artwork`,'POST',fd);}catch(e){uploadError=e.message;break;}}
