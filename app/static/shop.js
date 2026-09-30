@@ -1,7 +1,7 @@
 import {belowCheckoutMinimum,minimumCheckoutMessage} from './order-checkout.js?v=20260930-checkout-3';
 import {createWindowUploads, usesDirectArtwork} from './window-upload.js?v=20260930-previews-1';
 import {createEmbroidery, embroidered} from './embroidery.js?v=20260926-name-fee-1';
-import {autoContourArtwork} from './contour-artwork.js?v=20260930-auto-contour-1';
+import {autoContourArtwork,buildSilhouetteMask} from './contour-artwork.js?v=20260930-auto-contour-2';
 
 // Customer project cart and artwork attachments.
 export function createShop(ctx) {
@@ -9,7 +9,7 @@ export function createShop(ctx) {
   const $=s=>document.querySelector(s);
   const $$=s=>[...document.querySelectorAll(s)];
   const read=()=>{try{const v=JSON.parse(localStorage.getItem('tampa_project')||'[]');return Array.isArray(v)?v:[];}catch{return [];}};
-  let project=read(),draft=null,artImage=null,bgImage=null;
+  let project=read(),draft=null,artImage=null,bgImage=null,pendingContourFile=null;
   const persist=()=>localStorage.setItem('tampa_project',JSON.stringify(project));
   const product=id=>state.catalog.products.find(p=>p.id===Number(id));
   const page=(title,body)=>{app.innerHTML=publicHeader()+`<main class="public-page"><div class="row between wrap mb"><h1>${esc(title)}</h1><a class="btn light" href="/products">Browse all products</a></div>${body}</main>`;};
@@ -97,7 +97,12 @@ export function createShop(ctx) {
       if(kind==='custom_shirt')$('.product-preview').innerHTML=`<img class="shirt-sample" src="${imageFor(defaultColor)}" alt="${esc(defaultColor)} Gildan Heavy Cotton 5000 sample"><span class="preview-label">Gildan 5000 · Supplier sample</span>`;
       f.addEventListener('change',e=>{if(kind==='custom_shirt'&&e.target.name==='shirt_color')$('.shirt-sample').src=imageFor(e.target.value);recalculate();});
     }
-    if(p.config.contour_customizer)f.insertAdjacentHTML('afterend','<div class="notice info mt"><strong>Die-cut artwork proofing</strong><br>Choose your size and quantity, then click Add to project. In your Project, use <strong>Upload & proof artwork</strong> before checkout to see the detected cut shape and border.</div>');
+    if(p.config.contour_customizer){
+      pendingContourFile=null;
+      f.insertAdjacentHTML('afterend','<div class="stack mt"><label class="field"><span>Upload sticker artwork</span><input id="contour-product-upload" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg"></label><p class="field-hint" id="contour-product-file-status">PNG or JPG, up to 50 MB. Upload your file here, then click <strong>Add to project</strong> to review the die-cut proof before anything is added.</p></div>');
+      const upload=$('#contour-product-upload'),status=$('#contour-product-file-status');
+      upload.onchange=e=>{const file=e.target.files?.[0];pendingContourFile=null;if(!file){status.textContent='PNG or JPG, up to 50 MB. Upload your file here, then click Add to project to review the die-cut proof.';return;}if(!['image/png','image/jpeg'].includes(file.type)||file.size>50*1024*1024){e.target.value='';status.textContent='Choose a PNG or JPG file up to 50 MB.';toast('Choose a PNG or JPG file up to 50 MB.',true);return;}pendingContourFile=file;status.textContent=file.name+' is ready. Click Add to project to review the die-cut proof first.';};
+    }
     if(!p.config.artwork_upload_disabled&&!p.config.contour_customizer){
       if(usesDirectArtwork(p))f.insertAdjacentHTML('afterend',`${p.config.is_wrap?wrapArtworkNote:multiPanelNote}<div class="row wrap mt">${windowUploads.button({product_id:p.id})}<button type="button" class="btn light" data-action="photo-mockup">Preview on your photo</button><button type="button" class="btn light" data-action="design-quote">Request design help</button></div>`);
       else if(embroidered(p))f.insertAdjacentHTML('afterend',`<p class="field-hint mt-sm">Have a vector or PDF logo too? ${windowUploads.button({product_id:p.id})} Attach it as an extra reference for our digitizer.</p>`);
@@ -106,10 +111,17 @@ export function createShop(ctx) {
     if(embroidered(p))embroidery.setup(p).catch(e=>toast(e.message,true));
     windowUploads.refresh().catch(e=>toast(e.message,true));
   }
-  async function add(){
-    await recalculate();if(!state.quote)throw new Error('Complete your product options first.');
+  async function add(options={}){
+    if(!options.skipRecalculate)await recalculate();if(!state.quote)throw new Error('Complete your product options first.');
     if(project.length+state.currentQuoteItems.length>30)throw new Error('A project supports up to 30 product lines.');
-    const items=await embroidery.prepareItems(await windowUploads.prepareItems(state.currentQuoteItems.map(item=>({...item,key:crypto.randomUUID()}))));
+    const contourLine=state.currentQuoteItems.find(item=>product(item.product_id)?.config?.contour_customizer);
+    if(contourLine&&!options.contourDesignId){
+      if(!pendingContourFile)throw new Error('Upload your sticker artwork on this page before adding it to your project.');
+      await contourView({product_id:contourLine.product_id,width:Number(contourLine.width)||3,height:Number(contourLine.height)||3,addAfterSave:true,initialFile:pendingContourFile});
+      return;
+    }
+    const prepared=state.currentQuoteItems.map(item=>({...item,key:crypto.randomUUID(),...(product(item.product_id)?.config?.contour_customizer&&options.contourDesignId?{contour_design_id:options.contourDesignId}:{})}));
+    const items=await embroidery.prepareItems(await windowUploads.prepareItems(prepared));
     project.push(...items);persist();window.TampaAnalytics?.track('add_to_cart');
     await windowUploads.clearDrafts(items).catch(e=>toast(e.message,true));
     showModal('Added to your project',`<p>Your project now has ${project.length} item${project.length===1?'':'s'}.</p><div class="row mt"><button class="btn light" data-action="close">Keep shopping</button><a class="btn primary" href="/project">View project</a></div>`);
@@ -298,10 +310,25 @@ export function createShop(ctx) {
     const c=canvas.getContext('2d'),w=canvas.width,h=canvas.height,s=design.settings,margin=Math.max(18,Math.min(w,h)*.13),border=Math.max(2,Math.min(w,h)*(Number(s.border)||.125)/Math.max(Number(design.width)||3,Number(design.height)||3));
     c.clearRect(0,0,w,h);if(!contourImage)return;
     const layer=document.createElement('canvas');layer.width=w;layer.height=h;const l=layer.getContext('2d'),availableW=w-margin*2-border*2,availableH=h-margin*2-border*2,scale=Math.min(availableW/contourImage.width,availableH/contourImage.height)*(Number(s.scale)||100)/100,iw=contourImage.width*scale,ih=contourImage.height*scale,x=(w-iw)/2,y=(h-ih)/2;
-    l.save();if(s.shape==='circle'){l.beginPath();l.ellipse(w/2,h/2,Math.min(iw,w*.7)/2,Math.min(ih,h*.7)/2,0,0,Math.PI*2);l.clip();}else if(s.shape==='rounded'){roundedPath(l,x,y,iw,ih,Math.min(iw,ih)*.12);l.clip();}l.drawImage(contourImage,x,y,iw,ih);l.restore();
-    const coloredMask=color=>{const mask=document.createElement('canvas');mask.width=w;mask.height=h;const m=mask.getContext('2d');m.drawImage(layer,0,0);m.globalCompositeOperation='source-in';m.fillStyle=color;m.fillRect(0,0,w,h);return mask;};
-    const outline=(mask,radius)=>{const steps=28;for(let i=0;i<steps;i++){const angle=i/steps*Math.PI*2;c.drawImage(mask,Math.cos(angle)*radius,Math.sin(angle)*radius);}};
-    if(proof)outline(coloredMask('#d81b60'),border+Math.max(3,Math.min(w,h)*.006));outline(coloredMask(s.border_color||'#ffffff'),border);c.drawImage(layer,0,0);
+    l.drawImage(contourImage,x,y,iw,ih);
+    const cutMask=document.createElement('canvas');cutMask.width=w;cutMask.height=h;const m=cutMask.getContext('2d');
+    if(s.shape==='circle'){
+      m.fillStyle='#fff';m.beginPath();m.ellipse(w/2,h/2,iw/2,ih/2,0,0,Math.PI*2);m.fill();
+    }else if(s.shape==='rectangle'){
+      m.fillStyle='#fff';m.fillRect(x,y,iw,ih);
+    }else if(s.shape==='rounded'){
+      m.fillStyle='#fff';roundedPath(m,x,y,iw,ih,Math.min(iw,ih)*.12);m.fill();
+    }else{
+      const alpha=l.getImageData(0,0,w,h),joinRadius=Math.max(2,Math.min(14,Math.round(Math.min(iw,ih)*.012))),silhouette=buildSilhouetteMask(alpha,w,h,{joinRadius}),image=m.createImageData(w,h);
+      for(let i=0;i<silhouette.length;i++){const o=i*4;image.data[o]=255;image.data[o+1]=255;image.data[o+2]=255;image.data[o+3]=silhouette[i];}
+      m.putImageData(image,0,0);
+    }
+    if(s.shape!=='contour'){l.save();l.globalCompositeOperation='destination-in';l.drawImage(cutMask,0,0);l.restore();}
+    const coloredMask=color=>{const mask=document.createElement('canvas');mask.width=w;mask.height=h;const mc=mask.getContext('2d');mc.drawImage(cutMask,0,0);mc.globalCompositeOperation='source-in';mc.fillStyle=color;mc.fillRect(0,0,w,h);return mask;};
+    const outline=(mask,radius)=>{const steps=64;for(let i=0;i<steps;i++){const angle=i/steps*Math.PI*2;c.drawImage(mask,Math.cos(angle)*radius,Math.sin(angle)*radius);}};
+    if(proof)outline(coloredMask('#d81b60'),border+Math.max(3,Math.min(w,h)*.006));outline(coloredMask(s.border_color||'#ffffff'),border);
+    c.save();c.globalCompositeOperation='destination-out';c.drawImage(cutMask,0,0);c.restore();
+    c.drawImage(layer,0,0);
   }
   function contourCanvas(design,proof,maxPixels){const ratio=Math.max(.12,Math.min(8,(Number(design.width)||3)/(Number(design.height)||3))),canvas=document.createElement('canvas');if(ratio>=1){canvas.width=maxPixels;canvas.height=Math.max(300,Math.round(maxPixels/ratio));}else{canvas.height=maxPixels;canvas.width=Math.max(300,Math.round(maxPixels*ratio));}renderContour(canvas,design,proof);return canvas;}
   const canvasBlob=(canvas,type='image/png')=>new Promise(resolve=>canvas.toBlob(resolve,type));
@@ -336,11 +363,13 @@ export function createShop(ctx) {
   let contourImage=null;
   async function contourView(options={}){
     const item=project.find(x=>x.key===options.projectKey)||project.find(x=>x.contour_design_id===options.id),existing=options.id?await getDesign(options.id):null,p=product(item?.product_id||options.product_id||state.selectedProduct);
-    draft=existing||{id:crypto.randomUUID(),mode:'contour',product_id:p.id,projectKey:item?.key||options.projectKey,width:Number(item?.width)||3,height:Number(item?.height)||3,image:null,original:null,settings:{shape:'contour',border:.125,border_color:'#ffffff',scale:100}};draft.projectKey=item?.key||options.projectKey||draft.projectKey;draft.settings??={shape:'contour',border:.125,border_color:'#ffffff',scale:100};contourImage=draft.image?await loadImage(draft.image):null;
+    draft=existing||{id:crypto.randomUUID(),mode:'contour',product_id:p.id,projectKey:item?.key||options.projectKey,width:Number(item?.width??options.width)||3,height:Number(item?.height??options.height)||3,image:null,original:null,addAfterSave:!!options.addAfterSave,settings:{shape:'contour',border:.125,border_color:'#ffffff',scale:100}};draft.projectKey=item?.key||options.projectKey||draft.projectKey;draft.addAfterSave=!!options.addAfterSave||!!draft.addAfterSave;draft.settings??={shape:'contour',border:.125,border_color:'#ffffff',scale:100};contourImage=draft.image?await loadImage(draft.image):null;
     const ratio=Math.max(.12,Math.min(8,draft.width/draft.height)),canvasWidth=ratio>=1?900:Math.max(320,Math.round(900*ratio)),canvasHeight=ratio>=1?Math.max(320,Math.round(900/ratio)):900;
-    page('Contour-cut proof',`<p class="muted mb">Build a live proof for ${esc(publicProductName(p))}. The pink edge is the cut line; it will not print.</p><div class="studio-layout"><section class="panel"><div class="contour-stage"><canvas id="contour-canvas" width="${canvasWidth}" height="${canvasHeight}" aria-label="Live contour cut proof"></canvas></div><div class="row between wrap mt"><strong>${esc(draft.width)} × ${esc(draft.height)} in finished size</strong><span class="cut-line-key">Pink line = contour cut</span></div></section><section class="panel stack"><h2>Cut setup</h2><label class="field"><span>Artwork (transparent PNG recommended)</span><input id="contour-upload" type="file" accept="image/png,image/jpeg" ${draft.image?'':'required'}></label>${select('contour_shape','Cut shape',[['contour','Contour around artwork'],['rounded','Rounded rectangle'],['circle','Circle / oval']],draft.settings.shape)}<label class="field"><span>White border / cut offset: <strong id="contour-border-value">${draft.settings.border} in</strong></span><input id="contour-border" type="range" min="0.06" max="0.3" step="0.005" value="${draft.settings.border}"></label><label class="field"><span>Border color</span><input id="contour-color" type="color" value="${draft.settings.border_color}"></label><label class="field"><span>Artwork scale</span><input id="contour-scale" type="range" min="55" max="115" step="1" value="${draft.settings.scale}"></label><div class="notice info">We auto-detect transparent edges and simple solid-color backgrounds for contour cuts. Complex photos or textured backgrounds may still need shop review.</div><button class="btn primary" data-action="contour-save" ${draft.image?'':'disabled'}>Save proof to project</button><p class="field-hint">Your original file, live proof and high-resolution transparent production PNG are attached to the order. The shop verifies the final RIP cut path before production.</p></section></div>`);
+    page('Contour-cut proof',`<p class="muted mb">${draft.addAfterSave?'This is the proof generated from the artwork you uploaded on the sticker page. Review it before the sticker is added to your Project.':'Review the saved sticker proof.'} The pink edge is the cut line; it will not print.</p><div class="studio-layout"><section class="panel"><div class="contour-stage"><canvas id="contour-canvas" width="${canvasWidth}" height="${canvasHeight}" aria-label="Live contour cut proof"></canvas></div><div class="row between wrap mt"><strong>${esc(draft.width)} × ${esc(draft.height)} in finished size</strong><span class="cut-line-key">Pink line = contour cut</span></div></section><section class="panel stack"><h2>Cut setup</h2><label class="field"><span>Replace artwork</span><input id="contour-upload" type="file" accept="image/png,image/jpeg" ${draft.image?'':'required'}></label><p class="field-hint" id="contour-file-status">${draft.original?.name?esc(draft.original.name):'PNG or JPG, up to 50 MB.'}</p>${select('contour_shape','Cut shape',[['contour','Contour around artwork'],['rectangle','Rectangle'],['rounded','Rounded rectangle'],['circle','Circle / oval']],draft.settings.shape)}<label class="field"><span>White border / cut offset: <strong id="contour-border-value">${draft.settings.border} in</strong></span><input id="contour-border" type="range" min="0.06" max="0.3" step="0.005" value="${draft.settings.border}"></label><label class="field"><span>Border color</span><input id="contour-color" type="color" value="${draft.settings.border_color}"></label><label class="field"><span>Artwork scale</span><input id="contour-scale" type="range" min="55" max="115" step="1" value="${draft.settings.scale}"></label><div class="notice info">We auto-detect transparent edges and simple solid-color backgrounds for contour cuts. Complex photos or textured backgrounds may still need shop review.</div><button class="btn primary" data-action="contour-save" ${draft.image?'':'disabled'}>${draft.addAfterSave?'Approve proof & add to project':'Save proof to project'}</button><p class="field-hint">${draft.addAfterSave?'Nothing is added to your Project until you approve this proof. ':' '}Your original file, live proof and high-resolution transparent production PNG are attached to the order. The shop verifies the final RIP cut path before production.</p></section></div>`);
     const canvas=$('#contour-canvas'),redraw=()=>renderContour(canvas,draft,true);redraw();
-    $('#contour-upload').onchange=async e=>{try{const f=e.target.files[0];if(!f)return;if(!['image/png','image/jpeg'].includes(f.type)||f.size>50*1024*1024)throw new Error('Choose a PNG or JPEG image up to 50 MB.');const url=URL.createObjectURL(f);let im;try{im=await loadImage(url);}finally{URL.revokeObjectURL(url);}const detected=await autoContourArtwork(im,{maskMaxDimension:1100}),normalized=detected.canvas,scale=Math.min(1,3000/Math.max(normalized.width,normalized.height)),production=document.createElement('canvas');production.width=Math.max(1,Math.round(normalized.width*scale));production.height=Math.max(1,Math.round(normalized.height*scale));production.getContext('2d').drawImage(normalized,0,0,production.width,production.height);draft.image=production.toDataURL('image/png');draft.original=f;draft.background_detected=detected.backgroundDetected;draft.background_detection_confidence=detected.confidence;contourImage=await loadImage(draft.image);$('[data-action="contour-save"]').disabled=false;redraw();}catch(error){toast(error.message,true);}};
+    const applyFile=async f=>{if(!f)return;if(!['image/png','image/jpeg'].includes(f.type)||f.size>50*1024*1024)throw new Error('Choose a PNG or JPEG image up to 50 MB.');const url=URL.createObjectURL(f);let im;try{im=await loadImage(url);}finally{URL.revokeObjectURL(url);}const detected=await autoContourArtwork(im,{maskMaxDimension:1100}),normalized=detected.canvas,scale=Math.min(1,3000/Math.max(normalized.width,normalized.height)),production=document.createElement('canvas');production.width=Math.max(1,Math.round(normalized.width*scale));production.height=Math.max(1,Math.round(normalized.height*scale));production.getContext('2d').drawImage(normalized,0,0,production.width,production.height);draft.image=production.toDataURL('image/png');draft.original=f;draft.background_detected=detected.backgroundDetected;draft.background_detection_confidence=detected.confidence;contourImage=await loadImage(draft.image);$('[data-action="contour-save"]').disabled=false;const status=$('#contour-file-status');if(status)status.textContent=f.name;redraw();};
+    $('#contour-upload').onchange=async e=>{try{await applyFile(e.target.files[0]);}catch(error){toast(error.message,true);}};
+    if(options.initialFile&&!draft.image){try{await applyFile(options.initialFile);}catch(error){toast(error.message,true);}}
     $('#contour-border').oninput=e=>{draft.settings.border=Number(e.target.value);$('#contour-border-value').textContent=e.target.value+' in';redraw();};$('#contour-color').oninput=e=>{draft.settings.border_color=e.target.value;redraw();};$('#contour-scale').oninput=e=>{draft.settings.scale=Number(e.target.value);redraw();};$('select[name="contour_shape"]').onchange=e=>{draft.settings.shape=e.target.value;redraw();};
   }
   const usdotFonts={
@@ -444,7 +473,7 @@ export function createShop(ctx) {
     'product-canva':async()=>{await recalculate();const item=state.currentQuoteItems?.[0];if(!item)throw new Error('Complete your options before designing in Canva.');const p=product(item.product_id);if(usesDirectArtwork(p)){toast('For wraps or multiple panes, use Upload Design or Request design help.',true);return;}await openCanvaDesign(item.width,item.height,publicProductName(p));},
     'project-remove':async b=>{project.splice(Number(b.dataset.index),1);persist();await projectView();},
     'contour-project':async b=>{const item=project[Number(b.dataset.index)];if(!item)throw new Error('This project item is no longer available.');await contourView({projectKey:item.key,id:item.contour_design_id,product_id:item.product_id});},
-    'contour-save':async()=>{if(!draft?.image)throw new Error('Upload artwork before saving the die-cut proof.');await saveDesign(draft);const item=project.find(i=>i.key===draft.projectKey);if(!item)throw new Error('Add this product to your Project before saving the proof.');item.contour_design_id=draft.id;persist();toast('Die-cut proof saved to your project.');history.pushState(null,'','/project');await projectView();},
+    'contour-save':async()=>{if(!draft?.image)throw new Error('Upload artwork before saving the die-cut proof.');await saveDesign(draft);const item=project.find(i=>i.key===draft.projectKey);if(item){item.contour_design_id=draft.id;persist();toast('Die-cut proof saved to your project.');history.pushState(null,'','/project');await projectView();return;}if(draft.addAfterSave){const id=draft.id;draft.addAfterSave=false;await saveDesign(draft);pendingContourFile=null;await add({contourDesignId:id,skipRecalculate:true});history.pushState(null,'','/project');await projectView();return;}throw new Error('This proof is not linked to a project item.');},
     'embroidery-view':async b=>{const item=project[Number(b.dataset.index)];if(!item?.embroidery_id)throw new Error('The saved embroidery preview is missing. Remove and add the garment again.');showModal('Embroidery preview',`<canvas id="embroidery-modal-canvas" width="800" height="680" class="embroidery-modal-canvas" aria-label="Embroidery preview on garment"></canvas><p class="field-hint mt-sm">Digital representation only. Our shop will digitize your original artwork and provide a proof before production.</p>`,true);await embroidery.show(item);},
     'project-checkout':async()=>{await quoteProject();state.projectCheckout=true;await orderModal();window.TampaAnalytics?.track('begin_checkout');await windowUploads.checkoutHint(project);},
     'browse-product':async b=>{state.selectedProduct=Number(b.dataset.id);state.selectedCategory=product(b.dataset.id).config.storefront_categories[0];sessionStorage.setItem('storefront_category',state.selectedCategory);history.pushState(null,'',productPath(product(b.dataset.id)));await calculatorView();},
