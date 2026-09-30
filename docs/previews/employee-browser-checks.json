@@ -1,12 +1,16 @@
 {
   "checks": [
     "Mobile sign-in, home layout and service worker",
+    "Long-page content scroll keeps the menu at the viewport bottom",
+    "Inline survey client creation preserves measurements and panel photos",
     "CRM creation, offline survey/photo retention, recovery, sync and submission",
     "Survey dimensions to catalog estimate, tax total, publish and draft invoice",
     "Task acceptance, personal queue, start timer and completion",
     "Employee proof attachment, portal publication and truthful email status",
+    "Panel survey photo is carried into the staff estimate, printable quote and customer portal",
     "Owner survey verification, unchanged customer terms, scope acceptance and issued invoice",
-    "Configured wrap pricing dimensions and apparel size/color/placement pricing"
+    "Configured wrap pricing dimensions and apparel size/color/placement pricing",
+    "Optional quote photo survives product changes and uploads with the saved estimate"
   ],
   "errors": [],
   "viewports": [

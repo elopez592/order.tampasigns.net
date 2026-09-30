@@ -186,6 +186,14 @@ def create_job(conn, payload, source='staff', actor='staff'):
     return job_id
 
 
+def panel_photos(conn, job):
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='employee_quote_photos'").fetchone():
+        return []
+    return [dict(row) for row in conn.execute(
+        'SELECT id,line_index,filename,mime FROM employee_quote_photos WHERE job_id=? AND quote_version=? AND active=1 ORDER BY line_index',
+        (job['id'], job['quote_version']))]
+
+
 def serialize_job(conn, job, audience='admin', detail=True, gateway=None):
     tasks = conn.execute('SELECT t.*,u.name AS assignee FROM tasks t LEFT JOIN users u ON u.id=t.assignee_id WHERE t.job_id=? ORDER BY position', (job['id'],)).fetchall()
     money = totals(conn, job)
@@ -206,6 +214,7 @@ def serialize_job(conn, job, audience='admin', detail=True, gateway=None):
         return result
     quote = json.loads(job['quote_snapshot'])
     result['quote'] = quote if audience == 'admin' else public_quote(quote)
+    result['panel_photos'] = panel_photos(conn, job) if audience != 'customer' or job['published'] else []
     result['payment_url'] = job['payment_url']
     result['payment_kind'] = job['payment_kind']
     result['invoice_reference'] = job['invoice_reference']

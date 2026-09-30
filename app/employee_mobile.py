@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse, Response
 
 from . import artwork_approval, crm, job_terms
 from .db import audit, now, settings, transaction
-from .domain import create_job, get_job, production_started, totals
+from .domain import create_job, get_job, panel_photos, production_started, totals
 from .images import MAX_UPLOAD, sanitize
 from .mailer import notify_customer
 from .pricing import calculate, cent_round, number, public_quote
@@ -33,7 +33,7 @@ CREATE INDEX IF NOT EXISTS employee_surveys_contact ON employee_surveys(contact_
 CREATE INDEX IF NOT EXISTS employee_surveys_job ON employee_surveys(job_id);
 CREATE TABLE IF NOT EXISTS employee_survey_files (
  id INTEGER PRIMARY KEY, survey_id INTEGER NOT NULL REFERENCES employee_surveys(id),
- client_key TEXT NOT NULL, filename TEXT NOT NULL, stored_name TEXT NOT NULL UNIQUE,
+ client_key TEXT NOT NULL, panel_key TEXT NOT NULL DEFAULT '', filename TEXT NOT NULL, stored_name TEXT NOT NULL UNIQUE,
  mime TEXT NOT NULL, sha256 TEXT NOT NULL, size INTEGER NOT NULL,
  uploaded_by INTEGER NOT NULL REFERENCES users(id), created_at TEXT NOT NULL,
  UNIQUE(survey_id,client_key)
@@ -43,6 +43,14 @@ CREATE TABLE IF NOT EXISTS employee_estimate_requests (
  job_id INTEGER NOT NULL UNIQUE REFERENCES jobs(id), request_hash TEXT NOT NULL,
  PRIMARY KEY(user_id,request_key)
 );
+CREATE TABLE IF NOT EXISTS employee_quote_photos (
+ id INTEGER PRIMARY KEY, job_id INTEGER NOT NULL REFERENCES jobs(id), quote_version INTEGER NOT NULL,
+ line_index INTEGER NOT NULL, client_key TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1,
+ filename TEXT NOT NULL, stored_name TEXT NOT NULL, mime TEXT NOT NULL,
+ sha256 TEXT NOT NULL, size INTEGER NOT NULL, uploaded_by INTEGER NOT NULL REFERENCES users(id),
+ created_at TEXT NOT NULL, UNIQUE(job_id,quote_version,client_key)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS employee_quote_photo_line ON employee_quote_photos(job_id,quote_version,line_index) WHERE active=1;
 CREATE TABLE IF NOT EXISTS employee_invoices (
  id INTEGER PRIMARY KEY, job_id INTEGER NOT NULL REFERENCES jobs(id),
  quote_version INTEGER NOT NULL, number TEXT UNIQUE, snapshot TEXT NOT NULL,
@@ -96,7 +104,7 @@ def _survey_dict(conn, row):
     contact = _contact(conn, row['contact_id'])
     item['client_name'] = contact['company'] or contact['name']
     item['files'] = [dict(f) for f in conn.execute(
-        'SELECT id,filename,mime,size,created_at FROM employee_survey_files WHERE survey_id=? ORDER BY id', (row['id'],))]
+        'SELECT id,panel_key,filename,mime,size,created_at FROM employee_survey_files WHERE survey_id=? ORDER BY id', (row['id'],))]
     return item
 
 
@@ -104,7 +112,8 @@ def _measurements(conn, values):
     if not isinstance(values, list) or len(values) > 100:
         raise HTTPException(422, 'Use up to 100 measured areas per survey.')
     checked = []
-    for item in values:
+    keys = set()
+    for index, item in enumerate(values):
         if not isinstance(item, dict):
             raise HTTPException(422, 'Invalid measured area.')
         unit = item.get('unit', 'in')
@@ -118,7 +127,12 @@ def _measurements(conn, values):
         pid = _id(item.get('product_id'), 'Survey product', optional=True)
         if pid and not conn.execute('SELECT id FROM products WHERE id=? AND active=1', (pid,)).fetchone():
             raise HTTPException(422, 'Survey product is unavailable.')
+        key = text(item.get('panel_key') or f'area-{index}', 'Panel identifier', 100, True)
+        if key in keys:
+            raise HTTPException(422, 'Each measured panel needs a different identifier.')
+        keys.add(key)
         checked.append({
+            'panel_key': key,
             'label': text(item.get('label', ''), 'Area label', 160, True),
             'width': str(width), 'height': str(height), 'unit': unit, 'quantity': int(quantity),
             'width_inches': str((width * UNIT_FACTORS[unit]).quantize(Decimal('0.0001'))),
@@ -169,9 +183,13 @@ def _document_html(snapshot, status, kind, reference):
         if line.get('width') and line.get('height'):
             return f'{line["width"]} × {line["height"]} in'
         return str(line.get('unit') or 'Service')
+    def photo(index):
+        image = next((p for p in snapshot.get('panel_photos', []) if p['line_index'] == index), None)
+        return (f'<br><img class="panel-photo" src="/api/quote-photos/{image["id"]}" alt="Panel reference photo">'
+                '<br><small>Panel reference photo</small>') if image else ''
     lines = ''.join('<tr><td><strong>' + esc(str(line['name'])) + '</strong><br>' + esc(str(line.get('description', ''))) +
-                    '<br><small>' + esc(specs(line)) + '</small></td><td>' + esc(str(line['quantity'])) +
-                    '</td><td>' + money(line['sell_cents']) + '</td></tr>' for line in snapshot['lines'])
+                    '<br><small>' + esc(specs(line)) + '</small>' + photo(index) + '</td><td>' + esc(str(line['quantity'])) +
+                    '</td><td>' + money(line['sell_cents']) + '</td></tr>' for index, line in enumerate(snapshot['lines']))
     m = snapshot['totals']
     adjustment = m['merchandise_cents'] - sum(line['sell_cents'] for line in snapshot['lines'])
     title = kind.title()
@@ -182,7 +200,7 @@ def _document_html(snapshot, status, kind, reference):
     return f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="robots" content="noindex,nofollow"><title>{esc(reference)} | Tampa Signs</title>
     <style>body{{font:15px system-ui,sans-serif;color:#172c2e;max-width:800px;margin:35px auto;padding:24px}}h1{{font-size:32px;margin:8px 0}}header{{border-bottom:5px solid #008b8b;padding-bottom:24px}}p{{line-height:1.6}}.muted,small{{color:#52696b}}table{{width:100%;border-collapse:collapse;margin:25px 0}}td,th{{text-align:left;padding:14px 8px;border-bottom:1px solid #dae5e4}}td:last-child,th:last-child{{text-align:right}}.totals{{margin-left:auto;max-width:320px}}.totals p{{display:flex;justify-content:space-between;margin:10px 0}}.total{{font-size:22px;border-top:2px solid #008b8b;padding-top:12px}}button{{background:#007e7e;color:white;border:0;border-radius:8px;padding:12px 20px;font:inherit}}@media print{{body{{margin:0;padding:0}}button{{display:none}}thead{{display:table-header-group}}tr{{break-inside:avoid}}}}</style>
-    <script defer src="/static/employee-document.js"></script></head><body>
+    <style>.panel-photo{{max-width:200px;max-height:140px;object-fit:contain;margin:8px 0}}</style><script defer src="/static/employee-document.js"></script></head><body>
     <button id="print-document">Print / Save PDF</button><header><p><strong>{esc(snapshot['shop']['name'])}</strong><br>{esc(snapshot['shop']['email'])} · {esc(snapshot['shop']['phone'])}</p>
     <h1>{title}{' · Draft' if status == 'draft' else ''}</h1><p>{esc(reference)} · {esc(snapshot['created_at'][:10])} · Quote version {snapshot['quote_version']}</p></header>
     <p><strong>Bill to: {esc(snapshot['customer_name'])}</strong><br>{esc(snapshot['customer_email'])}<br>{esc(snapshot['phone'])}</p>
@@ -204,12 +222,15 @@ def _document_snapshot(conn, job):
             'phone': job['phone'], 'quote_version': job['quote_version'], 'lines': quote['lines'],
             'totals': {k: m[k] for k in ('merchandise_cents','shipping_cents','tax_cents','total_cents','paid_cents','balance_cents','deposit_cents')},
             'shop': {'name': shop['shop_name'], 'email': shop['contact_email'], 'phone': shop['contact_phone']},
-            'created_at': now(), 'terms_notice': job_terms.PROOF_REVIEW_NOTICE}
+            'panel_photos': panel_photos(conn, job), 'created_at': now(), 'terms_notice': job_terms.PROOF_REVIEW_NOTICE}
 
 
-def install(app, database, uploads, require_staff, require_admin, actor, issue_email_portal, static):
+def install(app, database, uploads, require_staff, require_admin, actor, issue_email_portal, static, access_job):
     with transaction(database, True) as conn:
         conn.executescript(SCHEMA)
+        if 'panel_key' not in {row['name'] for row in conn.execute('PRAGMA table_info(employee_survey_files)')}:
+            conn.execute("ALTER TABLE employee_survey_files ADD COLUMN panel_key TEXT NOT NULL DEFAULT ''")
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS employee_survey_photo_panel ON employee_survey_files(survey_id,panel_key) WHERE panel_key<>''")
 
     @app.get('/staff/app', response_class=HTMLResponse)
     def employee_app():
@@ -334,9 +355,12 @@ def install(app, database, uploads, require_staff, require_admin, actor, issue_e
             return _survey_dict(conn, _survey(conn, sid))
 
     @app.post('/api/staff/surveys/{survey_id}/files')
-    def survey_upload(survey_id: int, request: Request, file: UploadFile = File(...), client_key: str = Form(...), user=Depends(require_staff)):
+    def survey_upload(survey_id: int, request: Request, file: UploadFile = File(...), client_key: str = Form(...), panel_key: str = Form(''), user=Depends(require_staff)):
         key = text(client_key, 'Attachment identifier', 100, True)
+        panel_key = text(panel_key, 'Panel identifier', 100)
         raw, name, mime, suffix = sanitize(file.file.read(MAX_UPLOAD + 1), file.filename or 'site-photo')
+        if panel_key and not mime.startswith('image/'):
+            raise HTTPException(422, 'A panel photo must be PNG or JPEG.')
         sha = hashlib.sha256(raw).hexdigest()
         path = None
         try:
@@ -344,10 +368,15 @@ def install(app, database, uploads, require_staff, require_admin, actor, issue_e
                 survey = _survey(conn, survey_id)
                 prior = conn.execute('SELECT * FROM employee_survey_files WHERE survey_id=? AND client_key=?', (survey_id, key)).fetchone()
                 if prior:
-                    if prior['sha256'] != sha:
+                    if prior['sha256'] != sha or prior['panel_key'] != panel_key:
                         raise HTTPException(409, 'Attachment identifier already used for a different file.')
                     return {'id': prior['id'], 'filename': prior['filename']}
                 _can_edit(survey, user)
+                panels = {m.get('panel_key') or f'area-{index}' for index, m in enumerate(json.loads(survey['measurements']))}
+                if panel_key and panel_key not in panels:
+                    raise HTTPException(422, 'Choose an existing measured panel for this photo.')
+                if panel_key and conn.execute('SELECT 1 FROM employee_survey_files WHERE survey_id=? AND panel_key=?', (survey_id, panel_key)).fetchone():
+                    raise HTTPException(409, 'Remove the current panel photo before attaching another.')
                 count = conn.execute('SELECT COUNT(*) FROM employee_survey_files WHERE survey_id=?', (survey_id,)).fetchone()[0]
                 if count >= 50:
                     raise HTTPException(422, 'Use up to 50 photos / files per survey.')
@@ -355,8 +384,8 @@ def install(app, database, uploads, require_staff, require_admin, actor, issue_e
                 path = uploads / stored
                 path.write_bytes(raw)
                 path.chmod(0o600)
-                fid = conn.execute('INSERT INTO employee_survey_files(survey_id,client_key,filename,stored_name,mime,sha256,size,uploaded_by,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
-                                   (survey_id, key, name, stored, mime, sha, len(raw), user['id'], now())).lastrowid
+                fid = conn.execute('INSERT INTO employee_survey_files(survey_id,client_key,panel_key,filename,stored_name,mime,sha256,size,uploaded_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+                                   (survey_id, key, panel_key, name, stored, mime, sha, len(raw), user['id'], now())).lastrowid
                 audit(conn, survey['job_id'], actor(user), 'employee_survey.file_attached', {'survey_id': survey_id, 'file_id': fid})
                 return {'id': fid, 'filename': name}
         except Exception:
@@ -372,6 +401,22 @@ def install(app, database, uploads, require_staff, require_admin, actor, issue_e
             if not row or not (uploads / row['stored_name']).is_file():
                 raise HTTPException(404, 'Survey attachment not found.')
             return FileResponse(uploads / row['stored_name'], media_type=row['mime'], filename=row['filename'], content_disposition_type='inline')
+
+    @app.delete('/api/staff/surveys/{survey_id}/files/{file_id}')
+    def remove_survey_file(survey_id: int, file_id: int, request: Request, user=Depends(require_staff)):
+        stored = None
+        with transaction(database, True) as conn:
+            survey = _survey(conn, survey_id)
+            _can_edit(survey, user)
+            row = conn.execute('SELECT * FROM employee_survey_files WHERE id=? AND survey_id=?', (file_id, survey_id)).fetchone()
+            if row:
+                conn.execute('DELETE FROM employee_survey_files WHERE id=?', (file_id,))
+                if not conn.execute('SELECT 1 FROM employee_quote_photos WHERE stored_name=?', (row['stored_name'],)).fetchone():
+                    stored = row['stored_name']
+                audit(conn, survey['job_id'], actor(user), 'employee_survey.file_removed', {'file_id': file_id})
+        if stored:
+            (uploads / stored).unlink(missing_ok=True)
+        return {'ok': True}
 
     @app.post('/api/staff/surveys/{survey_id}/action')
     def survey_action(survey_id: int, request: Request, payload: dict = Body(...), user=Depends(require_staff)):
@@ -439,6 +484,14 @@ def install(app, database, uploads, require_staff, require_admin, actor, issue_e
                     raise HTTPException(422, 'Survey belongs to a different client.')
                 if survey['job_id']:
                     raise HTTPException(409, 'Survey already belongs to a project. Create a new survey for a new estimate.')
+            references = []
+            for index, item in enumerate(payload['items']):
+                fid = _id(item.get('survey_file_id'), 'Panel photo', optional=True)
+                if fid:
+                    photo = conn.execute('SELECT * FROM employee_survey_files WHERE id=? AND survey_id=?', (fid, survey_id)).fetchone()
+                    if not photo or not photo['mime'].startswith('image/'):
+                        raise HTTPException(422, 'Choose a photo from the survey attached to this estimate.')
+                    references.append((index, photo))
             clean = {'title': payload.get('title', ''), 'notes': payload.get('notes', ''),
                      'customer_name': contact['name'], 'customer_email': contact['email'], 'phone': contact['phone'],
                      'items': payload.get('items'), '_wholesale_client_id': quote.get('wholesale') and conn.execute('SELECT id FROM wholesale_clients WHERE email=? AND active=1', (contact['email'],)).fetchone()['id']}
@@ -446,11 +499,78 @@ def install(app, database, uploads, require_staff, require_admin, actor, issue_e
             conn.execute('UPDATE jobs SET assignee_id=?,tax_cents=?,charges_verified=? WHERE id=?', (user['id'], money['tax_cents'], int(not money['owner_review_required']), job_id))
             conn.execute('INSERT INTO crm_contact_jobs(contact_id,job_id) VALUES(?,?)', (contact['id'], job_id))
             conn.execute('INSERT INTO employee_estimate_requests(user_id,request_key,job_id,request_hash) VALUES(?,?,?,?)', (user['id'], key, job_id, request_hash))
+            for index, photo in references:
+                conn.execute('INSERT INTO employee_quote_photos(job_id,quote_version,line_index,client_key,filename,stored_name,mime,sha256,size,uploaded_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+                             (job_id, 1, index, f'survey-{photo["id"]}', photo['filename'], photo['stored_name'], photo['mime'], photo['sha256'], photo['size'], user['id'], now()))
             if survey_id:
                 conn.execute("UPDATE employee_surveys SET job_id=?,status=CASE WHEN status='verified' THEN 'submitted' ELSE status END,version=version+1,updated_at=? WHERE id=?", (job_id, now(), survey_id))
                 artwork_approval.request_survey(conn, job_id, survey['address'], f'Field survey #{survey_id} linked to this estimate.')
             audit(conn, job_id, actor(user), 'employee_estimate.created', {'contact_id': contact['id'], 'survey_id': survey_id})
             return {'job_id': job_id, 'owner_review_required': money['owner_review_required']}
+
+    def editable_photo_job(conn, job_id, version, line_index=None):
+        job = get_job(conn, job_id)
+        if version != job['quote_version']:
+            raise HTTPException(409, 'Quote changed. Reload the project before updating panel photos.')
+        if job['archived'] or production_started(conn, job_id) or job['accepted_version'] == job['quote_version']:
+            raise HTTPException(409, 'Panel photos are locked for an accepted, producing or archived project.')
+        if line_index is not None and not 0 <= line_index < len(json.loads(job['quote_snapshot'])['lines']):
+            raise HTTPException(422, 'Choose an existing quote panel.')
+        return job
+
+    @app.post('/api/staff/jobs/{job_id}/panel-photos')
+    def quote_photo_upload(job_id: int, request: Request, file: UploadFile = File(...), client_key: str = Form(...),
+                           line_index: int = Form(...), version: int = Form(...), user=Depends(require_staff)):
+        key = text(client_key, 'Photo identifier', 100, True)
+        raw, name, mime, suffix = sanitize(file.file.read(MAX_UPLOAD + 1), file.filename or 'panel-photo')
+        if not mime.startswith('image/'):
+            raise HTTPException(422, 'A panel photo must be PNG or JPEG.')
+        sha = hashlib.sha256(raw).hexdigest()
+        path = None
+        try:
+            with transaction(database, True) as conn:
+                job = get_job(conn, job_id)
+                prior = conn.execute('SELECT * FROM employee_quote_photos WHERE job_id=? AND quote_version=? AND client_key=?', (job_id, version, key)).fetchone()
+                if prior:
+                    if prior['sha256'] != sha or prior['line_index'] != line_index:
+                        raise HTTPException(409, 'Photo identifier already used for a different panel or image.')
+                    return {'id': prior['id'], 'filename': prior['filename']}
+                editable_photo_job(conn, job_id, version, line_index)
+                stored = secrets.token_hex(24) + suffix
+                path = uploads / stored
+                path.write_bytes(raw)
+                path.chmod(0o600)
+                conn.execute('UPDATE employee_quote_photos SET active=0 WHERE job_id=? AND quote_version=? AND line_index=?', (job_id, version, line_index))
+                fid = conn.execute('INSERT INTO employee_quote_photos(job_id,quote_version,line_index,client_key,filename,stored_name,mime,sha256,size,uploaded_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+                                   (job_id, version, line_index, key, name, stored, mime, sha, len(raw), user['id'], now())).lastrowid
+                audit(conn, job_id, actor(user), 'quote.panel_photo_attached', {'photo_id': fid, 'line_index': line_index})
+                return {'id': fid, 'filename': name}
+        except Exception:
+            if path:
+                path.unlink(missing_ok=True)
+            raise
+
+    @app.delete('/api/staff/jobs/{job_id}/panel-photos/{photo_id}')
+    def remove_quote_photo(job_id: int, photo_id: int, request: Request, payload: dict = Body(...), user=Depends(require_staff)):
+        with transaction(database, True) as conn:
+            job = editable_photo_job(conn, job_id, payload.get('version'))
+            conn.execute('UPDATE employee_quote_photos SET active=0 WHERE id=? AND job_id=? AND quote_version=?', (photo_id, job_id, job['quote_version']))
+            audit(conn, job_id, actor(user), 'quote.panel_photo_removed', {'photo_id': photo_id})
+            return {'ok': True}
+
+    @app.get('/api/quote-photos/{photo_id}')
+    def quote_photo_file(photo_id: int, request: Request):
+        with transaction(database) as conn:
+            row = conn.execute('SELECT * FROM employee_quote_photos WHERE id=?', (photo_id,)).fetchone()
+            if not row:
+                raise HTTPException(404, 'Panel photo not found.')
+            job, _ = access_job(conn, request, row['job_id'])
+            if not request.state.user and not job['published']:
+                raise HTTPException(404, 'Panel photo not found.')
+            if not (uploads / row['stored_name']).is_file():
+                raise HTTPException(404, 'Panel photo is missing. Contact the shop.')
+            return FileResponse(uploads / row['stored_name'], media_type=row['mime'], filename=row['filename'], content_disposition_type='inline',
+                                headers={'Cache-Control': 'no-store', 'Content-Security-Policy': "sandbox; default-src 'none'"})
 
     @app.post('/api/staff/estimates/{job_id}/send')
     def send_estimate(job_id: int, request: Request, payload: dict = Body(...), user=Depends(require_staff)):
