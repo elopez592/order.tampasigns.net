@@ -7,6 +7,7 @@ import csv
 import io
 import json
 import os
+from .runtime import getenv
 import re
 import secrets
 import sqlite3
@@ -163,8 +164,8 @@ def quote_line_needs_artwork(line: dict) -> bool:
         return False
 
 
-def create_app(data_dir=None, demo=None) -> FastAPI:
-    directory = Path(data_dir or os.getenv('DATA_DIR', './data')).resolve()
+def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
+    directory = Path(data_dir or getenv('DATA_DIR', './data')).resolve()
     directory.mkdir(parents=True, exist_ok=True)
     database = directory / 'signshop.sqlite3'
     uploads = directory / 'uploads'
@@ -174,18 +175,20 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             private_dir.chmod(0o700)
         except OSError:
             pass
-    production = os.getenv('APP_ENV', 'development') == 'production'
-    public_url = os.getenv('PUBLIC_URL', 'http://localhost:8000').rstrip('/')
+    production = getenv('APP_ENV', 'development') == 'production'
+    public_url = getenv('PUBLIC_URL', 'http://localhost:8000').rstrip('/')
     if production and not public_url.startswith('https://'):
         raise RuntimeError('Production requires an HTTPS PUBLIC_URL behind a TLS-terminating reverse proxy.')
+    existing_company = database.exists() and not platform
     initialize(database)
     try:
         database.chmod(0o600)
     except OSError:
         pass
-    credentials = bootstrap(database, demo=demo if demo is not None else os.getenv('DEMO_SEED', '0') == '1')
+    credentials = [] if existing_company else bootstrap(database, demo=demo if demo is not None else getenv('DEMO_SEED', '0') == '1')
     from .storefront import upgrade_catalog
-    upgrade_catalog(database)
+    if not existing_company:
+        upgrade_catalog(database)
     app = FastAPI(title='Tampa Signs and Stickers', version='0.2.0', docs_url=None, redoc_url=None, openapi_url=None)
     app.state.database = database
     app.state.uploads = uploads
@@ -229,7 +232,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             source = source.replace('<div id="app"><div class="initial-loading"><img class="loading-logo" src="/static/brand/tampa-black.png" alt="Tampa Signs and Stickers"><p>Opening Tampa Signs and Stickers...</p></div></div>', f'<div id="app">{fallback}</div>')
         return source
     app.state.gateway = StripeGateway()
-    allowed_hosts = [h.strip() for h in os.getenv('ALLOWED_HOSTS', '').split(',') if h.strip()]
+    allowed_hosts = [h.strip() for h in getenv('ALLOWED_HOSTS', '').split(',') if h.strip()]
     if not allowed_hosts:
         allowed_hosts = [urlsplit(public_url).hostname or 'localhost', 'localhost', '127.0.0.1', 'testserver']
     if production and '*' in allowed_hosts:
@@ -345,6 +348,8 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                         user = conn.execute('SELECT id,name,email,role FROM users WHERE id=? AND active=1', (row['user_id'],)).fetchone()
                         if user:
                             request.state.user = dict(user)
+                            from .company import enrich_user
+                            request.state.user = enrich_user(app, request.state.user)
         if request.url.path.startswith('/api/') and request.url.path not in ('/api/payments/stripe/webhook','/api/marketing/event','/api/internal/crm-reminders/run') and request.method not in ('GET', 'HEAD', 'OPTIONS'):
             sess = request.state.session
             csrf = request.headers.get('x-csrf-token', '')
@@ -354,6 +359,9 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             allowed_origin = {public_url, str(request.base_url).rstrip('/')}
             if origin and origin not in allowed_origin:
                 return JSONResponse({'detail': 'Cross-origin requests are not allowed.'}, status_code=403)
+        from .access import permitted
+        if request.state.user and not permitted(app, request.state.user, request.url.path, request.method):
+            return JSONResponse({'detail':'Your staff profile does not allow this action.'}, status_code=403)
         response = await call_next(request)
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'DENY'
@@ -447,7 +455,8 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             conn.execute('DELETE FROM sessions WHERE token_hash=?', (request.state.session['token_hash'],))
             token, csrf = new_session(conn, user_id=user['id'])
             audit(conn, None, actor(user), 'staff.signed_in', {})
-        return session_response({'csrf': csrf, 'user': {k: user[k] for k in ('id','name','email','role')}}, token)
+        from .company import enrich_user
+        return session_response({'csrf': csrf, 'user': enrich_user(app, {k: user[k] for k in ('id','name','email','role')})}, token)
 
     @app.post('/api/auth/logout')
     def logout(request: Request):
@@ -489,7 +498,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                             'artwork_upload_disabled': False}
                 products.append({k: row[k] for k in ('id','name','category','version')} | {
                     'config': {k: cfg.get(k, defaults.get(k)) for k in keys}})
-            return {'products': products, 'shop': {k: shop[k] for k in ('shop_name','contact_email','contact_phone','rates_live','quote_note')},
+            return {'products': products, 'shop': {k: shop.get(k,'') for k in ('shop_name','contact_email','contact_phone','rates_live','quote_note','business_address','business_hours','brand_logo','brand_custom')},
                     'checkout': availability(shop, app.state.gateway), 'notifications': email_status(),
                     'job_terms': job_terms.public_terms(), 'approval_statement': APPROVAL_STATEMENT,
                     'rewards': rewards.public_config(shop)}
@@ -1813,6 +1822,8 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                 if shop['checkout_pickup_enabled'] and not shop['checkout_pickup_address']:
                     raise HTTPException(422,'Enter the actual pickup address before enabling local pickup.')
 
+            from .company import record_revision
+            record_revision(conn, shop, actor(user), 'Shop defaults updated')
             conn.execute('UPDATE settings SET data=? WHERE id=1', (json.dumps(shop),))
             audit(conn, None, actor(user), 'settings.updated', shop)
         return {'ok': True}
@@ -1832,6 +1843,8 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             raise HTTPException(422, 'Role must be admin or employee.')
         temporary_password = secrets.token_urlsafe(18)
         with transaction(database, True) as conn:
+            from .company import check_seats
+            check_seats(app, conn)
             uid = conn.execute('INSERT INTO users(name,email,password_hash,role,created_at) VALUES(?,?,?,?,?)',
                                (name, address, password_hash(temporary_password), role, now())).lastrowid
             audit(conn, None, actor(user), 'staff.created', {'user_id': uid, 'role': role})
@@ -1848,6 +1861,11 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             active = payload.get('active', bool(target['active']))
             if not isinstance(active, bool):
                 raise HTTPException(422, 'active must be a boolean.')
+            from .company import check_seats
+            if active and not target['active']:
+                check_seats(app, conn)
+            if not active and target['role'] == 'admin' and target['active'] and conn.execute("SELECT count(*) FROM users WHERE role='admin' AND active=1").fetchone()[0] <= 1:
+                raise HTTPException(422, 'Keep at least one active owner.')
             new_password = secrets.token_urlsafe(18) if payload.get('reset_password') is True else None
             conn.execute('UPDATE users SET active=? WHERE id=?', (int(active), user_id))
             if new_password:
@@ -1927,4 +1945,6 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
                                     '<meta name="apple-mobile-web-app-title" content="Tampa Signs Staff">\n</head>')
         return HTMLResponse(source, headers={'Cache-Control': 'no-cache', 'X-Robots-Tag': 'noindex, nofollow'})
 
+    from .company import install
+    install(app, directory, require_admin, platform=platform)
     return app

@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import os
+from .runtime import getenv
 import secrets
 from .db import now, transaction
 from .security import password_hash, email
@@ -729,8 +730,8 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,?,?,?,?,?)',
                          ('Custom project quote', 'Custom', 1, 0, 3, json.dumps(custom_cfg), now()))
         if not conn.execute("SELECT id FROM users WHERE role='admin' LIMIT 1").fetchone():
-            address = email(admin_email or os.getenv('ADMIN_EMAIL', 'owner@example.test'))
-            password = admin_password or os.getenv('ADMIN_PASSWORD') or secrets.token_urlsafe(18)
+            address = email(admin_email or getenv('ADMIN_EMAIL', 'owner@example.test'))
+            password = admin_password or getenv('ADMIN_PASSWORD') or secrets.token_urlsafe(18)
             conn.execute('INSERT INTO users(name,email,password_hash,role,created_at) VALUES(?,?,?,?,?)',
                          ('Shop owner', address, password_hash(password), 'admin', now()))
             credentials.append(('Owner', address, password))

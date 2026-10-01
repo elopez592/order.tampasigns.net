@@ -6,6 +6,7 @@ import io
 import json
 import hmac
 import os
+from .runtime import getenv
 import secrets
 import sqlite3
 import time
@@ -662,7 +663,7 @@ def install(app, database, require_admin, issue_email_portal):
 
     @app.post("/api/internal/crm-reminders/run")
     def crm_reminder_cron(request: Request):
-        secret = os.getenv("REMINDER_CRON_SECRET", "").strip()
+        secret = getenv("REMINDER_CRON_SECRET", "").strip()
         supplied = request.headers.get("authorization", "")
         expected = "Bearer " + secret
         if not secret:

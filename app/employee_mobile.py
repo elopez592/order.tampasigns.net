@@ -248,6 +248,8 @@ def install(app, database, uploads, require_staff, require_admin, actor, issue_e
     @app.get('/staff/apple-touch-icon-20261001.png')
     @app.get('/staff/icon.png')
     def employee_icon():
+        if hasattr(app.state, 'company_icon'):
+            return app.state.company_icon()
         return Response(base64.b64decode(ICON_PNG_B64), media_type='image/png', headers={'Cache-Control': 'public, max-age=31536000, immutable'})
 
     @app.get('/api/staff/clients')

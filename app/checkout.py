@@ -10,6 +10,7 @@ import hashlib
 import hmac
 import json
 import os
+from .runtime import getenv
 import re
 import time
 import uuid
@@ -30,8 +31,8 @@ API_VERSION = '2026-08-26.dahlia'
 
 class StripeGateway:
     def __init__(self):
-        self.key = os.getenv('STRIPE_SECRET_KEY', '')
-        self.webhook_secret = os.getenv('STRIPE_WEBHOOK_SECRET', '')
+        self.key = getenv('STRIPE_SECRET_KEY', '')
+        self.webhook_secret = getenv('STRIPE_WEBHOOK_SECRET', '')
         self.live = self.key.startswith(('sk_live_', 'rk_live_'))
         self.ready = bool(self.key.startswith(('sk_test_', 'sk_live_', 'rk_test_', 'rk_live_')) and self.webhook_secret.startswith('whsec_'))
 

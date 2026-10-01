@@ -20,7 +20,8 @@ def main():
         print('Passwords are printed only at initial creation. Change them after sign-in.\n', flush=True)
     stripe_mode = 'live' if app.state.gateway.ready and app.state.gateway.live else 'test' if app.state.gateway.ready else 'not configured'
     print(f'Customer calculator: {app.state.public_url}/\nStaff workspace: {app.state.public_url}/staff\nStripe checkout: {stripe_mode}', flush=True)
-    uvicorn.run(app, host=args.host, port=args.port, log_level='info', access_log=False,
+    from app.platform import CompanyRouter
+    uvicorn.run(CompanyRouter(app), host=args.host, port=args.port, log_level='info', access_log=False,
                 proxy_headers=os.getenv('TRUST_PROXY', '0') == '1',
                 forwarded_allow_ips=os.getenv('FORWARDED_ALLOW_IPS', '127.0.0.1'))
 

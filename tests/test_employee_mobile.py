@@ -55,12 +55,12 @@ def test_mobile_shell_installation_and_private_apis(env):
     visitor = anonymous(app)
     shell = visitor.get('/staff/app')
     assert shell.status_code == 200
-    assert 'employee.webmanifest' in shell.text and 'apple-mobile-web-app-capable' in shell.text
+    assert '/staff/manifest.webmanifest' in shell.text and 'apple-mobile-web-app-capable' in shell.text
     assert shell.headers['X-Robots-Tag'] == 'noindex, nofollow'
     assert shell.headers['Permissions-Policy'].startswith('camera=(self)')
     worker = visitor.get('/staff/sw.js')
     assert worker.headers['Service-Worker-Allowed'] == '/staff/'
-    manifest = visitor.get('/static/employee.webmanifest').json()
+    manifest = visitor.get('/staff/manifest.webmanifest').json()
     assert manifest['start_url'] == '/staff/app' and manifest['display'] == 'standalone'
     icon_path = manifest['icons'][0]['src']
     assert icon_path in shell.text and icon_path in visitor.get('/staff').text
