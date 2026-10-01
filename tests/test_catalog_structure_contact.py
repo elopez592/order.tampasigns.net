@@ -5,7 +5,12 @@ def test_orders_contact_page_is_routable_and_linked(env):
     app, admin, employee = env
     client = anonymous(app)
 
-    assert client.get('/contact').status_code == 200
+    response = client.get('/contact')
+    assert response.status_code == 200
+    policy = response.headers['content-security-policy']
+    assert 'frame-src https://www.google.com;' in policy
+    assert "object-src 'none';" in policy
+    assert "frame-ancestors 'none'" in policy
     js = client.get('/static/app.js').text
     assert '<a href="/contact">Contact</a>' in js
     assert "path==='/contact'||path==='/contact.html'" in js

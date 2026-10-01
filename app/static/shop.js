@@ -14,7 +14,7 @@ export function createShop(ctx) {
   const product=id=>state.catalog.products.find(p=>p.id===Number(id));
   const page=(title,body)=>{app.innerHTML=publicHeader()+`<main class="public-page"><div class="row between wrap mb"><h1>${esc(title)}</h1><a class="btn light" href="/products">Browse all products</a></div>${body}</main>`;};
   const canvaUrl='https://www.canva.com/';
-  const canvaGuide=(width,height,label='this product')=>`<div class="notice info mt"><strong>Want more design freedom?</strong><br>Design in Canva opens a custom-size artboard at <strong>${esc(width)} × ${esc(height)} in</strong> for ${esc(label)} when Canva is connected. Download a PDF Print or high-resolution PNG and upload it back to this project.</div>`;
+  const canvaGuide=(width,height,label='this product')=>`<div class="notice info mt"><strong>Want more design freedom?</strong><br>Design in Canva opens in a new tab with a custom-size artboard at <strong>${esc(width)} × ${esc(height)} in</strong> for ${esc(label)} when Canva is connected. Download a PDF Print or high-resolution PNG and upload it back to this project.</div>`;
   const canvaButton=(width,height,label,extraClass='')=>`<button type="button" class="btn light ${extraClass}" data-action="canva-open" data-width="${esc(width)}" data-height="${esc(height)}" data-label="${esc(label)}">Design in Canva</button>`;
   const multiPanelArtwork=p=>!!p?.config?.supports_multiple_dimensions;
   const wrapArtworkNote='<div class="notice info mt"><strong>Have a design for your wrap?</strong><br>Upload your finished artwork, logo, concept or reference photos. Name separate files for each side or panel. Need artwork created? Request design help and we will review the scope with you.</div>';
@@ -161,35 +161,45 @@ export function createShop(ctx) {
     await windowUploads.refresh();
     $$('[data-project-quantity], [data-project-size]').forEach(e=>e.addEventListener('change',async()=>{const n=Number(e.value);if(!Number.isInteger(n)||n< (e.dataset.projectSize?0:1)||n>100000){toast('Enter a valid whole quantity.',true);return;}const index=Number(e.dataset.index??e.dataset.projectQuantity);if(e.dataset.projectSize){project[index].size_quantities[e.dataset.projectSize]=n;project[index].quantity=Object.values(project[index].size_quantities).reduce((a,b)=>a+b,0);}else project[index].quantity=n;persist();await projectView();}));
   }
+  function createCanvaTab(){
+    const tab=window.open('about:blank','_blank');
+    if(!tab)throw new Error('Allow pop-ups for this site to open Canva in a new tab.');
+    tab.opener=null;
+    return tab;
+  }
   async function openCanvaDesign(width,height,label,options={}){
     const safeWidth=Number(width),safeHeight=Number(height),safeLabel=String(label||'Tampa Signs artwork');
     if(!safeWidth||!safeHeight)throw new Error('Complete your size before opening Canva.');
+    const tab=options.redirect?null:(options.tab||createCanvaTab());
+    const navigate=url=>{if(options.redirect)location.href=url;else tab.location.href=url;};
     try{
       const created=await api('/api/canva/design','POST',{width:safeWidth,height:safeHeight,title:`Tampa Signs - ${safeLabel} - ${safeWidth}x${safeHeight} in`});
-      if(options.redirect)location.href=created.edit_url;else window.open(created.edit_url,'_blank','noopener');
+      navigate(created.edit_url);
       toast(`Canva artboard created at ${created.width_px} x ${created.height_px}px (${created.scale_label}). Export PDF Print or PNG, then upload it to this project.`);
     }catch(error){
       if(/connect canva/i.test(error.message)){
         const next=location.pathname+location.search;
-        sessionStorage.setItem('pending_canva_design',JSON.stringify({width:safeWidth,height:safeHeight,label:safeLabel}));
+        (tab?tab.sessionStorage:sessionStorage).setItem('pending_canva_design',JSON.stringify({width:safeWidth,height:safeHeight,label:safeLabel}));
         try{
           const r=await api('/api/canva/connect','POST',{return_path:next});
-          location.href=r.authorize_url;
+          navigate(r.authorize_url);
         }catch(connectError){
           if(/not configured/i.test(connectError.message)){
-            window.open(canvaUrl,'_blank','noopener');
+            navigate(canvaUrl);
             toast(`Canva is not connected to the shop yet. Use custom size ${safeWidth} x ${safeHeight} in for ${safeLabel}, then upload the exported PDF/PNG.`,true);
             return;
           }
+          if(tab&&!tab.closed)tab.close();
           throw connectError;
         }
         return;
       }
       if(/not configured/i.test(error.message)){
-        window.open(canvaUrl,'_blank','noopener');
+        navigate(canvaUrl);
         toast(`Canva is not connected to the shop yet. Use custom size ${safeWidth} x ${safeHeight} in for ${safeLabel}, then upload the exported PDF/PNG.`,true);
         return;
       }
+      if(tab&&!tab.closed)tab.close();
       throw error;
     }
   }
@@ -479,7 +489,7 @@ export function createShop(ctx) {
     'photo-mockup':()=>showPhotoMockup(),
     'photo-mockup-save':async()=>{if(!photoMockup.background||!photoMockup.artwork)throw new Error('Upload both a background photo and artwork first.');const canvas=$('#photo-mockup-canvas');drawPhotoMockup(false);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));drawPhotoMockup(true);if(!blob)throw new Error('Unable to save the photo mockup.');const file=new File([blob],`customer-photo-mockup-${Date.now()}.png`,{type:'image/png'});await windowUploads.addGenerated(state.selectedProduct,file);closeModal();toast('Reference mockup saved with this product. Add the product to your Project when ready.');},
     'canva-open':async b=>openCanvaDesign(b.dataset.width,b.dataset.height,b.dataset.label),
-    'product-canva':async()=>{await recalculate();const item=state.currentQuoteItems?.[0];if(!item)throw new Error('Complete your options before designing in Canva.');const p=product(item.product_id);if(usesDirectArtwork(p)){toast('For wraps or multiple panes, use Upload Design or Request design help.',true);return;}await openCanvaDesign(item.width,item.height,publicProductName(p));},
+    'product-canva':async()=>{const tab=createCanvaTab();try{await recalculate();const item=state.currentQuoteItems?.[0];if(!item)throw new Error('Complete your options before designing in Canva.');const p=product(item.product_id);if(usesDirectArtwork(p)){tab.close();toast('For wraps or multiple panes, use Upload Design or Request design help.',true);return;}await openCanvaDesign(item.width,item.height,publicProductName(p),{tab});}catch(error){if(!tab.closed)tab.close();throw error;}},
     'project-remove':async b=>{project.splice(Number(b.dataset.index),1);persist();await projectView();},
     'contour-project':async b=>{const item=project[Number(b.dataset.index)];if(!item)throw new Error('This project item is no longer available.');await contourView({projectKey:item.key,id:item.contour_design_id,product_id:item.product_id});},
     'contour-save':async()=>{if(!draft?.image)throw new Error('Upload artwork before saving the die-cut proof.');await saveDesign(draft);const item=project.find(i=>i.key===draft.projectKey);if(item){item.contour_design_id=draft.id;persist();toast('Die-cut proof saved to your project.');history.pushState(null,'','/project');await projectView();return;}if(draft.addAfterSave){const id=draft.id;draft.addAfterSave=false;await saveDesign(draft);pendingContourFile=null;await add({contourDesignId:id,skipRecalculate:true});history.pushState(null,'','/project');await projectView();return;}throw new Error('This proof is not linked to a project item.');},

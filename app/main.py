@@ -360,7 +360,7 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
         response.headers['Referrer-Policy'] = 'no-referrer'
         response.headers['Permissions-Policy'] = ('camera=(self), microphone=(), geolocation=()'
                                                   if request.url.path == '/staff/app' else 'camera=(), microphone=(), geolocation=()')
-        response.headers.setdefault('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' blob: data:; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+        response.headers.setdefault('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' blob: data:; object-src 'none'; frame-src https://www.google.com; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
         if production:
             response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         if not request.url.path.startswith('/static/'):
