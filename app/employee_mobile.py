@@ -1,6 +1,7 @@
 """Employee mobile workspace; all prices and work gates remain server authoritative."""
 from __future__ import annotations
 
+import base64
 import hashlib
 import html
 import json
@@ -17,6 +18,7 @@ from .images import MAX_UPLOAD, sanitize
 from .mailer import notify_customer
 from .pricing import calculate, cent_round, number, public_quote
 from .security import email, text
+from .staff_icon_data import ICON_PNG_B64
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS employee_surveys (
@@ -239,6 +241,10 @@ def install(app, database, uploads, require_staff, require_admin, actor, issue_e
     @app.get('/staff/sw.js')
     def employee_worker():
         return FileResponse(static / 'employee-sw.js', media_type='application/javascript', headers={'Service-Worker-Allowed': '/staff/', 'Cache-Control': 'no-cache'})
+
+    @app.get('/staff/icon.png')
+    def employee_icon():
+        return Response(base64.b64decode(ICON_PNG_B64), media_type='image/png', headers={'Cache-Control': 'public, max-age=31536000, immutable'})
 
     @app.get('/api/staff/clients')
     def clients(request: Request, q: str = '', user=Depends(require_staff)):
