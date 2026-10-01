@@ -42,19 +42,19 @@ def main():
         stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
         filename = target / f'signshop-backup-{stamp}.zip'
         with tempfile.TemporaryDirectory() as temp:
-            snapshot = Path(temp) / 'signshop.sqlite3'
-            source = sqlite3.connect(database)
-            destination = sqlite3.connect(snapshot)
-            try:
-                source.backup(destination)
-            finally:
-                destination.close()
-                source.close()
             with zipfile.ZipFile(filename, 'w', zipfile.ZIP_DEFLATED) as archive:
-                archive.write(snapshot, 'signshop.sqlite3')
-                for item in (folder / 'uploads').glob('*'):
-                    if item.is_file():
-                        archive.write(item, 'uploads/' + item.name)
+                databases=[database]+list((folder/'companies').glob('*/signshop.sqlite3'))
+                for index, source_path in enumerate(databases):
+                    snapshot=Path(temp)/f'database-{index}.sqlite3'
+                    source=sqlite3.connect(source_path);destination=sqlite3.connect(snapshot)
+                    try: source.backup(destination)
+                    finally: destination.close();source.close()
+                    archive.write(snapshot,str(source_path.relative_to(folder)))
+                    for category in ('uploads','brand'):
+                        for item in (source_path.parent/category).glob('*'):
+                            if item.is_file(): archive.write(item,str(item.relative_to(folder)))
+                    connections=source_path.parent/'connections.json'
+                    if connections.exists(): archive.write(connections,str(connections.relative_to(folder)))
         try:
             filename.chmod(0o600)
         except OSError:

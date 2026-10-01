@@ -3,6 +3,7 @@ import html
 import json
 import logging
 import os
+from .runtime import getenv
 import httpx
 
 from .db import now, transaction
@@ -11,7 +12,7 @@ log = logging.getLogger('tampasigns.email')
 
 
 def enabled() -> bool:
-    return bool(os.getenv("RESEND_API_KEY") and os.getenv("EMAIL_FROM"))
+    return bool(getenv("RESEND_API_KEY") and getenv("EMAIL_FROM"))
 
 
 def public_status() -> dict:
@@ -26,8 +27,8 @@ def send_test_email(to_address: str) -> tuple[bool, str]:
 
 
 def _send(to_address: str, subject: str, html_body: str, text_body: str) -> tuple[bool, str]:
-    api_key = os.getenv("RESEND_API_KEY", "").strip()
-    from_address = os.getenv("EMAIL_FROM", "").strip()
+    api_key = getenv("RESEND_API_KEY", "").strip()
+    from_address = getenv("EMAIL_FROM", "").strip()
     if not api_key or not from_address:
         return False, "Email delivery is not configured."
     payload = {
@@ -37,7 +38,7 @@ def _send(to_address: str, subject: str, html_body: str, text_body: str) -> tupl
         "html": html_body,
         "text": text_body,
     }
-    reply_to = os.getenv("EMAIL_REPLY_TO", "").strip()
+    reply_to = getenv("EMAIL_REPLY_TO", "").strip()
     if reply_to:
         payload["reply_to"] = reply_to
     try:
@@ -60,6 +61,8 @@ def _send(to_address: str, subject: str, html_body: str, text_body: str) -> tupl
 
 
 def _brand_html(title: str, message: str, action_url: str | None = None, action_label: str = "View order") -> str:
+    name=html.escape(getenv('SHOP_NAME','Tampa Signs and Stickers'))
+    phone=html.escape(getenv('SHOP_PHONE','(813) 749-4500'))
     safe_title = html.escape(title)
     safe_message = html.escape(message).replace("\n", "<br>")
     button = ""
@@ -67,12 +70,12 @@ def _brand_html(title: str, message: str, action_url: str | None = None, action_
         button = f'<p style="margin:28px 0"><a href="{html.escape(action_url, quote=True)}" style="display:inline-block;background:#079a99;color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:8px">{html.escape(action_label)}</a></p>'
     return f"""<!doctype html><html><body style="margin:0;background:#f5f8f7;font-family:Arial,sans-serif;color:#101516">
     <div style="max-width:620px;margin:0 auto;padding:30px 18px">
-      <div style="background:#0b0f10;padding:20px 24px;border-radius:12px 12px 0 0;color:#fff;font-size:18px;font-weight:800">Tampa Signs and Stickers</div>
+      <div style="background:#0b0f10;padding:20px 24px;border-radius:12px 12px 0 0;color:#fff;font-size:18px;font-weight:800">{name}</div>
       <div style="background:#fff;border:1px solid #dce6e4;border-top:4px solid #079a99;padding:28px 24px;border-radius:0 0 12px 12px">
         <h1 style="font-size:24px;margin:0 0 14px">{safe_title}</h1>
         <p style="font-size:15px;line-height:1.6;color:#53646a">{safe_message}</p>
         {button}
-        <p style="margin-top:28px;font-size:12px;color:#7b8a8f">Tampa Signs and Stickers · (813) 749-4500</p>
+        <p style="margin-top:28px;font-size:12px;color:#7b8a8f">{name} · {phone}</p>
       </div>
     </div></body></html>"""
 

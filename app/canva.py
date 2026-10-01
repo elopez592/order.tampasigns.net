@@ -4,6 +4,7 @@ import base64
 import hashlib
 import math
 import os
+from .runtime import getenv
 import secrets
 import time
 from urllib.parse import urlencode
@@ -23,9 +24,9 @@ TARGET_DPI = 96
 
 
 def config(public_url: str) -> dict:
-    client_id = os.getenv('CANVA_CLIENT_ID', '').strip()
-    client_secret = os.getenv('CANVA_CLIENT_SECRET', '').strip()
-    redirect_uri = os.getenv('CANVA_REDIRECT_URI', '').strip() or f'{public_url.rstrip("/")}/api/canva/callback'
+    client_id = getenv('CANVA_CLIENT_ID', '').strip()
+    client_secret = getenv('CANVA_CLIENT_SECRET', '').strip()
+    redirect_uri = getenv('CANVA_REDIRECT_URI', '').strip() or f'{public_url.rstrip("/")}/api/canva/callback'
     return {
         'configured': bool(client_id and client_secret),
         'client_id': client_id,
