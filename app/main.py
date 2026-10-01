@@ -1920,6 +1920,11 @@ def create_app(data_dir=None, demo=None) -> FastAPI:
             return HTMLResponse(seo_html('Custom Signs, Wraps, Decals and Apparel | Tampa Signs', 'Browse custom signs, vehicle wraps, window graphics, decals, banners, apparel and event displays from Tampa Signs and Stickers.', public_url + '/products'), headers={'Cache-Control': 'no-cache'})
         if path == '/':
             return HTMLResponse(seo_html('Tampa Signs and Stickers | Custom Signs, Wraps and Printing', 'Order custom signs, stickers, vehicle wraps, window graphics, banners and apparel from Tampa Signs and Stickers.', public_url + '/'), headers={'Cache-Control': 'no-cache'})
-        return HTMLResponse((STATIC / 'index.html').read_text(), headers={'Cache-Control': 'no-cache', 'X-Robots-Tag': 'noindex, nofollow'})
+        source = (STATIC / 'index.html').read_text()
+        if path == '/staff':
+            source = source.replace('</head>', '<link rel="apple-touch-icon" sizes="180x180" href="/staff/apple-touch-icon-20261001.png">\n'
+                                    '<link rel="manifest" href="/static/employee.webmanifest?v=20261001-3">\n'
+                                    '<meta name="apple-mobile-web-app-title" content="Tampa Signs Staff">\n</head>')
+        return HTMLResponse(source, headers={'Cache-Control': 'no-cache', 'X-Robots-Tag': 'noindex, nofollow'})
 
     return app

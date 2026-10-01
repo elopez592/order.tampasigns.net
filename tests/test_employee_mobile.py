@@ -62,6 +62,15 @@ def test_mobile_shell_installation_and_private_apis(env):
     assert worker.headers['Service-Worker-Allowed'] == '/staff/'
     manifest = visitor.get('/static/employee.webmanifest').json()
     assert manifest['start_url'] == '/staff/app' and manifest['display'] == 'standalone'
+    icon_path = manifest['icons'][0]['src']
+    assert icon_path in shell.text and icon_path in visitor.get('/staff').text
+    icon = visitor.get(icon_path)
+    assert icon.status_code == 200 and icon.headers['content-type'] == 'image/png'
+    image = Image.open(io.BytesIO(icon.content))
+    assert image.size == (180, 180)
+    image.verify()
+    for fallback in ('/apple-touch-icon.png', '/apple-touch-icon-precomposed.png', '/staff/apple-touch-icon.png'):
+        assert visitor.get(fallback).content == icon.content
     for url in ('/api/staff/clients', '/api/staff/surveys', '/api/staff/invoices/1'):
         assert visitor.get(url).status_code == 401
     employee.headers.pop('X-CSRF-Token')

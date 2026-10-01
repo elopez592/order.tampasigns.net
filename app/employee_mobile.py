@@ -242,6 +242,10 @@ def install(app, database, uploads, require_staff, require_admin, actor, issue_e
     def employee_worker():
         return FileResponse(static / 'employee-sw.js', media_type='application/javascript', headers={'Service-Worker-Allowed': '/staff/', 'Cache-Control': 'no-cache'})
 
+    @app.get('/apple-touch-icon.png')
+    @app.get('/apple-touch-icon-precomposed.png')
+    @app.get('/staff/apple-touch-icon.png')
+    @app.get('/staff/apple-touch-icon-20261001.png')
     @app.get('/staff/icon.png')
     def employee_icon():
         return Response(base64.b64decode(ICON_PNG_B64), media_type='image/png', headers={'Cache-Control': 'public, max-age=31536000, immutable'})
