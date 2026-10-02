@@ -430,3 +430,25 @@ def test_queue_scope_claim_and_another_staff_timer(env):
     assert employee.post(f'/api/staff/tasks/{task["id"]}/action', json={'action': 'complete'}).status_code == 200
     assert not employee.get('/api/staff/task-queue?scope=mine').json()['tasks']
     assert employee.get('/api/staff/task-queue?scope=invalid').status_code == 422
+
+
+def test_mobile_active_jobs_hide_finished_but_preserve_history(env):
+    app, admin, employee = env
+    cid = add_client(employee)
+    finished, _, _ = estimate(employee, cid)
+    active, _, _ = estimate(employee, cid)
+    no_tasks, _, _ = estimate(employee, cid)
+    with transaction(app.state.database, True) as conn:
+        conn.execute("UPDATE tasks SET status='done' WHERE job_id=?", (finished,))
+        conn.execute('DELETE FROM tasks WHERE job_id=?', (no_tasks,))
+    for staff in (employee, admin):
+        ids = {j['id'] for j in staff.get('/api/staff/jobs?active_only=true').json()['jobs']}
+        assert finished not in ids
+        assert {active, no_tasks} <= ids
+        assert finished in {j['id'] for j in staff.get('/api/staff/jobs').json()['jobs']}
+        assert staff.get(f'/api/staff/jobs/{finished}').json()['stage'] == 'complete'
+    assert all(t['job_id'] != finished for t in employee.get('/api/staff/task-queue').json()['tasks'])
+    # Reopening work makes the project active again.
+    with transaction(app.state.database, True) as conn:
+        conn.execute("UPDATE tasks SET status='todo' WHERE id=(SELECT MIN(id) FROM tasks WHERE job_id=?)", (finished,))
+    assert finished in {j['id'] for j in employee.get('/api/staff/jobs?active_only=true').json()['jobs']}

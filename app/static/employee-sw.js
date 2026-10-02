@@ -1,6 +1,6 @@
 // Only the public app shell is cached. Never cache staff APIs, files, or sessions.
-const CACHE = 'tampa-signs-employee-shell-20261001-4';
-const SHELL = ['/staff/app', '/static/employee.css?v=20260930-2', '/static/employee.js?v=20260930-2',
+const CACHE = 'tampa-signs-employee-shell-20261002-1';
+const SHELL = ['/staff/app', '/static/employee.css?v=20260930-2', '/static/employee.js?v=20261002-1',
   '/static/employee-drafts.js?v=20260930-2', '/staff/manifest.webmanifest', '/static/company-brand.js?v=1', '/brand/theme.css',
   '/brand/app-icon.png', '/static/brand/tampa-black.png'];
 self.addEventListener('install', event => {
