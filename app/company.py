@@ -236,8 +236,8 @@ def install(app, directory, require_admin, platform=True):
         if 'text/html' not in response.headers.get('content-type',''): return response
         body=b''.join([part async for part in response.body_iterator]).decode('utf-8')
         with transaction(db) as conn: shop=DEFAULTS|settings(conn)
-        if shop['brand_logo'] or shop['shop_name']!='Tampa Signs and Stickers':
-            logo='/brand/images/'+shop['brand_logo'] if shop['brand_logo'] else '/brand/app-icon.png'
+        if shop['brand_logo']:
+            logo='/brand/images/'+shop['brand_logo']
             body=re.sub(r'/static/brand/tampa-(?:black|white)\.png',logo,body)
             if not platform:
                 body=body.replace('/static/brand/favicon.png','/brand/app-icon.png')
