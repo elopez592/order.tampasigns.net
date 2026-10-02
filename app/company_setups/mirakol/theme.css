@@ -52,3 +52,6 @@ body:has(.public-masthead) .terms-document h2,body:has(.public-masthead) .terms-
 .hero-stamp{background-color:#000;background-image:var(--company-icon);background-size:contain;background-position:center;background-repeat:no-repeat;width:210px;height:210px;padding:0;box-shadow:none;transform:none;border:0;border-radius:0;font-size:0;color:transparent}
 .hero-stamp span{display:none}
 @media(max-width:650px){.hero-stamp{display:block;width:125px;height:125px;flex-shrink:0}.hero{gap:14px}.hero h1{font-size:36px}}
+.real-work-heading .eyebrow,.real-work-detail .eyebrow{color:#ffe600}
+.real-work-heading p,.real-work-detail p{color:#ccc}
+.real-work-card{background:#151515}.real-work-caption small{color:#ddd}
