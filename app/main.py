@@ -1009,9 +1009,11 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
         return {'ok': True, 'message': 'The shop will verify this payment in QuickBooks. The balance has not changed yet.'}
 
     @app.get('/api/staff/jobs')
-    def job_list(request: Request, user=Depends(require_staff)):
+    def job_list(request: Request, active_only: bool = False, user=Depends(require_staff)):
         with transaction(database) as conn:
-            rows = conn.execute('SELECT * FROM jobs WHERE archived=0 ORDER BY id DESC LIMIT 500').fetchall()
+            # Apply before LIMIT so completed jobs cannot crowd out active work.
+            condition = " AND (NOT EXISTS (SELECT 1 FROM tasks WHERE job_id=jobs.id) OR EXISTS (SELECT 1 FROM tasks WHERE job_id=jobs.id AND status!='done'))" if active_only else ''
+            rows = conn.execute('SELECT * FROM jobs WHERE archived=0' + condition + ' ORDER BY id DESC LIMIT 500').fetchall()
             return {'jobs': [serialize_job(conn, row, user['role'], detail=False) for row in rows],
                     'limit': 500, 'shop': settings(conn)['shop_name']}
 

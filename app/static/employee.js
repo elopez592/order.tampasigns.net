@@ -81,7 +81,7 @@ function loginView(message='') {
 }
 async function loadData() {
   const results=await Promise.allSettled([
-    api('/api/catalog'), api('/api/staff/clients'), api('/api/staff/jobs'),
+    api('/api/catalog'), api('/api/staff/clients'), api('/api/staff/jobs?active_only=true'),
     api('/api/staff/task-queue?scope=mine'), api('/api/staff/surveys')
   ]);
   if(!state.user) return;
@@ -101,6 +101,7 @@ function jobCard(job) {
   return `<a class="card clickable project" href="#job/${job.id}"><div class="row mb">${badge(job.number,'teal')}${badge(job.stage.replaceAll('_',' '))}${job.priority==='rush'?badge('Rush','amber'):''}</div><div class="project-top"><div><h3>${esc(job.title)}</h3><p class="meta">${esc(job.customer_name)}${job.due_date?' · Due '+esc(job.due_date):''}</p></div><strong class="amount">${money(job.totals.total_cents)}</strong></div><div class="row"><small class="muted grow">${job.tasks_done} / ${job.task_count} tasks complete</small>${icon('arrow')}</div><div class="progress"><span style="width:${job.task_count?Math.round(job.tasks_done/job.task_count*100):0}%"></span></div></a>`;
 }
 async function homeView() {
+  if(state.online)state.jobs=(await api('/api/staff/jobs?active_only=true')).jobs;
   const drafts=await listDrafts(state.user.id), mine=state.tasks;
   const active=state.jobs.filter(j=>j.assignee_id===state.user.id&&j.stage!=='complete');
   const first=mine.find(t=>t.status==='in_progress') || mine.find(t=>!t.blocked_reason);
@@ -297,7 +298,7 @@ function renderEstimatePrice() {
   node.innerHTML=price?`<section class="card mb">${price.quote.wholesale?`<p class="eyebrow">WHOLESALE · ${esc(price.quote.wholesale.name)}</p>`:''}${price.quote.lines.map(l=>`<div class="quote-line"><div><strong>${esc(l.name)}</strong><small>${esc(lineSpecs(l))} · Qty ${l.quantity}${l.material_label?' · '+esc(l.material_label):''}</small></div><strong>${money(l.sell_cents)}</strong></div>`).join('')}</section>${price.totals.owner_review_required?'<div class="notice">Saved as a draft for owner review of custom scope, installation or tax. Rates come from the current pricing system.</div>':''}<section class="money-summary"><div class="row"><small>Products & services</small><strong>${money(price.totals.subtotal_cents)}</strong></div><div class="row"><small>Sales tax (${esc(price.totals.tax_percent)}%)</small><strong>${money(price.totals.tax_cents)}</strong></div><div class="row total"><span>Estimated total</span><strong>${money(price.totals.total_cents)}</strong></div><small>Includes configured sales tax · Pickup / local scope. Review location-specific tax and delivery with the owner.</small></section><button type="button" class="btn primary wide mt" data-action="save-estimate">${icon('check')} Create order estimate</button>`:'';
 }
 async function estimatesView() {
-  const data=await api('/api/staff/jobs');state.jobs=data.jobs;
+  const data=await api('/api/staff/jobs?active_only=true');state.jobs=data.jobs;
   shell(heading('FROM ESTIMATE TO ORDER','Projects & estimates.','Use the same scope, pricing, invoices and proof history.',`<a class="icon-button" href="#estimate/new" aria-label="New estimate">${icon('plus')}</a>`)+`<input class="search" id="estimate-search" type="search" placeholder="Search project, order or customer" aria-label="Search estimates"><div class="stack" id="estimate-list">${state.jobs.map(jobCard).join('')||empty('No order estimates yet.','file')}</div>`,'estimates');
 }
 async function jobView(id) {
@@ -413,7 +414,7 @@ async function action(button) {
   if(name==='close-dialog'){dialog.close();return;}
   if(name==='refresh'){await loadData();await route();return;}
   if(name==='queue-filter'){state.queue=value;await queueView();return;}
-  if(name==='task'){await api('/api/staff/tasks/'+id+'/action',{method:'POST',body:{action:button.dataset.op}});toast(button.dataset.op==='claim'?'Task accepted — it’s in your queue.':'Task updated.');if(state.route.startsWith('job/'))await jobView(state.job.id);else {state.tasks=(await api('/api/staff/task-queue?scope=mine')).tasks;if(state.route==='tasks')await queueView();else await homeView();}return;}
+  if(name==='task'){await api('/api/staff/tasks/'+id+'/action',{method:'POST',body:{action:button.dataset.op}});toast(button.dataset.op==='claim'?'Task accepted — it’s in your queue.':'Task updated.');await loadData();if(state.route.startsWith('job/'))await jobView(state.job.id);else {state.tasks=(await api('/api/staff/task-queue?scope=mine')).tasks;if(state.route==='tasks')await queueView();else await homeView();}return;}
   if(name==='task-note'){showDialog('What is blocking this task?',`<form data-form="task-block" data-id="${id}">${noteField('note','Reason / next step')}<div data-errors></div><button type="submit" class="btn primary wide">Save blocker</button></form>`);return;}
   if(name==='account'){showDialog('Your staff app',`<p><strong>${esc(state.user.name)}</strong><br>${esc(state.user.email)}<br>${owner()?'Owner / admin':'Employee'}</p><p>iPhone: open this page in Safari, tap Share, then Add to Home Screen.<br>Android: use Chrome’s Install app / Add to Home Screen option.</p><p>Survey drafts stay on this device until you sync them. Return to the app while connected to upload.</p><a class="btn wide" href="/staff" target="_blank" rel="noopener">Open shop workspace</a>`,`${state.installPrompt?'<button class="btn primary wide" data-action="install">Install app</button>':''}<button class="btn wide" data-action="password">Change password</button><button class="btn danger wide" data-action="logout">Sign out</button>`);return;}
   if(name==='install'){await state.installPrompt.prompt();state.installPrompt=null;dialog.close();return;}
