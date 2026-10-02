@@ -1944,6 +1944,16 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
     @app.get('/industries/{slug}', response_class=HTMLResponse)
     def frontend(request: Request):
         path = request.url.path
+        if path == '/':
+            default_product = company_media.public_media(app).get('default_product')
+            if default_product:
+                with transaction(database) as conn:
+                    product = conn.execute('SELECT name FROM products WHERE name=? AND public=1 AND active=1', (default_product,)).fetchone()
+                if product:
+                    target = '/products/' + product_slug(product['name'])
+                    if request.url.query:
+                        target += '?' + request.url.query
+                    return RedirectResponse(target, status_code=302, headers={'Cache-Control': 'no-store'})
         if path in ('/','/products'):
             with transaction(database) as conn:
                 shop=settings(conn)

@@ -21,3 +21,13 @@ def test_mirakol_catalog_has_complete_private_media(env):
     # The mockups are real public website assets, not broken metadata references.
     image=child.get(media['products']['Custom T-shirts']['image'])
     assert image.status_code==200 and image.content[:4]==b'RIFF'
+
+    landing=child.get('/?ref=customer',follow_redirects=False)
+    assert landing.status_code==302
+    assert landing.headers['location']=='/products/embroidered-hats?ref=customer'
+    assert child.get('/products/embroidered-hats').status_code==200
+    assert child.get('/products/custom-t-shirts',follow_redirects=False).status_code==200
+    assert child.get('/products',follow_redirects=False).status_code==200
+    assert child.get('/staff',follow_redirects=False).status_code==200
+    assert admin.get('/',follow_redirects=False).status_code==200
+    assert other.get('/',follow_redirects=False).status_code==200

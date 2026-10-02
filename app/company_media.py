@@ -15,4 +15,4 @@ def public_media(app):
         return {}
     data = json.loads(manifest.read_text())
     return {key: data.get(key, {} if key == 'products' else [] if key == 'projects' else '')
-            for key in ('products', 'projects', 'instagram')}
+            for key in ('products', 'projects', 'instagram', 'default_product')}
