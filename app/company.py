@@ -252,6 +252,8 @@ def install(app, directory, require_admin, platform=True):
             if not platform:
                 body=body.replace('/static/brand/favicon.png','/brand/app-icon.png')
             body=body.replace('Tampa Signs and Stickers',html.escape(shop['shop_name'])).replace('Tampa Signs Staff',html.escape(shop['shop_name']+' Staff')).replace('Tampa Signs · Staff',html.escape(shop['shop_name']+' · Staff')).replace('(813) 749-4500',html.escape(shop['contact_phone']))
+        if not platform and shop['brand_icon']:
+            body=body.replace('/static/brand/favicon.png','/brand/app-icon.png')
         body=body.replace('/static/employee.webmanifest?v=20261001-3','/staff/manifest.webmanifest').replace('/static/employee.webmanifest','/staff/manifest.webmanifest')
         body=body.replace('/staff/apple-touch-icon-20261001.png','/brand/app-icon.png')
         body=body.replace('/brand/app-icon.png',icon_url(shop))
