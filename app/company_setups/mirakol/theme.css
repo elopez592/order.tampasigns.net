@@ -38,3 +38,12 @@ body:has(.public-masthead) .quantity-btn,body:has(.public-masthead) input,body:h
 body:has(.public-masthead) .btn.light{background:#222;color:#fff}
 body:has(.public-masthead) .field>span,body:has(.public-masthead) .field>label{color:#ddd}
 body:has(.public-masthead) .public-header .nav-links{color:#ddd}
+
+body:has(.public-masthead) .coverage-card,body:has(.public-masthead) .dimension-row,body:has(.public-masthead) .embroidery-extra,body:has(.public-masthead) .usdot-size-first,body:has(.public-masthead) .product-help-card,body:has(.public-masthead) .finder-step,body:has(.public-masthead) .account-business-summary{background:#151515;color:#f5f5f5}
+body:has(.public-masthead) .coverage-card.selected{background:#292000;box-shadow:0 0 0 3px #ffa50022}
+body:has(.public-masthead) .coverage-card:hover{border-color:#ffa500}
+body:has(.public-masthead) .catalog-icon{background:#292000;color:#ffe600}
+body:has(.public-masthead) .step-number{background:#333;color:#ffe600}
+body:has(.public-masthead) .btn.ghost{color:#ffe600}
+body:has(.public-masthead) .terms-section-links a,body:has(.public-masthead) .terms-confirmation,body:has(.public-masthead) .approval-agreement{background:#222;color:#eee;border-color:#555}
+body:has(.public-masthead) .terms-document h2,body:has(.public-masthead) .terms-confirmation h2{color:#ffe600}
