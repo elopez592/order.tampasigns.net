@@ -24,8 +24,9 @@ CREATE TABLE IF NOT EXISTS company_draft (
  data TEXT NOT NULL, updated_at TEXT NOT NULL
 );
 '''
-FIELDS = ('shop_name','contact_email','contact_phone','business_address','business_hours','brand_primary','brand_dark','app_short_name','brand_logo','brand_icon')
-DEFAULTS = dict(business_address='',business_hours='',brand_primary='#f28a3b',brand_dark='#102426',app_short_name='TS Staff',brand_logo='',brand_icon='')
+STOREFRONT_FIELDS = ('storefront_heading','storefront_description','storefront_eyebrow','storefront_stamp','storefront_category_order')
+FIELDS = ('shop_name','contact_email','contact_phone','business_address','business_hours','brand_primary','brand_dark','app_short_name','brand_logo','brand_icon') + STOREFRONT_FIELDS
+DEFAULTS = dict(business_address='',business_hours='',brand_primary='#f28a3b',brand_dark='#102426',app_short_name='TS Staff',brand_logo='',brand_icon='') | dict.fromkeys(STOREFRONT_FIELDS,'')
 
 
 def enrich_user(app, user):
@@ -51,7 +52,7 @@ def validate(data):
     result={}
     for key in FIELDS:
         value=data.get(key,DEFAULTS.get(key,''))
-        result[key]=text(value,key,1000 if key=='business_hours' else 500 if key=='business_address' else 120, key=='shop_name')
+        result[key]=text(value,key,1000 if key in ('business_hours','storefront_description') else 500 if key in ('business_address','storefront_category_order') else 120, key=='shop_name')
     result['contact_email']=email(result['contact_email']) if result['contact_email'] else ''
     result['app_short_name']=text(result['app_short_name'],'App short name',12,True)
     for key in ('brand_primary','brand_dark'):
@@ -152,7 +153,10 @@ def install(app, directory, require_admin, platform=True):
         with transaction(db) as conn: shop=DEFAULTS|settings(conn)
         primary=shop['brand_primary'];dark=shop['brand_dark']
         if not re.fullmatch(r'#[0-9a-fA-F]{6}',primary+'' ) or not re.fullmatch(r'#[0-9a-fA-F]{6}',dark): raise HTTPException(422,'Invalid colors.')
-        return Response(f':root{{--teal:{primary};--accent:{primary};--brand-orange:{primary};--ink:{dark}}}.btn.primary{{background:{primary}}}.sidebar,.login-art{{background:{dark}}}' if shop.get('brand_custom') else '',media_type='text/css')
+        channels=[int(primary[i:i+2],16)/255 for i in (1,3,5)]
+        linear=[v/12.92 if v<=0.04045 else ((v+0.055)/1.055)**2.4 for v in channels]
+        foreground='#000000' if sum(v*w for v,w in zip(linear,(0.2126,0.7152,0.0722)))>0.179 else '#ffffff'
+        return Response(f':root{{--teal:{primary};--accent:{primary};--brand-orange:{primary};--ink:{dark}}}.btn.primary{{background:{primary};color:{foreground}}}.sidebar,.login-art{{background:{dark}}}' if shop.get('brand_custom') else '',media_type='text/css')
 
     @app.get('/staff/manifest.webmanifest')
     def manifest():
@@ -164,7 +168,7 @@ def install(app, directory, require_admin, platform=True):
         with transaction(db) as conn: shop=DEFAULTS|settings(conn)
         if shop['brand_icon'] and (brand/shop['brand_icon']).is_file():
             image=Image.open(brand/shop['brand_icon']).convert('RGBA');image.thumbnail((180,180))
-            canvas=Image.new('RGBA',(180,180),shop['brand_dark']);canvas.alpha_composite(image,((180-image.width)//2,(180-image.height)//2))
+            canvas=Image.new('RGBA',(180,180),(0,0,0,0));canvas.alpha_composite(image,((180-image.width)//2,(180-image.height)//2))
         elif not shop.get('brand_custom') and not shop.get('brand_icon'):
             import base64
             from .staff_icon_data import ICON_PNG_B64
