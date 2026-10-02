@@ -1,0 +1,600 @@
+{
+  "id": "mirakol-storefront-20261002-v1",
+  "hostname": "mirakol.tampasigns.net",
+  "name": "Mirakol Customs",
+  "note": "Mirakol apparel, event and promotional storefront setup",
+  "images": {
+    "brand_logo": "logo.png",
+    "brand_icon": "icon.png"
+  },
+  "branding": {
+    "brand_primary": "#ffa500",
+    "brand_dark": "#000000",
+    "app_short_name": "Mirakol",
+    "storefront_heading": "Wear your brand. Make an impression.",
+    "storefront_description": "Custom apparel, sublimation, DTF and embroidery. Bring your brand to events with table covers, backdrops and displays, or create signs, stickers and laser-engraved promotional products.",
+    "storefront_eyebrow": "MIRAKOL CUSTOMS / APPAREL / EVENTS / PROMOTIONAL PRODUCTS",
+    "storefront_stamp": "YOUR BRAND. YOUR MOMENT.",
+    "storefront_category_order": "Apparel, Events, Promotional Products, Signs, Stickers, Vehicles, Storefront, Fleet Services, Construction & Site Signs"
+  },
+  "workflows": [
+    {
+      "name": "Apparel production",
+      "production": [
+        [
+          "Prepare transfers or digitize artwork",
+          "Prepress"
+        ],
+        [
+          "Print, press or embroider garments",
+          "Production"
+        ],
+        [
+          "Check placement, finish and pack",
+          "Quality"
+        ]
+      ]
+    },
+    {
+      "name": "Laser cutting and engraving",
+      "production": [
+        [
+          "Prepare engraving and cut files",
+          "Prepress"
+        ],
+        [
+          "Laser cut or engrave approved material",
+          "Fabrication"
+        ],
+        [
+          "Finish, inspect and pack",
+          "Quality"
+        ]
+      ]
+    },
+    {
+      "name": "Event displays",
+      "production": [
+        [
+          "Prepare print files and confirm display hardware",
+          "Prepress"
+        ],
+        [
+          "Print graphics and finish display components",
+          "Production"
+        ],
+        [
+          "Inspect fit, hardware and packing",
+          "Quality"
+        ]
+      ]
+    }
+  ],
+  "products": [
+    {
+      "name": "Sublimation printing",
+      "category": "Apparel",
+      "workflow": "Apparel production",
+      "config": {
+        "unit": "piece",
+        "sell_per_sqft": "0",
+        "cost_per_sqft": "0",
+        "setup_price": "0",
+        "setup_cost": "0",
+        "minimum_price": "0",
+        "labor_minutes_per_unit": "0",
+        "waste_percent": "0",
+        "instant": false,
+        "quote_only": true,
+        "quantity_only": true,
+        "quantity_only_note": "Share your specifications and artwork. Final price is provided after shop review.",
+        "description": "Sublimation apparel and personalized products with vibrant full-color artwork. Tell us the item, sizes, quantity and deadline for a custom quote.",
+        "storefront_categories": [
+          "Apparel"
+        ],
+        "default_width": "12",
+        "default_height": "12",
+        "max_width": "10000",
+        "max_height": "10000",
+        "quantity_presets": [
+          1,
+          5,
+          10,
+          25,
+          50,
+          100
+        ]
+      }
+    },
+    {
+      "name": "DTF transfers",
+      "category": "Apparel",
+      "workflow": "Apparel production",
+      "config": {
+        "unit": "piece",
+        "sell_per_sqft": "0",
+        "cost_per_sqft": "0",
+        "setup_price": "0",
+        "setup_cost": "0",
+        "minimum_price": "0",
+        "labor_minutes_per_unit": "0",
+        "waste_percent": "0",
+        "instant": false,
+        "quote_only": true,
+        "quantity_only": true,
+        "quantity_only_note": "Share your specifications and artwork. Final price is provided after shop review.",
+        "description": "Ready-to-press direct-to-film transfers for apparel. Upload individual designs or a gang sheet and share print sizes and quantities. Pressing and garments can be quoted separately.",
+        "storefront_categories": [
+          "Apparel"
+        ],
+        "default_width": "12",
+        "default_height": "12",
+        "max_width": "10000",
+        "max_height": "10000",
+        "quantity_presets": [
+          1,
+          5,
+          10,
+          25,
+          50,
+          100
+        ]
+      }
+    },
+    {
+      "name": "DTF printed apparel",
+      "category": "Apparel",
+      "workflow": "Apparel production",
+      "config": {
+        "unit": "piece",
+        "sell_per_sqft": "0",
+        "cost_per_sqft": "0",
+        "setup_price": "0",
+        "setup_cost": "0",
+        "minimum_price": "0",
+        "labor_minutes_per_unit": "0",
+        "waste_percent": "0",
+        "instant": false,
+        "quote_only": true,
+        "quantity_only": true,
+        "quantity_only_note": "Share your specifications and artwork. Final price is provided after shop review.",
+        "description": "Custom DTF-printed shirts, hoodies and other garments. Send your artwork, garment types, colors, sizes and quantities for a tailored quote.",
+        "storefront_categories": [
+          "Apparel"
+        ],
+        "default_width": "12",
+        "default_height": "12",
+        "max_width": "10000",
+        "max_height": "10000",
+        "quantity_presets": [
+          1,
+          5,
+          10,
+          25,
+          50,
+          100
+        ]
+      }
+    },
+    {
+      "name": "Custom embroidery",
+      "category": "Apparel",
+      "workflow": "Apparel production",
+      "config": {
+        "unit": "piece",
+        "sell_per_sqft": "0",
+        "cost_per_sqft": "0",
+        "setup_price": "0",
+        "setup_cost": "0",
+        "minimum_price": "0",
+        "labor_minutes_per_unit": "0",
+        "waste_percent": "0",
+        "instant": false,
+        "quote_only": true,
+        "quantity_only": true,
+        "quantity_only_note": "Share your specifications and artwork. Final price is provided after shop review.",
+        "description": "Embroidered logos on hats, polos, jackets and other apparel. Share garment types, placements, quantities and artwork for digitizing and production review.",
+        "storefront_categories": [
+          "Apparel"
+        ],
+        "default_width": "12",
+        "default_height": "12",
+        "max_width": "10000",
+        "max_height": "10000",
+        "quantity_presets": [
+          1,
+          5,
+          10,
+          25,
+          50,
+          100
+        ]
+      }
+    },
+    {
+      "name": "Engraved pens",
+      "category": "Promotional Products",
+      "workflow": "Laser cutting and engraving",
+      "config": {
+        "unit": "piece",
+        "sell_per_sqft": "0",
+        "cost_per_sqft": "0",
+        "setup_price": "0",
+        "setup_cost": "0",
+        "minimum_price": "0",
+        "labor_minutes_per_unit": "0",
+        "waste_percent": "0",
+        "instant": false,
+        "quote_only": true,
+        "quantity_only": true,
+        "quantity_only_note": "Share your specifications and artwork. Final price is provided after shop review.",
+        "description": "Personalized pens engraved with names, logos or business details. Material, engraving area and quantity are confirmed before production.",
+        "storefront_categories": [
+          "Promotional Products"
+        ],
+        "default_width": "12",
+        "default_height": "12",
+        "max_width": "10000",
+        "max_height": "10000",
+        "quantity_presets": [
+          1,
+          5,
+          10,
+          25,
+          50,
+          100
+        ]
+      }
+    },
+    {
+      "name": "Custom name tags",
+      "category": "Promotional Products",
+      "workflow": "Laser cutting and engraving",
+      "config": {
+        "unit": "piece",
+        "sell_per_sqft": "0",
+        "cost_per_sqft": "0",
+        "setup_price": "0",
+        "setup_cost": "0",
+        "minimum_price": "0",
+        "labor_minutes_per_unit": "0",
+        "waste_percent": "0",
+        "instant": false,
+        "quote_only": true,
+        "quantity_only": true,
+        "quantity_only_note": "Share your specifications and artwork. Final price is provided after shop review.",
+        "description": "Laser-cut or engraved name tags for teams and events. Choose the size, material, names, logo and preferred attachment for a custom quote.",
+        "storefront_categories": [
+          "Promotional Products"
+        ],
+        "default_width": "12",
+        "default_height": "12",
+        "max_width": "10000",
+        "max_height": "10000",
+        "quantity_presets": [
+          1,
+          5,
+          10,
+          25,
+          50,
+          100
+        ]
+      }
+    },
+    {
+      "name": "Laser-cut promotional products",
+      "category": "Promotional Products",
+      "workflow": "Laser cutting and engraving",
+      "config": {
+        "unit": "piece",
+        "sell_per_sqft": "0",
+        "cost_per_sqft": "0",
+        "setup_price": "0",
+        "setup_cost": "0",
+        "minimum_price": "0",
+        "labor_minutes_per_unit": "0",
+        "waste_percent": "0",
+        "instant": false,
+        "quote_only": true,
+        "quantity_only": true,
+        "quantity_only_note": "Share your specifications and artwork. Final price is provided after shop review.",
+        "description": "Custom laser-cut and engraved marketing items, keychains, branded giveaways and personalized pieces. Share the material, artwork, size and quantity for a quote.",
+        "storefront_categories": [
+          "Promotional Products"
+        ],
+        "default_width": "12",
+        "default_height": "12",
+        "max_width": "10000",
+        "max_height": "10000",
+        "quantity_presets": [
+          1,
+          5,
+          10,
+          25,
+          50,
+          100
+        ]
+      }
+    },
+    {
+      "name": "Custom table covers",
+      "category": "Events",
+      "workflow": "Event displays",
+      "config": {
+        "unit": "piece",
+        "sell_per_sqft": "0",
+        "cost_per_sqft": "0",
+        "setup_price": "0",
+        "setup_cost": "0",
+        "minimum_price": "0",
+        "labor_minutes_per_unit": "0",
+        "waste_percent": "0",
+        "instant": false,
+        "quote_only": true,
+        "quantity_only": true,
+        "quantity_only_note": "Share your specifications and artwork. Final price is provided after shop review.",
+        "description": "Branded table covers for trade shows, pop-ups and events. Fitted, stretch or draped styles are quoted to match your table dimensions and artwork.",
+        "storefront_categories": [
+          "Events"
+        ],
+        "default_width": "12",
+        "default_height": "12",
+        "max_width": "10000",
+        "max_height": "10000",
+        "quantity_presets": [
+          1,
+          5,
+          10,
+          25,
+          50,
+          100
+        ]
+      }
+    },
+    {
+      "name": "Table runners",
+      "category": "Events",
+      "workflow": "Event displays",
+      "config": {
+        "unit": "piece",
+        "sell_per_sqft": "0",
+        "cost_per_sqft": "0",
+        "setup_price": "0",
+        "setup_cost": "0",
+        "minimum_price": "0",
+        "labor_minutes_per_unit": "0",
+        "waste_percent": "0",
+        "instant": false,
+        "quote_only": true,
+        "quantity_only": true,
+        "quantity_only_note": "Share your specifications and artwork. Final price is provided after shop review.",
+        "description": "Custom printed table runners for booths, displays and events. Share your table dimensions, runner size, artwork and quantity.",
+        "storefront_categories": [
+          "Events"
+        ],
+        "default_width": "12",
+        "default_height": "12",
+        "max_width": "10000",
+        "max_height": "10000",
+        "quantity_presets": [
+          1,
+          5,
+          10,
+          25,
+          50,
+          100
+        ]
+      }
+    },
+    {
+      "name": "Event backdrops",
+      "category": "Events",
+      "workflow": "Event displays",
+      "config": {
+        "unit": "piece",
+        "sell_per_sqft": "0",
+        "cost_per_sqft": "0",
+        "setup_price": "0",
+        "setup_cost": "0",
+        "minimum_price": "0",
+        "labor_minutes_per_unit": "0",
+        "waste_percent": "0",
+        "instant": false,
+        "quote_only": true,
+        "quantity_only": true,
+        "quantity_only_note": "Share your specifications and artwork. Final price is provided after shop review.",
+        "description": "Full-color fabric or printed backdrops for events and promotional displays. Size, material, finishing, stand requirements and deadline are confirmed in your quote.",
+        "storefront_categories": [
+          "Events"
+        ],
+        "default_width": "12",
+        "default_height": "12",
+        "max_width": "10000",
+        "max_height": "10000",
+        "quantity_presets": [
+          1,
+          5,
+          10,
+          25,
+          50,
+          100
+        ]
+      }
+    },
+    {
+      "name": "Step-and-repeat backdrops",
+      "category": "Events",
+      "workflow": "Event displays",
+      "config": {
+        "unit": "piece",
+        "sell_per_sqft": "0",
+        "cost_per_sqft": "0",
+        "setup_price": "0",
+        "setup_cost": "0",
+        "minimum_price": "0",
+        "labor_minutes_per_unit": "0",
+        "waste_percent": "0",
+        "instant": false,
+        "quote_only": true,
+        "quantity_only": true,
+        "quantity_only_note": "Share your specifications and artwork. Final price is provided after shop review.",
+        "description": "Logo-pattern backdrops for photos, launches and sponsored events. Share the finished size, logos, quantity and whether you need a stand.",
+        "storefront_categories": [
+          "Events"
+        ],
+        "default_width": "12",
+        "default_height": "12",
+        "max_width": "10000",
+        "max_height": "10000",
+        "quantity_presets": [
+          1,
+          5,
+          10,
+          25,
+          50,
+          100
+        ]
+      }
+    },
+    {
+      "name": "Retractable banners",
+      "category": "Events",
+      "workflow": "Event displays",
+      "config": {
+        "unit": "piece",
+        "sell_per_sqft": "0",
+        "cost_per_sqft": "0",
+        "setup_price": "0",
+        "setup_cost": "0",
+        "minimum_price": "0",
+        "labor_minutes_per_unit": "0",
+        "waste_percent": "0",
+        "instant": false,
+        "quote_only": true,
+        "quantity_only": true,
+        "quantity_only_note": "Share your specifications and artwork. Final price is provided after shop review.",
+        "description": "Portable retractable banner displays for events, shops and presentations. Select your size and tell us whether you need hardware or a replacement graphic.",
+        "storefront_categories": [
+          "Events"
+        ],
+        "default_width": "12",
+        "default_height": "12",
+        "max_width": "10000",
+        "max_height": "10000",
+        "quantity_presets": [
+          1,
+          5,
+          10,
+          25,
+          50,
+          100
+        ]
+      }
+    },
+    {
+      "name": "Custom tent graphics",
+      "category": "Events",
+      "workflow": "Event displays",
+      "config": {
+        "unit": "piece",
+        "sell_per_sqft": "0",
+        "cost_per_sqft": "0",
+        "setup_price": "0",
+        "setup_cost": "0",
+        "minimum_price": "0",
+        "labor_minutes_per_unit": "0",
+        "waste_percent": "0",
+        "instant": false,
+        "quote_only": true,
+        "quantity_only": true,
+        "quantity_only_note": "Share your specifications and artwork. Final price is provided after shop review.",
+        "description": "Branded canopy, valance and tent wall graphics for outdoor events. Share tent dimensions, required panels and artwork for a custom quote.",
+        "storefront_categories": [
+          "Events"
+        ],
+        "default_width": "12",
+        "default_height": "12",
+        "max_width": "10000",
+        "max_height": "10000",
+        "quantity_presets": [
+          1,
+          5,
+          10,
+          25,
+          50,
+          100
+        ]
+      }
+    },
+    {
+      "name": "Feather flags",
+      "category": "Events",
+      "workflow": "Event displays",
+      "config": {
+        "unit": "piece",
+        "sell_per_sqft": "0",
+        "cost_per_sqft": "0",
+        "setup_price": "0",
+        "setup_cost": "0",
+        "minimum_price": "0",
+        "labor_minutes_per_unit": "0",
+        "waste_percent": "0",
+        "instant": false,
+        "quote_only": true,
+        "quantity_only": true,
+        "quantity_only_note": "Share your specifications and artwork. Final price is provided after shop review.",
+        "description": "Printed feather and teardrop flags for events and business promotions. Height, base, pole hardware and single- or double-sided printing are quoted to your needs.",
+        "storefront_categories": [
+          "Events"
+        ],
+        "default_width": "12",
+        "default_height": "12",
+        "max_width": "10000",
+        "max_height": "10000",
+        "quantity_presets": [
+          1,
+          5,
+          10,
+          25,
+          50,
+          100
+        ]
+      }
+    },
+    {
+      "name": "Event signage",
+      "category": "Events",
+      "workflow": "Event displays",
+      "config": {
+        "unit": "piece",
+        "sell_per_sqft": "0",
+        "cost_per_sqft": "0",
+        "setup_price": "0",
+        "setup_cost": "0",
+        "minimum_price": "0",
+        "labor_minutes_per_unit": "0",
+        "waste_percent": "0",
+        "instant": false,
+        "quote_only": true,
+        "quantity_only": true,
+        "quantity_only_note": "Share your specifications and artwork. Final price is provided after shop review.",
+        "description": "Directional signs, welcome boards and branded event displays. Tell us the sizes, materials, quantity and placement requirements.",
+        "storefront_categories": [
+          "Events"
+        ],
+        "default_width": "12",
+        "default_height": "12",
+        "max_width": "10000",
+        "max_height": "10000",
+        "quantity_presets": [
+          1,
+          5,
+          10,
+          25,
+          50,
+          100
+        ]
+      }
+    }
+  ]
+}

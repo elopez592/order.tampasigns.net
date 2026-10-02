@@ -506,7 +506,7 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
                             'artwork_upload_disabled': False}
                 products.append({k: row[k] for k in ('id','name','category','version')} | {
                     'config': {k: cfg.get(k, defaults.get(k)) for k in keys}})
-            return {'products': products, 'shop': {k: shop.get(k,'') for k in ('shop_name','contact_email','contact_phone','rates_live','quote_note','business_address','business_hours','brand_logo','brand_custom')},
+            return {'products': products, 'shop': {k: shop.get(k,'') for k in ('shop_name','contact_email','contact_phone','rates_live','quote_note','business_address','business_hours','brand_logo','brand_custom','storefront_heading','storefront_description','storefront_eyebrow','storefront_stamp','storefront_category_order')},
                     'checkout': availability(shop, app.state.gateway), 'notifications': email_status(),
                     'job_terms': job_terms.public_terms(), 'approval_statement': APPROVAL_STATEMENT,
                     'rewards': rewards.public_config(shop)}
@@ -1944,6 +1944,12 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
     @app.get('/industries/{slug}', response_class=HTMLResponse)
     def frontend(request: Request):
         path = request.url.path
+        if path in ('/','/products'):
+            with transaction(database) as conn:
+                shop=settings(conn)
+            if shop.get('storefront_heading'):
+                title=shop['shop_name']+' | '+shop['storefront_heading']
+                return HTMLResponse(seo_html(title,shop.get('storefront_description',''),public_url+path),headers={'Cache-Control':'no-cache'})
         if path == '/products':
             return HTMLResponse(seo_html('Custom Signs, Wraps, Decals and Apparel | Tampa Signs', 'Browse custom signs, vehicle wraps, window graphics, decals, banners, apparel and event displays from Tampa Signs and Stickers.', public_url + '/products'), headers={'Cache-Control': 'no-cache'})
         if path == '/':

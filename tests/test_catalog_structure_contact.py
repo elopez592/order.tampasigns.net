@@ -24,7 +24,7 @@ def test_catalog_uses_broad_categories_and_reassigned_acrylic_photos(env):
     js = client.get('/static/app.js').text
     css = client.get('/static/styles.css').text
 
-    assert "const storefrontCategories=['Storefront','Vehicles','Fleet Services','Construction & Site Signs','Events','Stickers','Signs','Apparel']" in js
+    assert "const storefrontCategories=['Storefront','Vehicles','Fleet Services','Construction & Site Signs','Events','Stickers','Signs','Apparel','Promotional Products']" in js
     assert "Trailers / Food Trucks" not in js
     assert "return 'Vehicle Window Tinting'" in js
     assert "return 'Storefront Window Tinting'" in js

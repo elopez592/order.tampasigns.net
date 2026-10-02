@@ -43,9 +43,13 @@ def company_config(directory, row):
 
 def make_company(directory,row,root=None):
     from .main import create_app
+    existing=(directory/'companies'/row['slug']/'signshop.sqlite3').exists()
     token=configuration.set(company_config(directory,row))
     try:
         child=create_app(directory/'companies'/row['slug'],demo=False,platform=False)
+        if existing:
+            from .company_setup import apply_setup
+            apply_setup(child,row)
         child.state.seat_limit=row['seats']
         if root is not None:
             child.state.support_root=root
