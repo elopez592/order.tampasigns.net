@@ -5,3 +5,4 @@ python-multipart==0.0.29
 Pillow==12.3.0
 httpx==0.28.1
 qrcode==8.2
+stripe==15.6.0

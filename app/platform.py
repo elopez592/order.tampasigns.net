@@ -74,18 +74,19 @@ def install(app,directory,require_admin):
     def owner(request:Request,user=Depends(require_admin)):
         if not user.get('platform_owner'): raise HTTPException(403,'Platform owner access required.')
         return user
+    from .subscriptions import install_platform as install_billing, accessible
+    install_billing(app,owner)
     reserved={urlsplit(app.state.public_url).hostname,'orders.tampasigns.net','ordertampasignsnet-production.up.railway.app'}
     reserved.update(x.strip() for x in str(getenv('ALLOWED_HOSTS','')).split(','))
 
     def validate_support(conn, session_hash, address, slug, hostname):
         expected=str(os.getenv('PLATFORM_OWNER_EMAIL',os.getenv('ADMIN_EMAIL','owner@example.test'))).lower()
         operator=conn.execute('SELECT u.email,u.role,u.active FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?',(session_hash,time.time())).fetchone()
-        company=conn.execute('SELECT hostname,status,trial_ends FROM platform_companies WHERE slug=?',(slug,)).fetchone()
+        company=conn.execute('SELECT * FROM platform_companies WHERE slug=?',(slug,)).fetchone()
         if not operator or not company: return False
         from datetime import date
         return bool(operator['active'] and operator['role']=='admin' and operator['email'].lower()==expected==address.lower()
-                    and company['hostname']==hostname and company['status'] not in ('suspended','closed')
-                    and not (company['status']=='trial' and company['trial_ends'] and date.today()>date.fromisoformat(company['trial_ends'])))
+                    and company['hostname']==hostname and accessible(dict(company)))
     app.state.validate_support=validate_support
 
     @app.post('/api/platform/companies/{slug}/support')
@@ -115,7 +116,7 @@ def install(app,directory,require_admin):
             row['url']='https://'+row['hostname'] if row['hostname'] else None
             cfg=company_config(directory,row)
             row['connections']={key:bool(cfg.get(key)) for key in CONNECTIONS}
-        return {'companies':rows,'billing_mode':'manual','billing_message':'Contracts and access are managed here. Automatic subscription charging is not connected; these prices do not charge customers.'}
+        return {'companies':rows,'billing_mode':'subscriptions','billing_message':'Manage plans and billing below. Tampa is included; free pilot companies are never charged. Company order-payment connections remain separate.'}
 
     @app.post('/api/platform/companies')
     def create(payload:dict=Body(...),user=Depends(owner)):
@@ -141,6 +142,8 @@ def install(app,directory,require_admin):
                 child_conn.execute('DELETE FROM company_revisions')
                 record_revision(child_conn,shop,user['email'],'Company created from standard catalog')
             conn.execute('INSERT INTO platform_companies(slug,name,owner_email,hostname,created_at,updated_at) VALUES(?,?,?,?,?,?)',(slug,name,address,hostname,now(),now()))
+            if slug=='mirakol' and name=='Mirakol Customs' and hostname=='mirakol.tampasigns.net':
+                conn.execute("UPDATE platform_companies SET billing_mode='pilot',plan_id='studio',subscription_status='active',monthly_cents=0,setup_cents=0,seats=10 WHERE slug=?",(slug,))
             audit(conn,None,user['email'],'platform.company_created',{'slug':slug})
         app.state.company_apps[slug]=child
         password=next((p for role,e,p in child.state.initial_credentials if role=='Owner'),None)
@@ -209,12 +212,13 @@ class CompanyRouter:
             record=conn.execute('SELECT * FROM platform_companies WHERE hostname=?',(host,)).fetchone()
         if not record: return await JSONResponse({'detail':'Company domain not registered.'},404)(scope,receive,send)
         row=dict(record)
-        if row['status'] in ('suspended','closed'):
-            return await JSONResponse({'detail':'This company workspace is paused. Contact the platform owner.'},403)(scope,receive,send)
-        if row['status']=='trial' and row['trial_ends']:
-            from datetime import date
-            if date.today()>date.fromisoformat(row['trial_ends']):
-                return await JSONResponse({'detail':'Your trial has ended. Contact the platform owner to activate your subscription.'},403)(scope,receive,send)
+        from .subscriptions import accessible
+        path=scope.get('path','')
+        recovery=path in ('/staff/billing','/api/session','/api/auth/login','/api/auth/logout','/api/auth/password','/api/brand') or path.startswith(('/api/company/billing','/static/','/brand/'))
+        if not accessible(row) and not recovery:
+            if 'text/html' in headers.get(b'accept',b'').decode():
+                return await HTMLResponse('<h1>Workspace access is paused</h1><p>Your company data is retained. The owner can review billing or restore pilot access.</p><a href="/staff/billing">Open billing</a>',status_code=403)(scope,receive,send)
+            return await JSONResponse({'detail':'Workspace access is paused. Open Billing to restore subscription access.','billing_url':'/staff/billing'},403)(scope,receive,send)
         async with self.lock:
             child=self.root.state.company_apps.get(row['slug'])
             if child is None:

@@ -233,6 +233,9 @@ def install(app, directory, require_admin, platform=True):
         headers={k:v for k,v in response.headers.items() if k.lower() not in ('content-length','content-encoding')}
         return HTMLResponse(body,status_code=response.status_code,headers=headers)
 
+    from .subscriptions import install_company as install_billing
+    install_billing(app,require_admin)
+
     from .access import install as install_access
     install_access(app,require_admin)
 

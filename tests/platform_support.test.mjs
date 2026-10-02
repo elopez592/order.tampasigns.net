@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-const source=readFileSync(new URL('../app/static/platform.js',import.meta.url),'utf8');
+const source=readFileSync(new URL('../app/static/platform.js',import.meta.url),'utf8').replace(/^import .*;\n/m,'');
 async function setup({blocked=false,fail=false}={}){
  const root={innerHTML:''},error={textContent:''},form={},button={dataset:{support:'pilot-shop'}},events=[];
  const popup={opener:{},location:{replace(url){events.push(['navigate',url]);}},close(){events.push(['close']);}};
- const context=vm.createContext({document:{querySelector:s=>s==='#platform-app'?root:s==='#platform-error'?error:form,querySelectorAll:s=>s==='[data-support]'?[button]:[]},window:{open(){events.push(['open']);return blocked?null:popup;}},fetch:async(path,options)=>{
+ const context=vm.createContext({mountBilling:async()=>{},document:{querySelector:s=>s==='#platform-app'?root:s==='#platform-error'?error:form,querySelectorAll:s=>s==='[data-support]'?[button]:[]},window:{open(){events.push(['open']);return blocked?null:popup;}},fetch:async(path,options)=>{
   if(path.endsWith('/support')){events.push(['api']);assert.equal(options.headers['X-CSRF-Token'],'csrf-root');assert.equal(options.method,'POST');return {ok:!fail,json:async()=>fail?{detail:'Company is paused'}:{url:'https://pilot.example.test/staff#support=one-use'}};}
   return {ok:true,json:async()=>path==='/api/session'?{csrf:'csrf-root',user:{platform_owner:true}}:{billing_message:'Manual billing',companies:[{slug:'pilot-shop',name:'Pilot Shop',url:'https://pilot.example.test',owner_email:'owner@example.test',usage:{staff:1,jobs:0},seats:5,connections:{}}]}};
  }});

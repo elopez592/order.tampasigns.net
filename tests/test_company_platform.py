@@ -31,7 +31,7 @@ def test_platform_owner_only_and_credentials_not_listed(env):
     c=add_company(admin,'first-shop','first.example.test')
     response=admin.get('/api/platform/companies')
     assert c['temporary_password'] not in response.text
-    assert response.json()['billing_mode']=='manual'
+    assert response.json()['billing_mode']=='subscriptions'
     owner_id=admin.get('/api/session').json()['user']['id']
     with transaction(app.state.database,True) as conn:
         conn.execute("UPDATE users SET email='another@example.test' WHERE id=?",(owner_id,))
