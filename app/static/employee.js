@@ -8,6 +8,8 @@ const esc = (v='') => String(v ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'
 const money = (c=0) => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(c)/100);
 const initials = v => String(v || '').split(' ').filter(Boolean).slice(0,2).map(s=>s[0]).join('').toUpperCase();
 const owner = () => state.user?.role === 'admin';
+const shopName=()=>state.catalog?.shop?.shop_name||document.querySelector('meta[name="shop-name"]')?.content||'Tampa Signs and Stickers';
+const shopLogo=()=>document.querySelector('meta[name="shop-logo"]')?.content||'/static/brand/tampa-black.png';
 const $ = (selector, context=document) => context.querySelector(selector);
 const $$ = (selector, context=document) => [...context.querySelectorAll(selector)];
 const stamp = () => new Date().toISOString();
@@ -68,7 +70,7 @@ function updateConnection() {
 }
 function shell(content, active='home') {
   state.urls.forEach(URL.revokeObjectURL);state.urls=[];
-  root.innerHTML=`<header class="top"><div class="top-inner"><a class="wordmark" href="#home">TAMPA <span>SIGNS</span><small>STAFF WORKSPACE</small></a><div class="top-actions"><span id="connection-status" class="badge dark">Connected</span><button class="avatar" data-action="account" aria-label="Account and app settings">${esc(initials(state.user?.name))}</button></div></div></header>
+  root.innerHTML=`<header class="top"><div class="top-inner"><a class="wordmark" href="#home">${esc(shopName())}<small>STAFF WORKSPACE</small></a><div class="top-actions"><span id="connection-status" class="badge dark">Connected</span><button class="avatar" data-action="account" aria-label="Account and app settings">${esc(initials(state.user?.name))}</button></div></div></header>
     <div id="offline-bar" class="offline-bar" hidden>Offline · Save survey drafts here. Live prices, sends and task updates require a connection.</div>
     <main class="content">${content}</main><nav class="bottom-nav" aria-label="Employee workspace">${[['home','home','Today'],['tasks','tasks','Queue'],['surveys','ruler','Surveys'],['clients','users','Clients'],['estimates','file','Estimates']].map(([id,ic,label])=>`<a href="#${id}" ${active===id?'aria-current="page"':''} class="${active===id?'active':''}">${icon(ic)}${label}</a>`).join('')}</nav>`;
   updateConnection();
@@ -77,7 +79,7 @@ function heading(eyebrow,title,subtitle='',action='') {
   return `<div class="heading"><div><p class="eyebrow">${esc(eyebrow)}</p><h1>${esc(title)}</h1>${subtitle?`<p class="muted">${esc(subtitle)}</p>`:''}</div>${action}</div>`;
 }
 function loginView(message='') {
-  root.innerHTML=`<main class="login"><img class="login-brand" src="/static/brand/tampa-black.png" alt="Tampa Signs and Stickers"><p class="eyebrow">YOUR SHOP, IN YOUR POCKET</p><h1>Ready for the next job.</h1><p class="muted">Your tasks, measurements, clients and estimates. Sign in with your staff account.</p>${message?`<div class="error">${esc(message)}</div>`:''}<form data-form="login">${field('email','Staff email','','required autocomplete="username"','email')}${field('password','Password','','required autocomplete="current-password"','password')}<div data-errors></div><button class="btn primary wide" type="submit">Sign in ${icon('arrow')}</button></form><div class="install-box"><p><strong>Put this app on your home screen</strong><br>iPhone: Safari → Share → Add to Home Screen.<br>Android: Chrome menu → Install app / Add to Home Screen.</p></div></main>`;
+  root.innerHTML=`<main class="login"><img class="login-brand" src="${esc(shopLogo())}" alt="${esc(shopName())}"><p class="eyebrow">YOUR SHOP, IN YOUR POCKET</p><h1>Ready for the next job.</h1><p class="muted">Your tasks, measurements, clients and estimates. Sign in with your staff account.</p>${message?`<div class="error">${esc(message)}</div>`:''}<form data-form="login">${field('email','Staff email','','required autocomplete="username"','email')}${field('password','Password','','required autocomplete="current-password"','password')}<div data-errors></div><button class="btn primary wide" type="submit">Sign in ${icon('arrow')}</button></form><div class="install-box"><p><strong>Put this app on your home screen</strong><br>iPhone: Safari → Share → Add to Home Screen.<br>Android: Chrome menu → Install app / Add to Home Screen.</p></div></main>`;
 }
 async function loadData() {
   const results=await Promise.allSettled([

@@ -35,6 +35,11 @@ def test_mirakol_setup_is_private_quote_only_and_applied_once(env):
     assert max(high for low,high in icon.getextrema())>240
     assert first.get('/staff/manifest.webmanifest').json()['icons'][0]['src']=='/brand/app-icon.png?v='+brand['brand_icon'][:16]+'-iphone-1'
     assert 'href="/brand/app-icon.png?v=' in first.get('/').text
+    for path in ('/staff','/staff/app'):
+        page=first.get(path).text
+        assert 'Tampa Signs' not in page
+        assert 'name="shop-name" content="Mirakol Customs"' in page
+        assert '/brand/images/'+brand['brand_logo'] in page
     theme=first.get('/brand/theme.css').text
     assert 'color:#000000' in theme
     assert '--brand-teal:#ffa500' in theme and '--brand-yellow:#ffe600' in theme

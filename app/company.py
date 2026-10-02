@@ -223,11 +223,13 @@ def install(app, directory, require_admin, platform=True):
             body=re.sub(r'/static/brand/tampa-(?:black|white)\.png',logo,body)
             if not platform:
                 body=body.replace('/static/brand/favicon.png','/brand/app-icon.png')
-            body=body.replace('Tampa Signs and Stickers',html.escape(shop['shop_name'])).replace('Tampa Signs Staff',html.escape(shop['shop_name']+' Staff')).replace('(813) 749-4500',html.escape(shop['contact_phone']))
+            body=body.replace('Tampa Signs and Stickers',html.escape(shop['shop_name'])).replace('Tampa Signs Staff',html.escape(shop['shop_name']+' Staff')).replace('Tampa Signs · Staff',html.escape(shop['shop_name']+' · Staff')).replace('(813) 749-4500',html.escape(shop['contact_phone']))
         body=body.replace('/static/employee.webmanifest?v=20261001-3','/staff/manifest.webmanifest').replace('/static/employee.webmanifest','/staff/manifest.webmanifest')
         body=body.replace('/staff/apple-touch-icon-20261001.png','/brand/app-icon.png')
         body=body.replace('/brand/app-icon.png',icon_url(shop))
-        body=body.replace('</head>','<link rel="stylesheet" href="/brand/theme.css"><script src="/static/company-brand.js?v=1" defer></script></head>')
+        logo='/brand/images/'+shop['brand_logo'] if shop['brand_logo'] else ('/brand/app-icon.png' if shop.get('brand_custom') else '/static/brand/tampa-black.png')
+        identity=f'<meta name="shop-name" content="{html.escape(shop["shop_name"],quote=True)}"><meta name="shop-logo" content="{html.escape(logo,quote=True)}">'
+        body=body.replace('</head>',identity+'<link rel="stylesheet" href="/brand/theme.css"><script src="/static/company-brand.js?v=2" defer></script></head>')
         headers={k:v for k,v in response.headers.items() if k.lower() not in ('content-length','content-encoding')}
         return HTMLResponse(body,status_code=response.status_code,headers=headers)
 

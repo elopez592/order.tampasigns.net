@@ -200,7 +200,7 @@ def _document_html(snapshot, status, kind, reference):
               'Estimate — customer scope and artwork approval are required before production.' if kind == 'estimate' else
               'Issued invoice for the accepted order scope. Artwork and production requirements still apply.')
     return f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta name="robots" content="noindex,nofollow"><title>{esc(reference)} | Tampa Signs</title>
+    <meta name="robots" content="noindex,nofollow"><title>{esc(reference)} | {esc(snapshot['shop']['name'])}</title>
     <style>body{{font:15px system-ui,sans-serif;color:#172c2e;max-width:800px;margin:35px auto;padding:24px}}h1{{font-size:32px;margin:8px 0}}header{{border-bottom:5px solid #008b8b;padding-bottom:24px}}p{{line-height:1.6}}.muted,small{{color:#52696b}}table{{width:100%;border-collapse:collapse;margin:25px 0}}td,th{{text-align:left;padding:14px 8px;border-bottom:1px solid #dae5e4}}td:last-child,th:last-child{{text-align:right}}.totals{{margin-left:auto;max-width:320px}}.totals p{{display:flex;justify-content:space-between;margin:10px 0}}.total{{font-size:22px;border-top:2px solid #008b8b;padding-top:12px}}button{{background:#007e7e;color:white;border:0;border-radius:8px;padding:12px 20px;font:inherit}}@media print{{body{{margin:0;padding:0}}button{{display:none}}thead{{display:table-header-group}}tr{{break-inside:avoid}}}}</style>
     <style>.panel-photo{{max-width:200px;max-height:140px;object-fit:contain;margin:8px 0}}</style><script defer src="/static/employee-document.js"></script></head><body>
     <button id="print-document">Print / Save PDF</button><header><p><strong>{esc(snapshot['shop']['name'])}</strong><br>{esc(snapshot['shop']['email'])} · {esc(snapshot['shop']['phone'])}</p>
@@ -599,7 +599,8 @@ def install(app, database, uploads, require_staff, require_admin, actor, issue_e
             link = issue_email_portal(conn, job_id)
             audit(conn, job_id, actor(user), 'quote.published', {'version': job['quote_version']}, True)
             version, reference = job['quote_version'], job['number']
-        sent = notify_customer(database, job_id, f'quote_ready_{version}', f'Quote ready for {reference} | Tampa Signs and Stickers',
+            shop_name = settings(conn)['shop_name']
+        sent = notify_customer(database, job_id, f'quote_ready_{version}', f'Quote ready for {reference} | {shop_name}',
                                'Your quote is ready', 'Review your project estimate, scope and terms on your private order page.', link)
         return {'ok': True, 'email_sent': bool(sent), 'portal_url': link}
 
