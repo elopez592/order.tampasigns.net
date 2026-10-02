@@ -14,5 +14,5 @@ def public_media(app):
     if not manifest.is_file():
         return {}
     data = json.loads(manifest.read_text())
-    return {key: data.get(key, {} if key == 'products' else [] if key == 'projects' else '')
-            for key in ('products', 'projects', 'instagram', 'default_product')}
+    return {key: data.get(key, {} if key in ('products', 'app_icon') else [] if key == 'projects' else '')
+            for key in ('products', 'projects', 'instagram', 'default_product', 'app_icon')}

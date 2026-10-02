@@ -13,6 +13,7 @@ from .db import transaction, settings, now, audit
 from .security import text, email
 from .runtime import getenv
 from .images import sanitize
+from .company_media import public_media
 
 SCHEMA = '''
 CREATE TABLE IF NOT EXISTS company_revisions (
@@ -73,6 +74,9 @@ def install(app, directory, require_admin, platform=True):
     brand=directory/'brand';brand.mkdir(exist_ok=True);brand.chmod(0o700)
     def icon_url(shop):
         suffix='?v='+shop['brand_icon'][:16] if not platform and shop.get('brand_icon') else ''
+        layout = public_media(app).get('app_icon') or {}
+        if suffix and layout.get('version'):
+            suffix += '-' + layout['version']
         return '/brand/app-icon.png'+suffix
     with transaction(db,True) as conn:
         conn.executescript(SCHEMA)
@@ -176,8 +180,17 @@ def install(app, directory, require_admin, platform=True):
     def icon():
         with transaction(db) as conn: shop=DEFAULTS|settings(conn)
         if shop['brand_icon'] and (brand/shop['brand_icon']).is_file():
-            image=Image.open(brand/shop['brand_icon']).convert('RGBA');image.thumbnail((180,180))
-            canvas=Image.new('RGBA',(180,180),(0,0,0,0));canvas.alpha_composite(image,((180-image.width)//2,(180-image.height)//2))
+            image=Image.open(brand/shop['brand_icon']).convert('RGBA')
+            layout = public_media(app).get('app_icon') or {}
+            if layout:
+                # iPhone supplies its own corner mask; keep the delivered tile opaque.
+                edge = round(180 * (1 - 2 * layout.get('padding', 0)))
+                image.thumbnail((edge, edge), Image.Resampling.LANCZOS)
+                canvas=Image.new('RGB',(180,180),layout['background'])
+                canvas.paste(image,((180-image.width)//2,(180-image.height)//2),image)
+            else:
+                image.thumbnail((180,180))
+                canvas=Image.new('RGBA',(180,180),(0,0,0,0));canvas.alpha_composite(image,((180-image.width)//2,(180-image.height)//2))
         elif not shop.get('brand_custom') and not shop.get('brand_icon'):
             import base64
             from .staff_icon_data import ICON_PNG_B64

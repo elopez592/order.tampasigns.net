@@ -163,5 +163,10 @@
   },
   "projects": [],
   "instagram": "https://www.instagram.com/mirakol_designs/",
-  "default_product": "Embroidered hats"
+  "default_product": "Embroidered hats",
+  "app_icon": {
+    "background": "#000000",
+    "padding": 0.04,
+    "version": "iphone-1"
+  }
 }
