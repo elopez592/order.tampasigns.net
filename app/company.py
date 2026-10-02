@@ -98,16 +98,29 @@ def install(app, directory, require_admin, platform=True):
 
     @app.put('/api/admin/company/draft')
     def draft(payload:dict=Body(...),user=Depends(require_admin)):
-        data=validate(payload.get('data'))
+        incoming=payload.get('data')
+        if not isinstance(incoming,dict):
+            raise HTTPException(422,'Enter company settings as an object.')
         with transaction(db,True) as conn:
-            row=conn.execute('SELECT version FROM company_draft WHERE id=1').fetchone()
+            row=conn.execute('SELECT version,data FROM company_draft WHERE id=1').fetchone()
             if type(payload.get('version')) is not int or payload['version']!=row['version']:
                 raise HTTPException(409,'Another owner changed the draft. Reload before saving.')
+            current=json.loads(row['data'])
+            # Settings saves are patch-like: omitted fields keep their existing values.
+            # Brand images are also sticky so an unrelated profile edit cannot clear them.
+            # Removing an image must be explicit via clear_brand_logo / clear_brand_icon.
+            merged=current|incoming
+            for key in ('brand_logo','brand_icon'):
+                if incoming.get(key,'')=='' and current.get(key) and not payload.get('clear_'+key):
+                    merged[key]=current[key]
+                if payload.get('clear_'+key):
+                    merged[key]=''
+            data=validate(merged)
             for key in ('brand_logo','brand_icon'):
                 if data[key] and not (brand/data[key]).is_file():
                     raise HTTPException(422,'Brand image not found in this company.')
             conn.execute('UPDATE company_draft SET version=version+1,data=?,updated_at=? WHERE id=1',(json.dumps(data),now()))
-            audit(conn,None,user['email'],'company.draft_saved',{})
+            audit(conn,None,user['email'],'company.draft_saved',{'fields':sorted(incoming)})
         return {'ok':True,'version':payload['version']+1}
 
     @app.post('/api/admin/company/publish')
@@ -194,7 +207,9 @@ def install(app, directory, require_admin, platform=True):
             else:
                 image.thumbnail((180,180))
                 canvas=Image.new('RGBA',(180,180),(0,0,0,0));canvas.alpha_composite(image,((180-image.width)//2,(180-image.height)//2))
-        elif not shop.get('brand_custom') and not shop.get('brand_icon'):
+        elif not shop.get('brand_icon') and shop.get('shop_name')=='Tampa Signs and Stickers':
+            # Keep the bundled Tampa Signs icon as a safe fallback even if another
+            # company setting marked branding as custom.
             import base64
             from .staff_icon_data import ICON_PNG_B64
             return Response(base64.b64decode(ICON_PNG_B64),media_type='image/png')
@@ -221,7 +236,7 @@ def install(app, directory, require_admin, platform=True):
         if 'text/html' not in response.headers.get('content-type',''): return response
         body=b''.join([part async for part in response.body_iterator]).decode('utf-8')
         with transaction(db) as conn: shop=DEFAULTS|settings(conn)
-        if shop.get('brand_custom') or shop['brand_logo'] or shop['shop_name']!='Tampa Signs and Stickers':
+        if shop['brand_logo'] or shop['shop_name']!='Tampa Signs and Stickers':
             logo='/brand/images/'+shop['brand_logo'] if shop['brand_logo'] else '/brand/app-icon.png'
             body=re.sub(r'/static/brand/tampa-(?:black|white)\.png',logo,body)
             if not platform:
@@ -230,7 +245,7 @@ def install(app, directory, require_admin, platform=True):
         body=body.replace('/static/employee.webmanifest?v=20261001-3','/staff/manifest.webmanifest').replace('/static/employee.webmanifest','/staff/manifest.webmanifest')
         body=body.replace('/staff/apple-touch-icon-20261001.png','/brand/app-icon.png')
         body=body.replace('/brand/app-icon.png',icon_url(shop))
-        logo='/brand/images/'+shop['brand_logo'] if shop['brand_logo'] else ('/brand/app-icon.png' if shop.get('brand_custom') else '/static/brand/tampa-black.png')
+        logo='/brand/images/'+shop['brand_logo'] if shop['brand_logo'] else ('/static/brand/tampa-black.png' if shop['shop_name']=='Tampa Signs and Stickers' else '/brand/app-icon.png')
         identity=f'<meta name="shop-name" content="{html.escape(shop["shop_name"],quote=True)}"><meta name="shop-logo" content="{html.escape(logo,quote=True)}">'
         body=body.replace('</head>',identity+'<link rel="stylesheet" href="/brand/theme.css"><script src="/static/company-brand.js?v=2" defer></script></head>')
         headers={k:v for k,v in response.headers.items() if k.lower() not in ('content-length','content-encoding')}
