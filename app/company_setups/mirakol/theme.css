@@ -1,5 +1,5 @@
 /* Mirakol's palette stays inside its company theme response. */
-:root{--brand-yellow:#ffe600;--accent-dark:#c66b00;--teal-light:#fff1cf;--reward-teal:#c66b00;--green:#9b6200;--green-bg:#fff4d8;--muted:#777;--line:#ddd}
+:root{--bg:#f5f5f5;--paper:#f5f5f5;--brand-yellow:#ffe600;--accent-dark:#c66b00;--teal-light:#fff1cf;--reward-teal:#c66b00;--green:#9b6200;--green-bg:#fff4d8;--muted:#777;--line:#ddd}
 .public-masthead{background:#000;border-color:#ffa500}
 .hero-stamp,.portal-hero,.estimate-head,.custom-quote-cta{background:#000;border-color:#ffa500}
 .hero-stamp,.estimate-head .eyebrow,.custom-quote-cta .eyebrow,.portal-hero .eyebrow,.product-help-card-featured .eyebrow,.project-center-overview .project-next-action span{color:#ffe600}
@@ -47,3 +47,8 @@ body:has(.public-masthead) .step-number{background:#333;color:#ffe600}
 body:has(.public-masthead) .btn.ghost{color:#ffe600}
 body:has(.public-masthead) .terms-section-links a,body:has(.public-masthead) .terms-confirmation,body:has(.public-masthead) .approval-agreement{background:#222;color:#eee;border-color:#555}
 body:has(.public-masthead) .terms-document h2,body:has(.public-masthead) .terms-confirmation h2{color:#ffe600}
+
+/* Replace the rectangular slogan stamp with the company's shooting star. */
+.hero-stamp{background-color:#000;background-image:var(--company-icon);background-size:contain;background-position:center;background-repeat:no-repeat;width:210px;height:210px;padding:0;box-shadow:none;transform:none;border:0;border-radius:0;font-size:0;color:transparent}
+.hero-stamp span{display:none}
+@media(max-width:650px){.hero-stamp{display:block;width:125px;height:125px;flex-shrink:0}.hero{gap:14px}.hero h1{font-size:36px}}
