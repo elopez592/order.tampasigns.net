@@ -354,7 +354,7 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
                             request.state.user = enrich_support(app,conn,request.state.session,request.state.user)
                             if request.state.user:
                                 request.state.user = enrich_user(app, request.state.user)
-        if request.url.path.startswith('/api/') and request.url.path not in ('/api/payments/stripe/webhook','/api/marketing/event','/api/internal/crm-reminders/run') and request.method not in ('GET', 'HEAD', 'OPTIONS'):
+        if request.url.path.startswith('/api/') and request.url.path not in ('/api/payments/stripe/webhook','/api/platform/billing/webhook','/api/marketing/event','/api/internal/crm-reminders/run') and request.method not in ('GET', 'HEAD', 'OPTIONS'):
             sess = request.state.session
             csrf = request.headers.get('x-csrf-token', '')
             if not sess or not hmac.compare_digest(sess['csrf'], csrf):
