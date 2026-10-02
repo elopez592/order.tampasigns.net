@@ -1,4 +1,5 @@
 """Platform subscriptions; company order-payment credentials are never used here."""
+from . import entitlements
 import hashlib
 import json
 import os
@@ -93,7 +94,8 @@ def accessible(row,clock=None):
 
 def plans(app):
     with transaction(app.state.database) as conn:
-        return [dict(r) for r in conn.execute('SELECT * FROM subscription_plans ORDER BY monthly_cents')]
+        from .entitlements import PLAN_FEATURES
+        return [dict(r) | {'features':PLAN_FEATURES.get(r['id'], {})} for r in conn.execute('SELECT * FROM subscription_plans ORDER BY monthly_cents')]
 
 def connection(app):
     gateway=app.state.subscription_gateway
@@ -258,7 +260,7 @@ def install_company(app,require_admin):
             with root.state.subscription_lock: reconcile(root,root.state.subscription_gateway.subscription(row['stripe_subscription']))
             root,row=context()
         return {'mode':row['billing_mode'],'status':row['subscription_status'] or row['status'],'company':row['name'],
-          'plan_id':row['plan_id'],'seats':row['seats'],'paid_through':row['paid_through'],'grace_until':row['grace_until'],
+          'plan_id':row['plan_id'],'seats':entitlements.for_app(app)['seats'],'entitlements':entitlements.for_app(app),'paid_through':row['paid_through'],'grace_until':row['grace_until'],
           'cancel_at_period_end':bool(row['cancel_at_period_end']),'accessible':accessible(row),'alert':row['billing_alert'],
           'connection':connection(root),'has_customer':bool(row['stripe_customer']),
           'plans':[p for p in plans(root) if p['published'] or row['billing_mode']=='pilot']}

@@ -1,11 +1,13 @@
 import {belowCheckoutMinimum,minimumCheckoutMessage} from './order-checkout.js?v=20260930-checkout-3';
 import {createWindowUploads, usesDirectArtwork} from './window-upload.js?v=20260930-previews-1';
-import {createEmbroidery, embroidered} from './embroidery.js?v=20260926-name-fee-1';
+import {createEmbroidery, embroidered as isEmbroidered} from './embroidery.js?v=20260926-name-fee-1';
 import {autoContourArtwork,renderSticker,stickerBorderSettings,stickerShapeOptions,resolveStickerShape,findContourProjectItem} from './contour-artwork.js?v=20260930-auto-contour-8';
 
 // Customer project cart and artwork attachments.
 export function createShop(ctx) {
   const {rewardsAccountBox,state,app,api,esc,money,input,select,formFooter,showModal,closeModal,toast,publicHeader,publicProductName,productPath,setPublicSeo,storefrontProductsFor,productIcon,productImage,realWorkGallery,calculatorView,recalculate,currentItems,orderModal,actions,forms}=ctx;
+  const generators=()=>state.catalog.entitlements?.product_generators!==false;
+  const embroidered=p=>generators()&&isEmbroidered(p);
   const $=s=>document.querySelector(s);
   const $$=s=>[...document.querySelectorAll(s)];
   const read=()=>{try{const v=JSON.parse(localStorage.getItem('tampa_project')||'[]');return Array.isArray(v)?v:[];}catch{return [];}};
@@ -320,6 +322,8 @@ export function createShop(ctx) {
   }
   let studioArtImage=null;
   async function studioView(options={}){
+    if(!generators()){page('Artwork', '<p>Upload your finished artwork with your quote request. The shop will prepare a proof for approval.</p>');return;}
+
     const existing=options.id?await getDesign(options.id):null,item=project.find(x=>x.key===options.projectKey)||project.find(x=>x.design_id===options.id),p=product(item?.product_id||options.product_id||existing?.product_id||state.selectedProduct)||state.catalog.products[0],width=Math.max(.1,Number(existing?.width||item?.width||p.config.default_width||12)),height=Math.max(.1,Number(existing?.height||item?.height||p.config.default_height||12));
     draft=existing?.studio_version===2?existing:{id:existing?.id||crypto.randomUUID(),studio_version:2,product_id:p.id,projectKey:item?.key||options.projectKey||existing?.projectKey||null,name:existing?.name||publicProductName(p)+' design',width,height,color:options.color||existing?.color||'White',side:'front',sides:{front:newStudioSide(width,height),back:newStudioSide(width,height)}};draft.projectKey=item?.key||options.projectKey||draft.projectKey;draft.side=draft.side||'front';const side=draft.sides[draft.side];studioArtImage=side.image?await loadImage(side.image):null;
     const ratio=width/height,canvasWidth=ratio>=1?1600:Math.max(700,Math.round(1600*ratio)),canvasHeight=ratio>=1?Math.max(700,Math.round(1600/ratio)):1600;

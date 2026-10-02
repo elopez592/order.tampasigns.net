@@ -1,6 +1,6 @@
 // Only the public app shell is cached. Never cache staff APIs, files, or sessions.
-const CACHE = 'tampa-signs-employee-shell-20261002-billing-4';
-const SHELL = ['/staff/app', '/static/employee.css?v=20260930-2', '/static/employee.js?v=20261002-billing-4',
+const CACHE = 'tampa-signs-employee-shell-20261002-tiers-5';
+const SHELL = ['/staff/app', '/static/employee.css?v=20260930-2', '/static/employee.js?v=20261002-tiers-5',
   '/static/employee-drafts.js?v=20260930-2', '/staff/manifest.webmanifest', '/static/company-brand.js?v=2', '/brand/theme.css',
   '/brand/app-icon.png', '/static/brand/tampa-black.png'];
 self.addEventListener('install', event => {
@@ -15,7 +15,8 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
   if (['/staff/app','/staff/manifest.webmanifest','/brand/theme.css','/brand/app-icon.png'].includes(url.pathname)) {
     event.respondWith(fetch(event.request).then(response => {
-      if (!response.ok) return caches.match(event.request).then(cached => cached || response);
+      if (response.status===403) {event.waitUntil(caches.delete(CACHE));return response;}
+      if (!response.ok) return response;
       const copy = response.clone();
       event.waitUntil(caches.open(CACHE).then(cache => cache.put(event.request, copy)));
       return response;
