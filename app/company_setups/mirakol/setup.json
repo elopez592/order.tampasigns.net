@@ -598,8 +598,8 @@
     }
   ],
   "icon_update": {
-    "id": "mirakol-reference-icon-20261002-v2",
+    "id": "mirakol-reference-icon-20261002-v3",
     "image": "icon-v2.png",
-    "note": "Match app icon and favicon to the supplied curved shooting-star reference"
+    "note": "Clean black negative space around Mirakol shooting star"
   }
 }

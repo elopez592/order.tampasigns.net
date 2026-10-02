@@ -162,13 +162,15 @@ def install(app, directory, require_admin, platform=True):
         css=f':root{{--teal:{primary};--brand-teal:{primary};--accent:{primary};--brand-orange:{primary};--ink:{dark};--nav:{dark};--dark:{dark}}}.btn.primary{{background:{primary};color:{foreground}}}.sidebar,.login-art{{background:{dark}}}' if shop.get('brand_custom') else ''
         # Bundled company styles apply only inside that company's isolated workspace.
         if not platform and directory.name=='mirakol':
+            if re.fullmatch(r'[a-f0-9]{64}\.png',shop.get('brand_icon','')):
+                css+=f':root{{--company-icon:url("/brand/images/{shop["brand_icon"]}")}}'
             css+=(Path(__file__).parent/'company_setups'/'mirakol'/'theme.css').read_text()
         return Response(css,media_type='text/css')
 
     @app.get('/staff/manifest.webmanifest')
     def manifest():
         with transaction(db) as conn: shop=DEFAULTS|settings(conn)
-        return Response(json.dumps({'id':'/staff/app','name':shop['shop_name']+' Staff','short_name':shop['app_short_name'],'start_url':'/staff/app','scope':'/staff/','display':'standalone','background_color':'#f0f5f4','theme_color':shop['brand_dark'],'icons':[{'src':icon_url(shop),'sizes':'180x180','type':'image/png','purpose':'any'}]}),media_type='application/manifest+json')
+        return Response(json.dumps({'id':'/staff/app','name':shop['shop_name']+' Staff','short_name':shop['app_short_name'],'start_url':'/staff/app','scope':'/staff/','display':'standalone','background_color':shop['brand_dark'] if not platform else '#f0f5f4','theme_color':shop['brand_dark'],'icons':[{'src':icon_url(shop),'sizes':'180x180','type':'image/png','purpose':'any'}]}),media_type='application/manifest+json')
 
     @app.get('/brand/app-icon.png')
     def icon():

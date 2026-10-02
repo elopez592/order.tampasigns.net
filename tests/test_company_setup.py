@@ -36,6 +36,8 @@ def test_mirakol_setup_is_private_quote_only_and_applied_once(env):
     assert 'color:#000000' in theme
     assert '--brand-teal:#ffa500' in theme and '--brand-yellow:#ffe600' in theme
     assert 'body:has(.public-masthead)' in theme
+    assert '/brand/images/'+brand['brand_icon'] in theme
+    assert first.get('/staff/manifest.webmanifest').json()['background_color']=='#000000'
     assert '--brand-yellow' not in admin.get('/brand/theme.css').text
     catalog=first.get('/api/catalog').json()
     assert catalog['shop']['storefront_category_order'].startswith('Apparel, Events, Promotional Products')
@@ -96,7 +98,7 @@ def test_reference_icon_update_preserves_owner_settings_draft_and_products(env):
     clean,_,_,_=sanitize((bundle/'icon.png').read_bytes(),'icon.png')
     previous_icon=hashlib.sha256(clean).hexdigest()+'.png'
     with transaction(child.state.database,True) as conn:
-        conn.execute("DELETE FROM company_setup_applied WHERE id='mirakol-reference-icon-20261002-v2'")
+        conn.execute("DELETE FROM company_setup_applied WHERE id='mirakol-reference-icon-20261002-v3'")
         shop=settings(conn)|{'brand_primary':'#123456','contact_phone':'555-0100','brand_icon':previous_icon}
         conn.execute('UPDATE settings SET data=? WHERE id=1',(json.dumps(shop),))
         draft=json.loads(conn.execute('SELECT data FROM company_draft WHERE id=1').fetchone()[0])
