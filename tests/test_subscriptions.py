@@ -174,3 +174,67 @@ def test_historical_prices_and_subscription_owner_are_preserved(env):
     process_event(app,event(identifier='evt_wrong_sub',obj={'id':'sub_other'}))
     with transaction(app.state.database) as conn:
         assert conn.execute("SELECT stripe_subscription FROM platform_companies WHERE slug='billing-shop'").fetchone()[0]=='sub_fixture'
+
+def test_tier_features_are_enforced_and_update_cached_company(env):
+    app,admin,_=env
+    info=add_company(admin,'tier-shop','tier.example.test')
+    child=tenant(app,'tier.example.test',info)
+    assert admin.post('/api/platform/companies/tier-shop/billing',json={'mode':'pilot','plan_id':'studio'}).status_code==200
+    assert child.get('/staff/app').status_code==200
+    assert child.post('/api/company/billing/simulate',json={'scenario':'active','plan_id':'starter'}).status_code==200
+    catalog=child.get('/api/catalog').json()
+    assert catalog['entitlements']=={'plan_id':'starter','seats':3,'mobile_app':False,'instant_proofing':False,'product_generators':False}
+    assert all(p['config']['instant'] is False and p['config']['self_approve_artwork'] is False for p in catalog['products'])
+    for path in ['/staff/app','/staff/manifest.webmanifest','/staff/sw.js','/api/staff/surveys']:
+        assert child.get(path).status_code==403,path
+    for path in ['/api/orders','/api/portal/artwork-preview/approve','/api/portal/artwork/999/approve','/api/staff/jobs/999/layout']:
+        result=child.post(path,json={})
+        assert result.status_code==403,(path,result.text)
+    # Cached mobile shells cannot use shared staff APIs to keep operating after downgrade.
+    assert child.get('/api/staff/jobs',headers={'X-Staff-Mobile':'1'}).status_code==403
+    assert child.get('/api/staff/jobs').status_code==200
+    product=catalog['products'][0]
+    assert child.post('/api/calculate',json={'items':[{'product_id':product['id'],'width':12,'height':12,'quantity':1,'embroidery_preview':{'forged':True}}]}).status_code==403
+    assert child.get('/staff/billing').status_code==200
+    assert child.get('/api/company/billing').json()['seats']==3
+    assert admin.get('/api/catalog').json()['entitlements']['mobile_app'] is True
+    for plan,seats in [('studio',10),('business',25)]:
+        assert child.post('/api/company/billing/simulate',json={'scenario':'active','plan_id':plan}).status_code==200
+        assert child.get('/staff/app').status_code==200
+        assert child.get('/api/staff/surveys').status_code==200
+        assert child.get('/api/catalog').json()['entitlements']['seats']==seats
+        assert child.get('/api/catalog').json()['entitlements']['product_generators'] is True
+
+
+def test_tier_seats_cannot_be_increased_by_contract_override(env):
+    app,admin,_=env
+    info=add_company(admin,'seat-tier','seat-tier.example.test')
+    child=tenant(app,'seat-tier.example.test',info)
+    admin.post('/api/platform/companies/seat-tier/billing',json={'mode':'pilot','plan_id':'starter'})
+    with transaction(app.state.database,True) as conn:
+        conn.execute("UPDATE platform_companies SET seats=500 WHERE slug='seat-tier'")
+    assert child.get('/api/company/billing').json()['seats']==3
+    for i in range(2):
+        result=child.post('/api/admin/users',json={'name':f'Staff {i}','email':f'staff{i}@example.test','password':'Temporary-test-123!','role':'employee'})
+        assert result.status_code==200,result.text
+    result=child.post('/api/admin/users',json={'name':'Extra staff','email':'extra@example.test','password':'Temporary-test-123!','role':'employee'})
+    assert result.status_code==403,result.text
+
+
+def test_existing_extra_seat_is_blocked_after_downgrade_and_restored(env):
+    app,admin,_=env
+    info=add_company(admin,'downgrade','downgrade.example.test')
+    child=tenant(app,'downgrade.example.test',info)
+    admin.post('/api/platform/companies/downgrade/billing',json={'mode':'pilot','plan_id':'studio'})
+    for i in range(3):
+        created=child.post('/api/admin/users',json={'name':f'Staff {i}','email':f'staff{i}@example.test','role':'employee'})
+        assert created.status_code==200,created.text
+    last=created.json()
+    extra=tenant(app,'downgrade.example.test',{'owner_email':'staff2@example.test','temporary_password':last['temporary_password']})
+    assert extra.get('/api/staff/jobs').status_code==200
+    assert child.post('/api/company/billing/simulate',json={'scenario':'active','plan_id':'starter'}).status_code==200
+    assert extra.get('/api/staff/jobs').status_code==403
+    assert extra.post('/api/jobs/999/artwork',files={'file':('art.png',b'not-image','image/png')}).status_code==403
+    assert child.get('/api/admin/company').status_code==200
+    assert child.post('/api/company/billing/simulate',json={'scenario':'active','plan_id':'studio'}).status_code==200
+    assert extra.get('/api/staff/jobs').status_code==200

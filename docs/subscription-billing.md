@@ -18,3 +18,17 @@ Stripe Price changes require a replacement Price with matching currency, interva
 Subscription tax collection is not automatically enabled. Do not assume Stripe Tax collects tax without active registrations and the correct SaaS product tax code. Review tax settings/registration and validate a calculation before configuring collection. Paid signup is initially disabled and plans are initially unpublished, while all pilot test controls are available immediately.
 
 Checks cover signed events, duplicate/reordered events, current-state reconciliation, historical prices, customer/subscription ownership, recovery routes, owner authorization, cross-company isolation, seat selection, pilot scenarios, and real Stripe SDK request encoding. Test fixtures do not charge cards. For real Stripe test cards/test clocks, connect a dedicated Stripe sandbox with its own platform key, webhook signing secret, price IDs and portal configuration; never use test cards in the live account.
+
+## Feature tiers
+
+| Plan | Staff seats (owner included) | Desktop storefront, CRM, quoting, manual proofs, production | Mobile staff app | Instant proofing | Product generators |
+| --- | --- | --- | --- | --- | --- |
+| Starter | 3 | Included | — | — | — |
+| Studio | 10 | Included | Included | Included | Included |
+| Business | 25 | Included | Included | Included | Included |
+
+Capabilities are resolved from the company registry and subscription plan on every request. Pilot plan changes take effect immediately in cached tenant apps. Tampa's included workspace and legacy manual contracts retain their capabilities. Mirakol remains a free Studio pilot.
+
+Starter products become quote/review products without changing stored catalog configuration. Uploaded manual proofs and their approvals remain available; new instant checkout/self-approval and panel generation are rejected server-side. Generated design payloads cannot bypass the calculator. The mobile entry point, manifest, worker, surveys and requests marked by the installed staff app are blocked on Starter. An installed app shows an upgrade screen on reconnect; a received denial clears its cached shell. Previously saved offline drafts remain on the device. Shared desktop APIs remain available for desktop workflows.
+
+New or reactivated users are capped by the effective tier. After a downgrade, only the first allowed active seats (admins first, then creation order) can use authenticated staff actions; an owner can deactivate extra accounts or upgrade. Data and accounts are retained. Legacy contract seat overrides cannot increase paid-plan caps. Pilot seat counts come directly from the tested plan.

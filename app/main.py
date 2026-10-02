@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from . import entitlements
+
 import hashlib
 import hmac
 import html
@@ -62,6 +64,8 @@ def public_product_name(name: str) -> str:
 def require_staff(request: Request):
     if not request.state.user:
         raise HTTPException(401, 'Staff sign-in required.')
+    if not entitlements.seat_allowed(request.app, request.state.user):
+        raise HTTPException(403, 'Your company has exceeded its staff seats. An owner must deactivate extra staff or upgrade the plan.')
     return request.state.user
 
 
@@ -366,7 +370,21 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
         from .access import permitted
         if request.state.user and not permitted(app, request.state.user, request.url.path, request.method):
             return JSONResponse({'detail':'Your staff profile does not allow this action.'}, status_code=403)
-        response = await call_next(request)
+        from .entitlements import for_app, current, denied_feature
+        capabilities = for_app(app)
+        if request.state.user and request.url.path.startswith('/api/') and request.url.path != '/api/session' and not request.url.path.startswith('/api/auth/') and not entitlements.seat_allowed(app, request.state.user, capabilities):
+            return JSONResponse({'detail':'Your company has exceeded its staff seats. Ask an owner to deactivate extra staff or upgrade.'}, status_code=403)
+        feature = denied_feature(request.url.path, request.method, request.headers.get('x-staff-mobile') == '1')
+        if feature and not capabilities[feature]:
+            detail = 'This feature requires Studio or Business. Manage your subscription at /staff/billing.'
+            if request.url.path == '/staff/app':
+                return HTMLResponse('<h1>Staff app requires Studio</h1><p>Upgrade to Studio or Business to use the staff app.</p><a href="/staff/billing">Subscription &amp; billing</a>', status_code=403, headers={'Cache-Control':'no-store'})
+            return JSONResponse({'detail':detail,'feature':feature,'billing_url':'/staff/billing'}, status_code=403, headers={'Cache-Control':'no-store'})
+        entitlement_token = current.set(capabilities)
+        try:
+            response = await call_next(request)
+        finally:
+            current.reset(entitlement_token)
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['Referrer-Policy'] = 'no-referrer'
@@ -394,10 +412,10 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
         throttle(request, 'session', 90, 60)
         if request.state.session:
             return {'csrf': request.state.session['csrf'], 'user': request.state.user,
-                    'portal_available': bool(request.state.session['portal_job_id'])}
+                    'portal_available': bool(request.state.session['portal_job_id']), 'entitlements': entitlements.for_app(app)}
         with transaction(database, True) as conn:
             token, csrf = new_session(conn)
-        return session_response({'csrf': csrf, 'user': None, 'portal_available': False}, token)
+        return session_response({'csrf': csrf, 'user': None, 'portal_available': False, 'entitlements': entitlements.for_app(app)}, token)
 
     @app.get('/api/canva/status')
     def canva_status(request: Request):
@@ -493,8 +511,9 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
             products = []
             for row in conn.execute("""SELECT * FROM products WHERE public=1 AND active=1 ORDER BY
                 CASE WHEN name='Die-cut stickers' THEN 1 WHEN name='Transfer stickers' THEN 2 ELSE 100+id END, id"""):
-                cfg = json.loads(row['config'])
-                keys = ('finished_apparel','shirt_colors','shirt_sizes','apparel_kind','apparel_unit_price','digitizing_fee','quote_only','unit','description','min_quantity','max_quantity','max_width','max_height',
+                from .entitlements import product_config
+                cfg = product_config(json.loads(row['config']))
+                keys = ('product_generators','finished_apparel','shirt_colors','shirt_sizes','apparel_kind','apparel_unit_price','digitizing_fee','quote_only','unit','description','min_quantity','max_quantity','max_width','max_height',
                         'default_width','default_height','min_width','min_height','instant','is_wrap','supports_installation',
                         'supports_multiple_dimensions','self_approve_artwork','lamination_options','material_options',
                         'storefront_categories','size_options','placement_options','quantity_presets','coverage_options','vehicle_type_options','thickness_options','mounting_options','quantity_only_note','min_short_axis','min_long_axis','max_short_axis','max_long_axis','usdot_customizer','usdot_logo_setup_price','contour_customizer','quantity_only','vehicle_details_required','tint_package_selector','artwork_upload_disabled')
@@ -509,7 +528,7 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
             return {'products': products, 'shop': {k: shop.get(k,'') for k in ('shop_name','contact_email','contact_phone','rates_live','quote_note','business_address','business_hours','brand_logo','brand_custom','storefront_heading','storefront_description','storefront_eyebrow','storefront_stamp','storefront_category_order')},
                     'checkout': availability(shop, app.state.gateway), 'notifications': email_status(),
                     'job_terms': job_terms.public_terms(), 'approval_statement': APPROVAL_STATEMENT,
-                    'rewards': rewards.public_config(shop), 'company_media': company_media.public_media(app)}
+                    'rewards': rewards.public_config(shop), 'company_media': company_media.public_media(app), 'entitlements': entitlements.for_app(app)}
 
     @app.get('/api/job-terms')
     def terms_content():

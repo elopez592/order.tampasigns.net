@@ -469,7 +469,10 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
         row = conn.execute('SELECT * FROM products WHERE id=? AND active=1', (int(pid),)).fetchone()
         if not row or (not staff and not row['public']):
             raise HTTPException(422, 'Product is unavailable.')
-        cfg = json.loads(row['config'])
+        from .entitlements import product_config, require
+        if any(item.get(key) for key in ('usdot_design', 'embroidery_preview', 'contour_design_id', 'design_id', 'embroidery_id')):
+            require('product_generators')
+        cfg = product_config(json.loads(row['config']))
         installation_requested = item.get('installation_requested', False)
         if not isinstance(installation_requested, bool):
             raise HTTPException(422, 'Installation selection must be true or false.')

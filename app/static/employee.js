@@ -46,7 +46,7 @@ function rememberIdentity() {
   localStorage.setItem('tampa_employee_identity', JSON.stringify({...state.user, checked_at:Date.now()}));
 }
 async function api(url, {method='GET', body, form}={}) {
-  const headers={};
+  const headers={'X-Staff-Mobile':'1'};
   if (method!=='GET') headers['X-CSRF-Token']=state.csrf;
   if (body!==undefined) headers['Content-Type']='application/json';
   let response;
@@ -482,9 +482,10 @@ window.addEventListener('pagehide',()=>{if($('form[data-form="survey"]'))persist
 async function boot() {
   if('serviceWorker' in navigator)navigator.serviceWorker.register('/staff/sw.js',{scope:'/staff/'}).catch(()=>{});
   try {
-    const session=await api('/api/session');state.csrf=session.csrf;state.user=session.user;
+    const session=await api('/api/session');if(session.entitlements?.mobile_app===false)throw Object.assign(new Error('Staff app requires Studio or Business.'),{status:403});state.csrf=session.csrf;state.user=session.user;
     if(state.user){rememberIdentity();await loadData();await route();}else {localStorage.removeItem('tampa_employee_identity');loginView();}
   } catch(error) {
+    if(error.status===403){root.innerHTML='<section class="panel"><h2>Staff app requires Studio</h2><p>Upgrade to Studio or Business to use this app.</p><a href="/staff/billing">Subscription &amp; billing</a></section>';return;}
     let identity;try{identity=JSON.parse(localStorage.getItem('tampa_employee_identity')||'null');}catch{}
     if(identity && Date.now()-identity.checked_at<8*3600*1000) {
       state.user=identity;state.online=false;try{state.catalog=JSON.parse(localStorage.getItem('tampa_employee_public_catalog')||'null');}catch{}

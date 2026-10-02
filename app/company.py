@@ -1,5 +1,7 @@
 """Owner-managed branding with draft, publish, history and stale-write protection."""
 from __future__ import annotations
+
+from . import entitlements
 import hashlib
 import html
 import io
@@ -38,7 +40,8 @@ def enrich_user(app, user):
 
 
 def check_seats(app, conn):
-    limit = getattr(app.state, 'seat_limit', None)
+    from .entitlements import for_app
+    limit = for_app(app)['seats']
     if limit and conn.execute('SELECT count(*) FROM users WHERE active=1').fetchone()[0] >= limit:
         raise HTTPException(403, 'This company has reached its staff seat limit. Contact the platform owner.')
 
@@ -91,7 +94,7 @@ def install(app, directory, require_admin, platform=True):
             draft['data']=json.loads(draft['data'])
             return {'published':{k:(DEFAULTS|settings(conn)).get(k,'') for k in FIELDS},'draft':draft,
                     'history':[dict(r) for r in conn.execute('SELECT id,actor,note,created_at FROM company_revisions ORDER BY id DESC LIMIT 50')],
-                    'seat_limit':getattr(app.state,'seat_limit',None)}
+                    'seat_limit':entitlements.for_app(app)['seats']}
 
     @app.put('/api/admin/company/draft')
     def draft(payload:dict=Body(...),user=Depends(require_admin)):
