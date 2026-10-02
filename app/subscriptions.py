@@ -30,7 +30,7 @@ COLUMNS = {'billing_mode':"TEXT NOT NULL DEFAULT 'manual'",'plan_id':"TEXT NOT N
  'subscription_status':"TEXT NOT NULL DEFAULT ''",'paid_through':"REAL NOT NULL DEFAULT 0",
  'grace_until':"REAL NOT NULL DEFAULT 0",'cancel_at_period_end':"INTEGER NOT NULL DEFAULT 0",
  'billing_alert':"TEXT NOT NULL DEFAULT ''"}
-DEFAULT_PLANS = [('starter','Starter',9900,3),('studio','Studio',19900,10),('business','Business',39900,25)]
+DEFAULT_PLANS = [('starter','Starter',9900,1),('studio','Studio',19900,10),('business','Business',39900,25)]
 
 class SubscriptionGateway(StripeGateway):
     def __init__(self):
@@ -67,6 +67,9 @@ def migrate(app):
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS billing_customer_unique ON platform_companies(stripe_customer) WHERE stripe_customer<>''")
         for values in DEFAULT_PLANS:
             conn.execute('INSERT OR IGNORE INTO subscription_plans(id,name,monthly_cents,seats) VALUES(?,?,?,?)',values)
+        if not conn.execute("SELECT 1 FROM subscription_events WHERE id='starter-one-seat-v1'").fetchone():
+            conn.execute("UPDATE subscription_plans SET seats=1 WHERE id='starter'")
+            conn.execute("INSERT INTO subscription_events VALUES('starter-one-seat-v1',?)", (now(),))
         for identifier,name,amount,seats in DEFAULT_PLANS:
             price=os.getenv('PLATFORM_BILLING_PRICE_'+identifier.upper(),'')
             product=os.getenv('PLATFORM_BILLING_PRODUCT_'+identifier.upper(),'')

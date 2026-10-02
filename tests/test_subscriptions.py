@@ -183,7 +183,7 @@ def test_tier_features_are_enforced_and_update_cached_company(env):
     assert child.get('/staff/app').status_code==200
     assert child.post('/api/company/billing/simulate',json={'scenario':'active','plan_id':'starter'}).status_code==200
     catalog=child.get('/api/catalog').json()
-    assert catalog['entitlements']=={'plan_id':'starter','seats':3,'mobile_app':False,'instant_proofing':False,'product_generators':False}
+    assert catalog['entitlements']=={'plan_id':'starter','seats':1,'mobile_app':False,'instant_proofing':False,'product_generators':False}
     assert all(p['config']['instant'] is False and p['config']['self_approve_artwork'] is False for p in catalog['products'])
     for path in ['/staff/app','/staff/manifest.webmanifest','/staff/sw.js','/api/staff/surveys']:
         assert child.get(path).status_code==403,path
@@ -196,14 +196,24 @@ def test_tier_features_are_enforced_and_update_cached_company(env):
     product=catalog['products'][0]
     assert child.post('/api/calculate',json={'items':[{'product_id':product['id'],'width':12,'height':12,'quantity':1,'embroidery_preview':{'forged':True}}]}).status_code==403
     assert child.get('/staff/billing').status_code==200
-    assert child.get('/api/company/billing').json()['seats']==3
+    assert child.get('/api/company/billing').json()['seats']==1
     assert admin.get('/api/catalog').json()['entitlements']['mobile_app'] is True
     for plan,seats in [('studio',10),('business',25)]:
         assert child.post('/api/company/billing/simulate',json={'scenario':'active','plan_id':plan}).status_code==200
         assert child.get('/staff/app').status_code==200
         assert child.get('/api/staff/surveys').status_code==200
         assert child.get('/api/catalog').json()['entitlements']['seats']==seats
-        assert child.get('/api/catalog').json()['entitlements']['product_generators'] is True
+        assert child.get('/api/catalog').json()['entitlements']['product_generators'] is (plan=='business')
+        generated=child.post('/api/calculate',json={'items':[{'product_id':product['id'],'width':12,'height':12,'quantity':1,'embroidery_preview':{'forged':True}}]})
+        layout=child.post('/api/staff/jobs/999/layout',json={})
+        if plan=='studio':
+            assert generated.status_code==403 and 'Business' in generated.json()['detail']
+            assert layout.status_code==403 and 'requires Business.' in layout.json()['detail']
+            assert child.get('/api/catalog').json()['entitlements']['instant_proofing'] is True
+            assert all(not p['config']['usdot_customizer'] and not p['config']['contour_customizer'] for p in child.get('/api/catalog').json()['products'])
+        else:
+            assert generated.status_code!=403
+            assert layout.status_code==404
 
 
 def test_tier_seats_cannot_be_increased_by_contract_override(env):
@@ -213,10 +223,7 @@ def test_tier_seats_cannot_be_increased_by_contract_override(env):
     admin.post('/api/platform/companies/seat-tier/billing',json={'mode':'pilot','plan_id':'starter'})
     with transaction(app.state.database,True) as conn:
         conn.execute("UPDATE platform_companies SET seats=500 WHERE slug='seat-tier'")
-    assert child.get('/api/company/billing').json()['seats']==3
-    for i in range(2):
-        result=child.post('/api/admin/users',json={'name':f'Staff {i}','email':f'staff{i}@example.test','password':'Temporary-test-123!','role':'employee'})
-        assert result.status_code==200,result.text
+    assert child.get('/api/company/billing').json()['seats']==1
     result=child.post('/api/admin/users',json={'name':'Extra staff','email':'extra@example.test','password':'Temporary-test-123!','role':'employee'})
     assert result.status_code==403,result.text
 
@@ -238,3 +245,19 @@ def test_existing_extra_seat_is_blocked_after_downgrade_and_restored(env):
     assert child.get('/api/admin/company').status_code==200
     assert child.post('/api/company/billing/simulate',json={'scenario':'active','plan_id':'studio'}).status_code==200
     assert extra.get('/api/staff/jobs').status_code==200
+
+
+def test_existing_starter_plan_migrates_to_one_seat_once(env):
+    from app.subscriptions import migrate
+    app,_,_=env
+    with transaction(app.state.database,True) as conn:
+        conn.execute("DELETE FROM subscription_events WHERE id='starter-one-seat-v1'")
+        conn.execute("UPDATE subscription_plans SET seats=3 WHERE id='starter'")
+    migrate(app)
+    with transaction(app.state.database) as conn:
+        assert conn.execute("SELECT seats FROM subscription_plans WHERE id='starter'").fetchone()[0]==1
+        assert conn.execute("SELECT seats FROM subscription_plans WHERE id='studio'").fetchone()[0]==10
+        assert conn.execute("SELECT seats FROM subscription_plans WHERE id='business'").fetchone()[0]==25
+    migrate(app)
+    with transaction(app.state.database) as conn:
+        assert conn.execute("SELECT count(*) FROM subscription_events WHERE id='starter-one-seat-v1'").fetchone()[0]==1
