@@ -87,6 +87,31 @@ def test_brand_draft_publish_conflict_restore_and_private_images(env):
     assert admin.get('/api/admin/company').json()['draft']['data']['shop_name']=='Tampa Signs and Stickers'
 
 
+def test_customer_favicon_uses_tenant_icon_without_changing_platform_shop(env):
+    app,admin,_=env
+    first=tenant(app,'icon.example.test',add_company(admin,'icon-shop','icon.example.test'))
+    second=tenant(app,'other.example.test',add_company(admin,'other-shop','other.example.test'))
+    root_before=admin.get('/static/brand/favicon.png').content
+    icon=io.BytesIO()
+    Image.new('RGB',(180,180),'#ffa500').save(icon,format='PNG')
+    upload=first.post('/api/admin/company/image',files={'file':('star.png',icon.getvalue(),'image/png')})
+    assert upload.status_code==200,upload.text
+    draft=first.get('/api/admin/company').json()['draft']
+    data=draft['data']|{'brand_icon':upload.json()['image']}
+    saved=first.put('/api/admin/company/draft',json={'version':draft['version'],'data':data})
+    assert first.post('/api/admin/company/publish',json={'version':saved.json()['version']}).status_code==200
+    page=first.get('/').text
+    assert 'rel="icon" type="image/png" href="/brand/app-icon.png"' in page
+    assert 'rel="shortcut icon" type="image/png" href="/brand/app-icon.png"' in page
+    assert '/static/brand/favicon.png' not in page
+    assert Image.open(io.BytesIO(first.get('/brand/app-icon.png').content)).getpixel((90,90))[:3]==(255,165,0)
+    assert first.get('/brand/app-icon.png').content!=second.get('/brand/app-icon.png').content
+    assert second.get(upload.json()['url']).status_code==404
+    assert '/static/brand/favicon.png' in admin.get('/').text
+    assert admin.get('/static/brand/favicon.png').content==root_before
+    first.close();second.close()
+
+
 def test_seats_status_and_revocation(env):
     app,admin,employee=env
     first=add_company(admin,'limited-shop','limited.example.test')

@@ -195,6 +195,8 @@ def install(app, directory, require_admin, platform=True):
         if shop.get('brand_custom') or shop['brand_logo'] or shop['shop_name']!='Tampa Signs and Stickers':
             logo='/brand/images/'+shop['brand_logo'] if shop['brand_logo'] else '/brand/app-icon.png'
             body=re.sub(r'/static/brand/tampa-(?:black|white)\.png',logo,body)
+            if not platform:
+                body=body.replace('/static/brand/favicon.png','/brand/app-icon.png')
             body=body.replace('Tampa Signs and Stickers',html.escape(shop['shop_name'])).replace('Tampa Signs Staff',html.escape(shop['shop_name']+' Staff')).replace('(813) 749-4500',html.escape(shop['contact_phone']))
         body=body.replace('/static/employee.webmanifest?v=20261001-3','/staff/manifest.webmanifest').replace('/static/employee.webmanifest','/staff/manifest.webmanifest')
         body=body.replace('/staff/apple-touch-icon-20261001.png','/brand/app-icon.png')
