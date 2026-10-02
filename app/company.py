@@ -71,6 +71,9 @@ def install(app, directory, require_admin, platform=True):
         from .support import install as install_support
         install_support(app)
     brand=directory/'brand';brand.mkdir(exist_ok=True);brand.chmod(0o700)
+    def icon_url(shop):
+        suffix='?v='+shop['brand_icon'][:16] if not platform and shop.get('brand_icon') else ''
+        return '/brand/app-icon.png'+suffix
     with transaction(db,True) as conn:
         conn.executescript(SCHEMA)
         if not conn.execute('SELECT 1 FROM company_revisions').fetchone():
@@ -156,12 +159,16 @@ def install(app, directory, require_admin, platform=True):
         channels=[int(primary[i:i+2],16)/255 for i in (1,3,5)]
         linear=[v/12.92 if v<=0.04045 else ((v+0.055)/1.055)**2.4 for v in channels]
         foreground='#000000' if sum(v*w for v,w in zip(linear,(0.2126,0.7152,0.0722)))>0.179 else '#ffffff'
-        return Response(f':root{{--teal:{primary};--accent:{primary};--brand-orange:{primary};--ink:{dark}}}.btn.primary{{background:{primary};color:{foreground}}}.sidebar,.login-art{{background:{dark}}}' if shop.get('brand_custom') else '',media_type='text/css')
+        css=f':root{{--teal:{primary};--brand-teal:{primary};--accent:{primary};--brand-orange:{primary};--ink:{dark};--nav:{dark};--dark:{dark}}}.btn.primary{{background:{primary};color:{foreground}}}.sidebar,.login-art{{background:{dark}}}' if shop.get('brand_custom') else ''
+        # Bundled company styles apply only inside that company's isolated workspace.
+        if not platform and directory.name=='mirakol':
+            css+=(Path(__file__).parent/'company_setups'/'mirakol'/'theme.css').read_text()
+        return Response(css,media_type='text/css')
 
     @app.get('/staff/manifest.webmanifest')
     def manifest():
         with transaction(db) as conn: shop=DEFAULTS|settings(conn)
-        return Response(json.dumps({'id':'/staff/app','name':shop['shop_name']+' Staff','short_name':shop['app_short_name'],'start_url':'/staff/app','scope':'/staff/','display':'standalone','background_color':'#f0f5f4','theme_color':shop['brand_dark'],'icons':[{'src':'/brand/app-icon.png','sizes':'180x180','type':'image/png','purpose':'any'}]}),media_type='application/manifest+json')
+        return Response(json.dumps({'id':'/staff/app','name':shop['shop_name']+' Staff','short_name':shop['app_short_name'],'start_url':'/staff/app','scope':'/staff/','display':'standalone','background_color':'#f0f5f4','theme_color':shop['brand_dark'],'icons':[{'src':icon_url(shop),'sizes':'180x180','type':'image/png','purpose':'any'}]}),media_type='application/manifest+json')
 
     @app.get('/brand/app-icon.png')
     def icon():
@@ -204,6 +211,7 @@ def install(app, directory, require_admin, platform=True):
             body=body.replace('Tampa Signs and Stickers',html.escape(shop['shop_name'])).replace('Tampa Signs Staff',html.escape(shop['shop_name']+' Staff')).replace('(813) 749-4500',html.escape(shop['contact_phone']))
         body=body.replace('/static/employee.webmanifest?v=20261001-3','/staff/manifest.webmanifest').replace('/static/employee.webmanifest','/staff/manifest.webmanifest')
         body=body.replace('/staff/apple-touch-icon-20261001.png','/brand/app-icon.png')
+        body=body.replace('/brand/app-icon.png',icon_url(shop))
         body=body.replace('</head>','<link rel="stylesheet" href="/brand/theme.css"><script src="/static/company-brand.js?v=1" defer></script></head>')
         headers={k:v for k,v in response.headers.items() if k.lower() not in ('content-length','content-encoding')}
         return HTMLResponse(body,status_code=response.status_code,headers=headers)

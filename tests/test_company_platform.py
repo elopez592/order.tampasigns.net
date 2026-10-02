@@ -101,8 +101,8 @@ def test_customer_favicon_uses_tenant_icon_without_changing_platform_shop(env):
     saved=first.put('/api/admin/company/draft',json={'version':draft['version'],'data':data})
     assert first.post('/api/admin/company/publish',json={'version':saved.json()['version']}).status_code==200
     page=first.get('/').text
-    assert 'rel="icon" type="image/png" href="/brand/app-icon.png"' in page
-    assert 'rel="shortcut icon" type="image/png" href="/brand/app-icon.png"' in page
+    assert 'rel="icon" type="image/png" href="/brand/app-icon.png?v=' in page
+    assert 'rel="shortcut icon" type="image/png" href="/brand/app-icon.png?v=' in page
     assert '/static/brand/favicon.png' not in page
     assert Image.open(io.BytesIO(first.get('/brand/app-icon.png').content)).getpixel((90,90))[:3]==(255,165,0)
     assert first.get('/brand/app-icon.png').content!=second.get('/brand/app-icon.png').content
