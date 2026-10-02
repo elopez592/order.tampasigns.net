@@ -4,7 +4,9 @@ from fastapi import HTTPException
 from .db import transaction
 
 FEATURES = ('mobile_app', 'instant_proofing', 'product_generators')
-PLAN_FEATURES = {name: dict.fromkeys(FEATURES, name != 'starter')
+PLAN_FEATURES = {name: {'mobile_app': name != 'starter',
+                        'instant_proofing': name != 'starter',
+                        'product_generators': name == 'business'}
                  for name in ('starter', 'studio', 'business')}
 current = ContextVar('company_entitlements', default=None)
 
@@ -24,10 +26,14 @@ def for_app(app):
     return {'plan_id': 'manual', 'seats': row['seats'] if row else 1,
             **dict.fromkeys(FEATURES, True)}
 
+def upgrade_message(feature):
+    tier = 'Business' if feature == 'product_generators' else 'Studio or Business'
+    return f'This feature requires {tier}. Manage your subscription at /staff/billing.'
+
 def require(feature):
     capabilities = current.get()
     if capabilities is not None and not capabilities[feature]:
-        raise HTTPException(403, 'This feature requires Studio or Business. Manage your subscription at /staff/billing.')
+        raise HTTPException(403, upgrade_message(feature))
 
 def product_config(config):
     config = dict(config)

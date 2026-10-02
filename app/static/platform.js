@@ -1,4 +1,4 @@
-import {mountBilling} from './platform-billing.js?v=2';
+import {mountBilling} from './platform-billing.js?v=3';
 const root=document.querySelector('#platform-app'),error=document.querySelector('#platform-error');let csrf='',companies=[];
 const esc=(value='')=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(path,method='GET',body){const response=await fetch(path,{method,headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},...(body?{body:JSON.stringify(body)}:{})});const value=await response.json();if(!response.ok)throw new Error(typeof value.detail==='string'?value.detail:'Check the entered values.');return value;}

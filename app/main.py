@@ -376,7 +376,7 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
             return JSONResponse({'detail':'Your company has exceeded its staff seats. Ask an owner to deactivate extra staff or upgrade.'}, status_code=403)
         feature = denied_feature(request.url.path, request.method, request.headers.get('x-staff-mobile') == '1')
         if feature and not capabilities[feature]:
-            detail = 'This feature requires Studio or Business. Manage your subscription at /staff/billing.'
+            detail = entitlements.upgrade_message(feature)
             if request.url.path == '/staff/app':
                 return HTMLResponse('<h1>Staff app requires Studio</h1><p>Upgrade to Studio or Business to use the staff app.</p><a href="/staff/billing">Subscription &amp; billing</a>', status_code=403, headers={'Cache-Control':'no-store'})
             return JSONResponse({'detail':detail,'feature':feature,'billing_url':'/staff/billing'}, status_code=403, headers={'Cache-Control':'no-store'})
@@ -1504,7 +1504,8 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
                 line = lines[index]
                 if number(generated[2]) != number(line['width']) or number(generated[3]) != number(line['height']):
                     raise HTTPException(422, 'The generated USDOT artwork size does not match the order.')
-                draft = usdot_proof_pdf(raw, job['number'], index + 1, line)
+                if entitlements.for_app(app)['product_generators']:
+                    draft = usdot_proof_pdf(raw, job['number'], index + 1, line)
             aid = save_asset(conn, uploads, job_id, raw, name, mime, suffix, 'artwork', who)
             draft_id = None
             if draft is not None:

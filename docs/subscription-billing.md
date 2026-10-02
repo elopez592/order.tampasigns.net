@@ -5,7 +5,7 @@ Mirakol billing and free access tests: https://mirakol.tampasigns.net/staff/bill
 
 The platform owner’s Tampa workspace is included. Mirakol is enrolled as a free pilot, with no setup charge or recurring charge. Its owner can test active/trial access, failed renewal with seven days of grace, expired grace, cancellation at period end, cancellation, and recovery. Simulations are restricted to pilot companies and never create a Stripe customer or payment.
 
-Draft monthly plans are Starter ($99, 3 staff seats), Studio ($199, 10 seats), and Business ($399, 25 seats). Seats include the owner. All include the branded ordering site, mobile staff app, CRM, estimates, proofs and production workflow. Review the rates and subscription tax requirements before enabling paid signup in Platform Control. A separate Product and recurring Price exist for each tier in Tampa’s Stripe account. No companies have been subscribed by deployment.
+Draft monthly plans are Starter ($99, 1 owner seat), Studio ($199, 10 seats), and Business ($399, 25 seats). Seats include the owner. All include the branded ordering site, desktop CRM, estimates, manual proofs and production workflow. Studio and Business include the mobile staff app and instant proofing. Product generators require Business. Review the rates and subscription tax requirements before enabling paid signup in Platform Control. A separate Product and recurring Price exist for each tier in Tampa’s Stripe account. No companies have been subscribed by deployment.
 
 For a paying company, select Stripe billing in Platform Control. Publish its eligible plan and enable paid signup after reviewing prices and tax. The company owner chooses a plan from its billing page. Server-side checkout uses the published Stripe price, validates current staff count, prevents duplicate checkout/subscription creation, and preserves the workspace address. Checkout returns do not grant access.
 
@@ -23,12 +23,12 @@ Checks cover signed events, duplicate/reordered events, current-state reconcilia
 
 | Plan | Staff seats (owner included) | Desktop storefront, CRM, quoting, manual proofs, production | Mobile staff app | Instant proofing | Product generators |
 | --- | --- | --- | --- | --- | --- |
-| Starter | 3 | Included | — | — | — |
-| Studio | 10 | Included | Included | Included | Included |
+| Starter | 1 | Included | — | — | — |
+| Studio | 10 | Included | Included | Included | — |
 | Business | 25 | Included | Included | Included | Included |
 
 Capabilities are resolved from the company registry and subscription plan on every request. Pilot plan changes take effect immediately in cached tenant apps. Tampa's included workspace and legacy manual contracts retain their capabilities. Mirakol remains a free Studio pilot.
 
-Starter products become quote/review products without changing stored catalog configuration. Uploaded manual proofs and their approvals remain available; new instant checkout/self-approval and panel generation are rejected server-side. Generated design payloads cannot bypass the calculator. The mobile entry point, manifest, worker, surveys and requests marked by the installed staff app are blocked on Starter. An installed app shows an upgrade screen on reconnect; a received denial clears its cached shell. Previously saved offline drafts remain on the device. Shared desktop APIs remain available for desktop workflows.
+Starter products become quote/review products without changing stored catalog configuration. Uploaded manual proofs and their approvals remain available; new instant checkout/self-approval and panel generation are rejected server-side. Product generators, generated design payloads and panel generation require Business; Studio retains instant checkout and proofing. Generated design payloads cannot bypass the calculator. The mobile entry point, manifest, worker, surveys and requests marked by the installed staff app are blocked on Starter. An installed app shows an upgrade screen on reconnect; a received denial clears its cached shell. Previously saved offline drafts remain on the device. Shared desktop APIs remain available for desktop workflows.
 
 New or reactivated users are capped by the effective tier. After a downgrade, only the first allowed active seats (admins first, then creation order) can use authenticated staff actions; an owner can deactivate extra accounts or upgrade. Data and accounts are retained. Legacy contract seat overrides cannot increase paid-plan caps. Pilot seat counts come directly from the tested plan.
