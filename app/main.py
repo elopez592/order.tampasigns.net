@@ -33,7 +33,7 @@ from .checkout import (StripeGateway, availability, eligible_quote, checkout_pol
                        start_checkout, start_custom_checkout, process_event, order_for_job)
 from .mailer import public_status as email_status, notify_customer, notify_staff, send_test_email
 from . import canva, marketing, crm
-from . import rewards, job_terms, artwork_approval
+from . import rewards, job_terms, artwork_approval, company_media
 import uuid
 import qrcode
 
@@ -509,7 +509,7 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
             return {'products': products, 'shop': {k: shop.get(k,'') for k in ('shop_name','contact_email','contact_phone','rates_live','quote_note','business_address','business_hours','brand_logo','brand_custom','storefront_heading','storefront_description','storefront_eyebrow','storefront_stamp','storefront_category_order')},
                     'checkout': availability(shop, app.state.gateway), 'notifications': email_status(),
                     'job_terms': job_terms.public_terms(), 'approval_statement': APPROVAL_STATEMENT,
-                    'rewards': rewards.public_config(shop)}
+                    'rewards': rewards.public_config(shop), 'company_media': company_media.public_media(app)}
 
     @app.get('/api/job-terms')
     def terms_content():
