@@ -194,6 +194,7 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
     app.state.uploads = uploads
     app.state.initial_credentials = credentials
     app.state.public_url = public_url
+    app.state.production = production
     marketing.install(app, database, public_url, production, require_admin)
 
     def seo_html(title: str, description: str, canonical: str, product=None) -> str:
@@ -349,7 +350,10 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
                         if user:
                             request.state.user = dict(user)
                             from .company import enrich_user
-                            request.state.user = enrich_user(app, request.state.user)
+                            from .support import enrich as enrich_support
+                            request.state.user = enrich_support(app,conn,request.state.session,request.state.user)
+                            if request.state.user:
+                                request.state.user = enrich_user(app, request.state.user)
         if request.url.path.startswith('/api/') and request.url.path not in ('/api/payments/stripe/webhook','/api/marketing/event','/api/internal/crm-reminders/run') and request.method not in ('GET', 'HEAD', 'OPTIONS'):
             sess = request.state.session
             csrf = request.headers.get('x-csrf-token', '')
@@ -461,12 +465,16 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
     @app.post('/api/auth/logout')
     def logout(request: Request):
         with transaction(database, True) as conn:
+            if request.state.user and request.state.user.get('support_company'):
+                audit(conn,None,request.state.user['email'],'platform.support_ended',{})
             conn.execute('DELETE FROM sessions WHERE token_hash=?', (request.state.session['token_hash'],))
             token, csrf = new_session(conn)
         return session_response({'csrf': csrf, 'user': None}, token)
 
     @app.post('/api/auth/password')
     def change_password(request: Request, payload: dict = Body(...), user=Depends(require_staff)):
+        if user.get('support_company'):
+            raise HTTPException(403,'Platform support cannot change the company owner’s password.')
         throttle(request, 'password', 5, 900)
         with transaction(database, True) as conn:
             stored = conn.execute('SELECT password_hash FROM users WHERE id=?', (user['id'],)).fetchone()[0]

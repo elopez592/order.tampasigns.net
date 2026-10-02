@@ -129,3 +129,66 @@ def test_connections_are_not_inherited_and_secrets_not_returned(env):
         rendered=_brand_html('Hello','World')
         assert 'Tenant Shop' in rendered and '555-0100' in rendered and 'Tampa Signs' not in rendered
     finally: configuration.reset(token)
+
+
+def support_client(app,host):
+    client=TestClient(CompanyRouter(app),base_url='https://'+host)
+    client.headers['X-CSRF-Token']=client.get('/api/session').json()['csrf']
+    return client
+
+
+def test_platform_support_is_one_use_company_scoped_and_audited(env):
+    from urllib.parse import urlsplit,parse_qs
+    app,admin,employee=env
+    add_company(admin,'support-shop','support.example.test')
+    add_company(admin,'other-shop','other.example.test')
+    assert employee.post('/api/platform/companies/support-shop/support',json={}).status_code==403
+    issued=admin.post('/api/platform/companies/support-shop/support',json={})
+    assert issued.status_code==200,issued.text
+    token=parse_qs(urlsplit(issued.json()['url']).fragment)['support'][0]
+    wrong=support_client(app,'other.example.test')
+    assert wrong.post('/api/auth/platform-support',json={'token':token}).status_code==401
+    company=support_client(app,'support.example.test')
+    # The exchange retains normal CSRF checks.
+    assert company.post('/api/auth/platform-support',json={'token':token},headers={'X-CSRF-Token':'wrong'}).status_code==403
+    result=company.post('/api/auth/platform-support',json={'token':token})
+    assert result.status_code==200,result.text
+    company.headers['X-CSRF-Token']=result.json()['csrf']
+    user=company.get('/api/session').json()['user']
+    assert user['support_company']=='support-shop' and not user['platform_owner']
+    assert user['email']=='owner@example.test'
+    assert user['support_return']=='http://testserver/platform'
+    assert company.get('/api/staff/jobs').status_code==200
+    assert company.post('/api/auth/password',json={}).status_code==403
+    assert company.post('/api/auth/platform-support',json={'token':token}).status_code==401
+    # The owner account/password and seat count have not changed.
+    child=app.state.company_apps['support-shop']
+    with transaction(child.state.database) as conn:
+        assert conn.execute('SELECT count(*) FROM users').fetchone()[0]==1
+        event=conn.execute("SELECT actor FROM events WHERE action='platform.support_started'").fetchone()
+        assert event['actor']=='owner@example.test'
+    with transaction(app.state.database) as conn:
+        assert token not in str([dict(r) for r in conn.execute('SELECT * FROM platform_support_grants')])
+    # Revoking the root owner session revokes company support immediately.
+    assert admin.post('/api/auth/logout',json={}).status_code==200
+    assert company.get('/api/staff/jobs').status_code==401
+    company.close();wrong.close()
+
+
+def test_platform_support_requires_connected_active_company_and_live_grant(env):
+    from urllib.parse import urlsplit,parse_qs
+    app,admin,_=env
+    add_company(admin,'unconnected-shop','')
+    assert admin.post('/api/platform/companies/unconnected-shop/support',json={}).status_code==422
+    add_company(admin,'paused-shop','paused.example.test')
+    row=next(c for c in admin.get('/api/platform/companies').json()['companies'] if c['slug']=='paused-shop')
+    assert admin.patch('/api/platform/companies/paused-shop',json={'revision':row['revision'],'status':'suspended'}).status_code==200
+    assert admin.post('/api/platform/companies/paused-shop/support',json={}).status_code==403
+    add_company(admin,'expired-shop','expired.example.test')
+    url=admin.post('/api/platform/companies/expired-shop/support',json={}).json()['url']
+    token=parse_qs(urlsplit(url).fragment)['support'][0]
+    with transaction(app.state.database,True) as conn:
+        conn.execute('UPDATE platform_support_grants SET expires_at=0')
+    company=support_client(app,'expired.example.test')
+    assert company.post('/api/auth/platform-support',json={'token':token}).status_code==401
+    company.close()

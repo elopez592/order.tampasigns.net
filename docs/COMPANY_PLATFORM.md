@@ -28,6 +28,23 @@ to Tampa Signs. Root production domains are reserved. Change a registered
 company domain through its platform card; configured redirect URLs at external
 providers must be updated independently.
 
+## Platform owner support access
+
+Use **Manage company** on a connected company's card to enter its workspace
+without using its password. **Company sign-in** remains the normal login for
+the subscribing business. Companies without a domain show a connection notice;
+entering a hostname here does not provision hosting or DNS.
+
+Support access uses a company/hostname-bound, single-use link that expires in
+60 seconds, passed only in the URL fragment and removed before exchange. Its
+host-only session lasts at most one hour and is checked against the original
+platform owner session on every request. Signing out of the platform, disabling
+the platform owner, changing the domain, pausing the company or ending its trial
+invalidates support access. This creates no staff seat and changes no password.
+Support actions identify the platform operator in activity logs. The workspace
+banner identifies the company and **Return to Platform Control** ends the support
+session before returning. The owner password form is unavailable in support mode.
+
 Connect each shop's own sales-payment account through its company connections.
 Use the company's displayed webhook URL. The root sales account and email
 provider never become defaults for new companies. Secret values are stored in
