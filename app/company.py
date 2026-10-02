@@ -175,11 +175,21 @@ def install(app, directory, require_admin, platform=True):
     def theme():
         with transaction(db) as conn: shop=DEFAULTS|settings(conn)
         primary=shop['brand_primary'];dark=shop['brand_dark']
+        # Tampa Signs has a multi-color brand system. Keep teal and orange distinct
+        # instead of collapsing every brand token into one saved primary color.
+        if platform and shop.get('shop_name')=='Tampa Signs and Stickers':
+            primary='#16B2B4'
+            accent='#087F81'
+            dark='#0B0F10'
+            orange='#F28A3B'
+        else:
+            accent=primary
+            orange=primary
         if not re.fullmatch(r'#[0-9a-fA-F]{6}',primary+'' ) or not re.fullmatch(r'#[0-9a-fA-F]{6}',dark): raise HTTPException(422,'Invalid colors.')
-        channels=[int(primary[i:i+2],16)/255 for i in (1,3,5)]
+        channels=[int(accent[i:i+2],16)/255 for i in (1,3,5)]
         linear=[v/12.92 if v<=0.04045 else ((v+0.055)/1.055)**2.4 for v in channels]
         foreground='#000000' if sum(v*w for v,w in zip(linear,(0.2126,0.7152,0.0722)))>0.179 else '#ffffff'
-        css=f':root{{--teal:{primary};--brand-teal:{primary};--accent:{primary};--brand-orange:{primary};--ink:{dark};--nav:{dark};--dark:{dark}}}.btn.primary{{background:{primary};color:{foreground}}}.sidebar,.login-art{{background:{dark}}}' if shop.get('brand_custom') else ''
+        css=f':root{{--teal:{primary};--brand-teal:{primary};--accent:{accent};--brand-orange:{orange};--ink:{dark};--nav:{dark};--dark:{dark}}}.btn.primary{{background:{accent};color:{foreground}}}.sidebar,.login-art{{background:{dark}}}' if shop.get('brand_custom') else ''
         # Bundled company styles apply only inside that company's isolated workspace.
         if not platform and directory.name=='mirakol':
             if re.fullmatch(r'[a-f0-9]{64}\.png',shop.get('brand_icon','')):
