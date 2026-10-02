@@ -1,0 +1,49 @@
+/* Mirakol's palette stays inside its company theme response. */
+:root{--brand-yellow:#ffe600;--accent-dark:#c66b00;--teal-light:#fff1cf;--reward-teal:#c66b00;--green:#9b6200;--green-bg:#fff4d8;--muted:#777;--line:#ddd}
+.public-masthead{background:#000;border-color:#ffa500}
+.hero-stamp,.portal-hero,.estimate-head,.custom-quote-cta{background:#000;border-color:#ffa500}
+.hero-stamp,.estimate-head .eyebrow,.custom-quote-cta .eyebrow,.portal-hero .eyebrow,.product-help-card-featured .eyebrow,.project-center-overview .project-next-action span{color:#ffe600}
+.custom-quote-cta p,.portal-hero .muted,.estimate-head small,.product-help-card-featured p{color:#ccc}
+.product-option.active,.product-option.active:hover,.shape-layers .active{background:#fff1cf;border-color:#ffa500}
+.product-option:hover,.shape-button:hover{background:#fff8e6;border-color:#ffa500}
+.active .product-symbol{background:#000;color:#ffe600}
+.product-symbol{background:#eee}
+.product-preview{background:linear-gradient(135deg,#000,#322000);color:#ffe600}
+.preview-label{color:#ffe600}.preview-shape{box-shadow:5px 8px 0 #ffa50055}
+.product-example{--example-accent:#ffa500;background:linear-gradient(135deg,#000,#422600,#ffa500)}
+.product-example-detail .product-example-photo{background-color:#eee}
+.badge.blue,.badge.teal{background:#fff1cf;color:#815000}
+.side-link.active,.side-link:hover{background:#242424;color:#ffe600}
+.side-link.active .icon,.wordmark span,.hero .eyebrow{color:#ffa500}
+.customer-progress li{color:#ccc;border-color:#555}.customer-progress li.active{color:#ffe600;border-color:#ffe600}
+.customer-progress li.active>span{background:#ffe600;border-color:#ffe600;color:#000}
+.terms-section-links a,.terms-document h2,.terms-confirmation h2{color:#a65a00}
+.terms-confirmation,.approval-agreement{background:#fff8e6;border-color:#e6c884}
+.contact-order-copy{background:#000}.public-footer{color:#aaa}
+#ts-measure-banner{background:#000;border-color:#ffa500}#ts-measure-banner a{color:#ffe600}
+#ts-measure-settings,.ts-measure-actions button{border-color:#ffa500;color:#000}
+.top,.hero{--dark:#000}.top .icon-button,.avatar{background:#242424;border-color:#555;color:#ffe600}
+.hero:after{border-color:#ffa500}.hero .btn{background:#ffa500;color:#000}.hero p{color:#ccc}
+.progress span,.marketing-bar span{background:#ffa500}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline-color:#ffa500}
+/* Customer storefront: dark surfaces with orange actions and yellow details. */
+body:has(.public-masthead){--ink:#f5f5f5;--paper:#000;--white:#151515;--muted:#bbb;--line:#3b3b3b;background:#000;color:#f5f5f5}
+body:has(.public-masthead) .panel{background:#151515}
+body:has(.public-masthead) .product-option{color:#ccc}
+body:has(.public-masthead) .product-option.active,body:has(.public-masthead) .product-option:hover{background:#292000;color:#ffe600}
+body:has(.public-masthead) .product-symbol{background:#333;color:#ffe600}
+body:has(.public-masthead) .storefront-category-tabs button{background:#151515;color:#ddd}
+body:has(.public-masthead) .storefront-category-tabs button.active{color:#ffe600;border-color:#ffa500}
+body:has(.public-masthead) .quantity-btn,body:has(.public-masthead) input,body:has(.public-masthead) select,body:has(.public-masthead) textarea{background:#222;color:#fff;border-color:#555}
+body:has(.public-masthead) .btn.light{background:#222;color:#fff}
+body:has(.public-masthead) .field>span,body:has(.public-masthead) .field>label{color:#ddd}
+body:has(.public-masthead) .public-header .nav-links{color:#ddd}
+
+body:has(.public-masthead) .coverage-card,body:has(.public-masthead) .dimension-row,body:has(.public-masthead) .embroidery-extra,body:has(.public-masthead) .usdot-size-first,body:has(.public-masthead) .product-help-card,body:has(.public-masthead) .finder-step,body:has(.public-masthead) .account-business-summary{background:#151515;color:#f5f5f5}
+body:has(.public-masthead) .coverage-card.selected{background:#292000;box-shadow:0 0 0 3px #ffa50022}
+body:has(.public-masthead) .coverage-card:hover{border-color:#ffa500}
+body:has(.public-masthead) .catalog-icon{background:#292000;color:#ffe600}
+body:has(.public-masthead) .step-number{background:#333;color:#ffe600}
+body:has(.public-masthead) .btn.ghost{color:#ffe600}
+body:has(.public-masthead) .terms-section-links a,body:has(.public-masthead) .terms-confirmation,body:has(.public-masthead) .approval-agreement{background:#222;color:#eee;border-color:#555}
+body:has(.public-masthead) .terms-document h2,body:has(.public-masthead) .terms-confirmation h2{color:#ffe600}

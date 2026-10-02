@@ -3,6 +3,9 @@ import json
 from fastapi.testclient import TestClient
 from PIL import Image
 from app.db import settings, transaction
+from app.images import sanitize
+from pathlib import Path
+import hashlib
 from app.platform import CompanyRouter
 from tests.test_company_platform import tenant, add_company
 
@@ -27,9 +30,13 @@ def test_mirakol_setup_is_private_quote_only_and_applied_once(env):
     icon=Image.open(io.BytesIO(first.get('/brand/app-icon.png').content))
     assert icon.getpixel((0,0))[3]==0
     assert icon.getpixel((90,90))[3]>240
-    assert first.get('/staff/manifest.webmanifest').json()['icons'][0]['src']=='/brand/app-icon.png'
-    assert 'href="/brand/app-icon.png"' in first.get('/').text
-    assert 'color:#000000' in first.get('/brand/theme.css').text
+    assert first.get('/staff/manifest.webmanifest').json()['icons'][0]['src']=='/brand/app-icon.png?v='+brand['brand_icon'][:16]
+    assert 'href="/brand/app-icon.png?v=' in first.get('/').text
+    theme=first.get('/brand/theme.css').text
+    assert 'color:#000000' in theme
+    assert '--brand-teal:#ffa500' in theme and '--brand-yellow:#ffe600' in theme
+    assert 'body:has(.public-masthead)' in theme
+    assert '--brand-yellow' not in admin.get('/brand/theme.css').text
     catalog=first.get('/api/catalog').json()
     assert catalog['shop']['storefront_category_order'].startswith('Apparel, Events, Promotional Products')
     assert catalog['shop']['storefront_heading']=='Wear your brand. Make an impression.'
@@ -74,4 +81,37 @@ def test_setup_requires_matching_company_identity(env):
     client=tenant(app,'other.example.test',response.json())
     assert client.get('/api/brand').json()['brand_icon']==''
     assert 'Custom table covers' not in {p['name'] for p in client.get('/api/catalog').json()['products']}
+    client.close()
+
+
+def test_reference_icon_update_preserves_owner_settings_draft_and_products(env):
+    app,admin,_=env
+    created=admin.post('/api/platform/companies',json={'slug':'mirakol','name':'Mirakol Customs',
+                       'owner_email':'client@example.test','hostname':'mirakol.tampasigns.net'}).json()
+    app.state.company_apps.pop('mirakol')
+    client=tenant(app,'mirakol.tampasigns.net',created)
+    new_icon=client.get('/api/brand').json()['brand_icon']
+    child=app.state.company_apps['mirakol']
+    bundle=Path(__file__).parents[1]/'app/company_setups/mirakol'
+    clean,_,_,_=sanitize((bundle/'icon.png').read_bytes(),'icon.png')
+    previous_icon=hashlib.sha256(clean).hexdigest()+'.png'
+    with transaction(child.state.database,True) as conn:
+        conn.execute("DELETE FROM company_setup_applied WHERE id='mirakol-reference-icon-20261002-v2'")
+        shop=settings(conn)|{'brand_primary':'#123456','contact_phone':'555-0100','brand_icon':previous_icon}
+        conn.execute('UPDATE settings SET data=? WHERE id=1',(json.dumps(shop),))
+        draft=json.loads(conn.execute('SELECT data FROM company_draft WHERE id=1').fetchone()[0])
+        draft=draft|{'storefront_heading':'An unpublished owner draft','brand_icon':previous_icon}
+        conn.execute('UPDATE company_draft SET data=? WHERE id=1',(json.dumps(draft),))
+        products=[dict(r) for r in conn.execute('SELECT * FROM products ORDER BY id')]
+    app.state.company_apps.pop('mirakol')
+    updated=client.get('/api/brand').json()
+    assert updated['brand_icon']==new_icon and new_icon!=previous_icon
+    assert updated['brand_primary']=='#123456' and updated['contact_phone']=='555-0100'
+    state=client.get('/api/admin/company').json()
+    assert state['draft']['data']['storefront_heading']=='An unpublished owner draft'
+    assert state['draft']['data']['brand_icon']==new_icon
+    with transaction(child.state.database) as conn:
+        assert [dict(r) for r in conn.execute('SELECT * FROM products ORDER BY id')]==products
+    app.state.company_apps.pop('mirakol')
+    assert client.get('/api/admin/company').json()['draft']['version']==state['draft']['version']
     client.close()
