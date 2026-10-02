@@ -9,12 +9,13 @@ import json
 import os
 import re
 import secrets
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 from fastapi import Body, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from .db import transaction, settings, audit, now
-from .security import text, email
+from .security import text, email, digest
 from .runtime import configuration, getenv
 
 SCHEMA='''CREATE TABLE IF NOT EXISTS platform_companies (
@@ -23,6 +24,10 @@ SCHEMA='''CREATE TABLE IF NOT EXISTS platform_companies (
  monthly_cents INTEGER NOT NULL DEFAULT 19900, setup_cents INTEGER NOT NULL DEFAULT 75000,
  trial_ends TEXT NOT NULL DEFAULT '', billing_note TEXT NOT NULL DEFAULT '',
  revision INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS platform_support_grants (
+ token_hash TEXT PRIMARY KEY, slug TEXT NOT NULL, hostname TEXT NOT NULL,
+ root_session TEXT NOT NULL, operator_email TEXT NOT NULL, expires_at REAL NOT NULL
 );'''
 STATUSES={'trial','active','past_due','suspended','closed'}
 CONNECTIONS={'STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','RESEND_API_KEY','EMAIL_FROM','EMAIL_REPLY_TO','CANVA_CLIENT_ID','CANVA_CLIENT_SECRET','CANVA_REDIRECT_URI','REMINDER_CRON_SECRET'}
@@ -36,12 +41,16 @@ def company_config(directory, row):
     return values
 
 
-def make_company(directory,row):
+def make_company(directory,row,root=None):
     from .main import create_app
     token=configuration.set(company_config(directory,row))
     try:
         child=create_app(directory/'companies'/row['slug'],demo=False,platform=False)
         child.state.seat_limit=row['seats']
+        if root is not None:
+            child.state.support_root=root
+            child.state.support_slug=row['slug']
+            child.state.support_hostname=row['hostname']
         return child
     finally: configuration.reset(token)
 
@@ -63,6 +72,31 @@ def install(app,directory,require_admin):
         return user
     reserved={urlsplit(app.state.public_url).hostname,'orders.tampasigns.net','ordertampasignsnet-production.up.railway.app'}
     reserved.update(x.strip() for x in str(getenv('ALLOWED_HOSTS','')).split(','))
+
+    def validate_support(conn, session_hash, address, slug, hostname):
+        expected=str(os.getenv('PLATFORM_OWNER_EMAIL',os.getenv('ADMIN_EMAIL','owner@example.test'))).lower()
+        operator=conn.execute('SELECT u.email,u.role,u.active FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?',(session_hash,time.time())).fetchone()
+        company=conn.execute('SELECT hostname,status,trial_ends FROM platform_companies WHERE slug=?',(slug,)).fetchone()
+        if not operator or not company: return False
+        from datetime import date
+        return bool(operator['active'] and operator['role']=='admin' and operator['email'].lower()==expected==address.lower()
+                    and company['hostname']==hostname and company['status'] not in ('suspended','closed')
+                    and not (company['status']=='trial' and company['trial_ends'] and date.today()>date.fromisoformat(company['trial_ends'])))
+    app.state.validate_support=validate_support
+
+    @app.post('/api/platform/companies/{slug}/support')
+    def support(slug:str,request:Request,user=Depends(owner)):
+        with transaction(db,True) as conn:
+            row=conn.execute('SELECT * FROM platform_companies WHERE slug=?',(slug,)).fetchone()
+            if not row: raise HTTPException(404,'Company not found.')
+            if not row['hostname']: raise HTTPException(422,'Connect this company’s domain in hosting first, then save it here. Each company needs its own secure workspace address.')
+            if not validate_support(conn,request.state.session['token_hash'],user['email'],slug,row['hostname']):
+                raise HTTPException(403,'This company is paused or its trial has ended. Update its access status before managing it.')
+            token=secrets.token_urlsafe(32)
+            conn.execute('DELETE FROM platform_support_grants WHERE expires_at<?',(time.time(),))
+            conn.execute('INSERT INTO platform_support_grants VALUES(?,?,?,?,?,?)',(digest(token),slug,row['hostname'],request.state.session['token_hash'],user['email'],time.time()+60))
+            audit(conn,None,user['email'],'platform.support_issued',{'slug':slug})
+        return {'url':'https://'+row['hostname']+'/staff#support='+token}
 
     @app.get('/platform',response_class=HTMLResponse)
     def page(): return HTMLResponse((Path(__file__).with_name('static')/'platform.html').read_text())
@@ -93,7 +127,7 @@ def install(app,directory,require_admin):
             if hostname and conn.execute('SELECT 1 FROM platform_companies WHERE hostname=?',(hostname,)).fetchone(): raise HTTPException(409,'Domain is already assigned to another company.')
             if company_dir.exists() or conn.execute('SELECT 1 FROM platform_companies WHERE slug=?',(slug,)).fetchone(): raise HTTPException(409,'Company ID already exists.')
             row={'slug':slug,'name':name,'owner_email':address,'hostname':hostname,'seats':5}
-            child=make_company(directory,row)
+            child=make_company(directory,row,app)
             with transaction(child.state.database,True) as child_conn:
                 shop=settings(child_conn)|{'shop_name':name,'contact_email':address,'contact_phone':'','rates_live':False,'checkout_enabled':False,
                      'checkout_pickup_address':'','checkout_tax_reviewed':False,'brand_custom':True,'app_short_name':''.join(x[0] for x in name.split()[:2]).upper()+' Staff'}
@@ -180,7 +214,7 @@ class CompanyRouter:
         async with self.lock:
             child=self.root.state.company_apps.get(row['slug'])
             if child is None:
-                child=await asyncio.to_thread(make_company,self.directory,row)
+                child=await asyncio.to_thread(make_company,self.directory,row,self.root)
                 child.state.initial_credentials=[]
                 self.root.state.company_apps[row['slug']]=child
         child.state.seat_limit=row['seats']

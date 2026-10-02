@@ -66,6 +66,9 @@ def validate(data):
 def install(app, directory, require_admin, platform=True):
     db=app.state.database
     app.state.platform_enabled=platform
+    if not platform:
+        from .support import install as install_support
+        install_support(app)
     brand=directory/'brand';brand.mkdir(exist_ok=True);brand.chmod(0o700)
     with transaction(db,True) as conn:
         conn.executescript(SCHEMA)
