@@ -245,7 +245,7 @@ def install(app, directory, require_admin, platform=True):
         body=body.replace('/static/employee.webmanifest?v=20261001-3','/staff/manifest.webmanifest').replace('/static/employee.webmanifest','/staff/manifest.webmanifest')
         body=body.replace('/staff/apple-touch-icon-20261001.png','/brand/app-icon.png')
         body=body.replace('/brand/app-icon.png',icon_url(shop))
-        logo='/brand/images/'+shop['brand_logo'] if shop['brand_logo'] else ('/static/brand/tampa-black.png' if shop['shop_name']=='Tampa Signs and Stickers' else '/brand/app-icon.png')
+        logo='/brand/images/'+shop['brand_logo'] if shop['brand_logo'] else ('/static/brand/tampa-white.png' if shop['shop_name']=='Tampa Signs and Stickers' else '/brand/app-icon.png')
         identity=f'<meta name="shop-name" content="{html.escape(shop["shop_name"],quote=True)}"><meta name="shop-logo" content="{html.escape(logo,quote=True)}">'
         body=body.replace('</head>',identity+'<link rel="stylesheet" href="/brand/theme.css"><script src="/static/company-brand.js?v=2" defer></script></head>')
         headers={k:v for k,v in response.headers.items() if k.lower() not in ('content-length','content-encoding')}
