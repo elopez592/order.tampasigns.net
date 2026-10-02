@@ -28,9 +28,12 @@ def test_mirakol_setup_is_private_quote_only_and_applied_once(env):
     assert brand['contact_email']=='client@example.test' and brand['contact_phone']=='555-0100'
     assert brand['brand_logo'] and brand['brand_icon'] and brand['app_short_name']=='Mirakol'
     icon=Image.open(io.BytesIO(first.get('/brand/app-icon.png').content))
-    assert icon.getpixel((0,0))[3]==0
-    assert icon.getpixel((90,90))[3]>240
-    assert first.get('/staff/manifest.webmanifest').json()['icons'][0]['src']=='/brand/app-icon.png?v='+brand['brand_icon'][:16]
+    assert icon.size==(180,180) and icon.mode=='RGB'
+    assert icon.getpixel((0,0))==(0,0,0)
+    assert icon.getpixel((179,179))==(0,0,0)
+    assert icon.getpixel((6,90))==(0,0,0)
+    assert max(high for low,high in icon.getextrema())>240
+    assert first.get('/staff/manifest.webmanifest').json()['icons'][0]['src']=='/brand/app-icon.png?v='+brand['brand_icon'][:16]+'-iphone-1'
     assert 'href="/brand/app-icon.png?v=' in first.get('/').text
     theme=first.get('/brand/theme.css').text
     assert 'color:#000000' in theme
@@ -50,7 +53,8 @@ def test_mirakol_setup_is_private_quote_only_and_applied_once(env):
     assert all(p['config']['quote_only'] and not p['config']['instant'] for p in added)
     quote=first.post('/api/calculate',json={'items':[{'product_id':added[0]['id'],'width':12,'height':12,'quantity':1}]}).json()
     assert quote['review_required'] and quote['lines'][0]['quote_only']
-    assert 'Wear your brand. Make an impression.' in first.get('/').text
+    assert first.get('/',follow_redirects=False).headers['location']=='/products/embroidered-hats'
+    assert 'Wear your brand. Make an impression.' in first.get('/products').text
     assert catalog['shop']['rates_live'] is False
     assert first.get('/api/admin/settings').json()['checkout_enabled'] is False
     # Owner changes and existing product edits survive a subsequent application load.
