@@ -215,6 +215,9 @@ def serialize_job(conn, job, audience='admin', detail=True, gateway=None):
     quote = json.loads(job['quote_snapshot'])
     result['quote'] = quote if audience == 'admin' else public_quote(quote)
     result['panel_photos'] = panel_photos(conn, job) if audience != 'customer' or job['published'] else []
+    result['invoices'] = []
+    if job['published'] and conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='employee_invoices'").fetchone():
+        result['invoices'] = [dict(row) for row in conn.execute("SELECT id,number,quote_version,created_at FROM employee_invoices WHERE job_id=? AND status='issued' ORDER BY id DESC", (job['id'],))]
     result['payment_url'] = job['payment_url']
     result['payment_kind'] = job['payment_kind']
     result['invoice_reference'] = job['invoice_reference']

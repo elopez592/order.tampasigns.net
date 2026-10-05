@@ -452,3 +452,182 @@ def test_mobile_active_jobs_hide_finished_but_preserve_history(env):
     with transaction(app.state.database, True) as conn:
         conn.execute("UPDATE tasks SET status='todo' WHERE id=(SELECT MIN(id) FROM tasks WHERE job_id=?)", (finished,))
     assert finished in {j['id'] for j in employee.get('/api/staff/jobs?active_only=true').json()['jobs']}
+
+
+def on_site_payload(employee, jid, **extra):
+    job = employee.get(f'/api/staff/jobs/{jid}').json()
+    return {'version': job['quote_version'], 'total_cents': job['totals']['total_cents'],
+            'recipient': job['customer_email'], 'customer_name': 'Client at site', 'confirm': True, **extra}
+
+
+def invoice_customer(app, result):
+    from urllib.parse import urlsplit, parse_qs
+    client = anonymous(app)
+    token = parse_qs(urlsplit(result['portal_url']).fragment)['token'][0]
+    exchanged = client.post('/api/portal/exchange', json={'token': token})
+    assert exchanged.status_code == 200, exchanged.text
+    client.headers['X-CSRF-Token'] = exchanged.json()['csrf']
+    return client
+
+
+def test_owner_completes_all_saved_surveys_from_project_review(env):
+    app, admin, employee = env
+    cid = add_client(employee)
+    jid, _, _ = estimate(employee, cid)
+    first, _ = save_survey(employee, cid, job_id=jid)
+    second, _ = save_survey(employee, cid, job_id=jid)
+    employee.post(f'/api/staff/surveys/{second["id"]}/action', json={'action': 'submit', 'version': second['version']})
+    review_url = f'/api/staff/jobs/{jid}/site-survey/review'
+    assert employee.get(review_url).status_code == 403
+    assert anonymous(app).get(review_url).status_code == 401
+    review = admin.get(review_url).json()
+    assert review['quote_version'] == 1 and len(review['surveys']) == 2
+    payload = {'confirm': True, 'note': 'Checked both saved surveys against the order.', 'quote_version': 1,
+               'reviewed_surveys': [{'id': s['id'], 'version': s['version'], 'confirm': True} for s in review['surveys']]}
+    complete = f'/api/staff/jobs/{jid}/site-survey/complete'
+    assert employee.post(complete, json=payload).status_code == 403
+    assert admin.post(complete, json={**payload, 'reviewed_surveys': payload['reviewed_surveys'][:1]}).status_code == 409
+    assert admin.post(complete, json={**payload, 'quote_version': 99}).status_code == 409
+    bad = [dict(s) for s in payload['reviewed_surveys']]; bad[0]['version'] += 1
+    assert admin.post(complete, json={**payload, 'reviewed_surveys': bad}).status_code == 409
+    bad = [dict(s) for s in payload['reviewed_surveys']]; bad[1]['confirm'] = False
+    assert admin.post(complete, json={**payload, 'reviewed_surveys': bad}).status_code == 422
+    assert admin.get(review_url).json()['surveys'][0]['status'] == 'draft'
+    saved = admin.post(complete, json=payload)
+    assert saved.status_code == 200, saved.text
+    assert employee.get(f'/api/staff/jobs/{jid}').json()['site_survey']['status'] == 'complete'
+    assert all(s['status'] == 'verified' for s in admin.get(review_url).json()['surveys'])
+    with transaction(app.state.database) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM events WHERE job_id=? AND action='employee_survey.verify'", (jid,)).fetchone()[0] == 2
+
+
+def test_project_survey_review_files_are_private_and_job_bound(env):
+    app, admin, employee = env
+    cid = add_client(employee)
+    jid, _, _ = estimate(employee, cid)
+    saved, _ = save_survey(employee, cid, job_id=jid)
+    stream = io.BytesIO(); Image.new('RGB', (20, 20), (0, 120, 120)).save(stream, 'PNG')
+    uploaded = employee.post(f'/api/staff/surveys/{saved["id"]}/files', data={'client_key': 'review-photo'}, files={'file': ('site.png', stream.getvalue(), 'image/png')})
+    assert uploaded.status_code == 200, uploaded.text
+    review = admin.get(f'/api/staff/jobs/{jid}/site-survey/review').json()
+    file = review['surveys'][0]['files'][0]
+    assert 'stored_name' not in file
+    assert admin.get(file['url']).status_code == 200
+    assert employee.get(file['url']).status_code == 403
+    other, _, _ = estimate(employee, cid, title='Other project')
+    assert admin.get(f'/api/staff/jobs/{other}/site-survey/files/{file["id"]}').status_code == 404
+
+
+def test_on_site_approval_issues_invoice_without_clearing_survey_or_artwork_holds(env, monkeypatch):
+    app, admin, employee = env
+    live_rates(app)
+    cid = add_client(employee)
+    jid, _, _ = estimate(employee, cid)
+    save_survey(employee, cid, job_id=jid)
+    sent = []
+    monkeypatch.setattr('app.mailer.enabled', lambda: True)
+    monkeypatch.setattr('app.mailer._send', lambda *args: sent.append(args) or (True, ''))
+    payload = on_site_payload(employee, jid)
+    response = employee.post(f'/api/staff/jobs/{jid}/on-site-invoice', json=payload)
+    assert response.status_code == 200, response.text
+    invoice = response.json()
+    assert invoice['status'] == 'issued' and invoice['email_sent'] is True
+    assert invoice['recipient'] == payload['recipient'] and len(sent) == 1
+    assert invoice['number'] in sent[0][1] and 'View invoice' in sent[0][2]
+    assert f'&invoice={invoice["invoice_id"]}' in invoice['portal_url']
+    repeated = employee.post(f'/api/staff/jobs/{jid}/on-site-invoice', json=payload).json()
+    assert repeated['invoice_id'] == invoice['invoice_id'] and len(sent) == 1
+    job = employee.get(f'/api/staff/jobs/{jid}').json()
+    assert job['published'] and job['accepted_version'] == 1 and job['accepted_name'] == 'Client at site'
+    assert job['site_survey']['status'] == 'requested' and not job['proofs'] and job['totals']['paid_cents'] == 0
+    with transaction(app.state.database) as conn:
+        events = conn.execute("SELECT details FROM events WHERE job_id=? AND action='quote.accepted'", (jid,)).fetchall()
+        assert len(events) == 1 and json.loads(events[0]['details'])['method'] == 'in_person'
+    customer = invoice_customer(app, invoice)
+    document = customer.get(f'/api/invoices/{invoice["invoice_id"]}')
+    assert document.status_code == 200 and invoice['number'] in document.text and 'View order &amp; payment' in document.text
+    assert 'no-store' in document.headers['cache-control']
+    assert customer.get('/api/portal/job').json()['invoices'][0]['id'] == invoice['invoice_id']
+    assert customer.get(f'/api/staff/invoices/{invoice["invoice_id"]}').status_code == 401
+
+
+def test_on_site_invoice_rejects_stale_price_email_unconfirmed_and_restricted_staff(env):
+    app, admin, employee = env
+    live_rates(app)
+    cid = add_client(employee)
+    jid, _, _ = estimate(employee, cid)
+    url = f'/api/staff/jobs/{jid}/on-site-invoice'
+    payload = on_site_payload(employee, jid)
+    for change, status in [({'version': 9}, 409), ({'total_cents': payload['total_cents']+1}, 409),
+                           ({'recipient': 'someone-else@example.test'}, 409), ({'confirm': False}, 422)]:
+        assert employee.post(url, json={**payload, **change}).status_code == status
+    assert not employee.get(f'/api/staff/jobs/{jid}').json()['published']
+    uid = employee.get('/api/session').json()['user']['id']
+    with transaction(app.state.database, True) as conn:
+        conn.execute("INSERT OR REPLACE INTO company_access(user_id,profile) VALUES(?,'survey_install')", (uid,))
+    assert employee.post(url, json=payload).status_code == 403
+    assert employee.post('/api/staff/invoices/999/send', json=payload).status_code == 403
+    assert anonymous(app).post(url, json=payload).status_code == 401
+    assert not employee.get(f'/api/staff/jobs/{jid}/invoices').json()['invoices']
+
+
+def test_only_owner_can_review_charges_during_on_site_invoicing(env):
+    app, admin, employee = env
+    cid = add_client(employee)
+    jid, _, _ = estimate(employee, cid)
+    with transaction(app.state.database, True) as conn:
+        conn.execute('UPDATE jobs SET charges_verified=0 WHERE id=?', (jid,))
+    payload = on_site_payload(employee, jid)
+    url = f'/api/staff/jobs/{jid}/on-site-invoice'
+    assert employee.post(url, json={**payload, 'charges_reviewed': True}).status_code == 403
+    assert admin.post(url, json=payload).status_code == 422
+    result = admin.post(url, json={**payload, 'charges_reviewed': True})
+    assert result.status_code == 200 and result.json()['status'] == 'issued'
+    assert employee.get(f'/api/staff/jobs/{jid}').json()['charges_verified']
+
+
+def test_failed_invoice_email_can_retry_without_new_invoice_or_approval(env, monkeypatch):
+    app, admin, employee = env
+    live_rates(app)
+    cid = add_client(employee)
+    jid, _, _ = estimate(employee, cid)
+    calls = []
+    monkeypatch.setattr('app.mailer.enabled', lambda: True)
+    def delivery(*args):
+        calls.append(args)
+        return (len(calls)>1, 'Temporary test delivery failure' if len(calls)==1 else '')
+    monkeypatch.setattr('app.mailer._send', delivery)
+    payload = on_site_payload(employee, jid)
+    first = employee.post(f'/api/staff/jobs/{jid}/on-site-invoice', json=payload).json()
+    assert first['status'] == 'issued' and first['email_sent'] is False
+    url = f'/api/staff/invoices/{first["invoice_id"]}/send'
+    retried = employee.post(url, json=payload)
+    assert retried.status_code == 200 and retried.json()['email_sent'] is True and len(calls) == 2
+    assert employee.post(url, json=payload).json()['email_sent'] is True and len(calls) == 2
+    assert employee.post(url, json={**payload, 'resend': True}).json()['email_sent'] is True and len(calls) == 3
+    assert len(employee.get(f'/api/staff/jobs/{jid}/invoices').json()['invoices']) == 1
+    assert employee.get(f'/api/staff/jobs/{jid}').json()['accepted_name'] == 'Client at site'
+
+
+def test_invoice_customer_access_and_sending_old_or_draft_invoice(env):
+    app, admin, employee = env
+    live_rates(app)
+    cid = add_client(employee)
+    jid, _, _ = estimate(employee, cid)
+    draft = employee.post(f'/api/staff/jobs/{jid}/invoices', json={'version': 1, 'confirm': True}).json()
+    payload = on_site_payload(employee, jid)
+    assert employee.post(f'/api/staff/invoices/{draft["invoice_id"]}/send', json=payload).status_code == 409
+    issued = employee.post(f'/api/staff/jobs/{jid}/on-site-invoice', json=payload).json()
+    visitor = anonymous(app)
+    assert visitor.get(f'/api/invoices/{issued["invoice_id"]}').status_code == 401
+    customer = invoice_customer(app, issued)
+    assert customer.get(f'/api/invoices/{draft["invoice_id"]}').status_code == 404
+    other, _, _ = estimate(employee, cid, title='Another order')
+    wrong_customer = portal(app, admin, other)
+    assert wrong_customer.get(f'/api/invoices/{issued["invoice_id"]}').status_code == 404
+    with transaction(app.state.database, True) as conn:
+        conn.execute('UPDATE jobs SET tax_cents=tax_cents+10 WHERE id=?', (jid,))
+    new_payload = on_site_payload(employee, jid)
+    assert employee.post(f'/api/staff/invoices/{issued["invoice_id"]}/send', json=new_payload).status_code == 409
+    assert employee.post(f'/api/staff/jobs/{jid}/on-site-invoice', json=new_payload).status_code == 409
+    assert customer.get(f'/api/invoices/{issued["invoice_id"]}').status_code == 200

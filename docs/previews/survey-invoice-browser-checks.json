@@ -1,0 +1,31 @@
+{
+  "checks": [
+    "Desktop shows saved measurements/photos and requires review of every survey",
+    "Owner completes draft and submitted field surveys directly from desktop",
+    "Employee records on-site price approval and creates one issued invoice",
+    "Unavailable email is reported truthfully and retry preserves the invoice",
+    "Private emailed link opens the invoice; portal retains price acceptance and invoice access",
+    "Owner reviews and completes saved survey from mobile project",
+    "Owner can explicitly review displayed charges before on-site invoicing"
+  ],
+  "errors": [],
+  "productionWrites": false,
+  "viewports": [
+    {
+      "width": 1360,
+      "height": 1000
+    },
+    {
+      "width": 390,
+      "height": 844
+    },
+    {
+      "width": 360,
+      "height": 740
+    },
+    {
+      "width": 844,
+      "height": 390
+    }
+  ]
+}
