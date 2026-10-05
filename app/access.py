@@ -23,7 +23,7 @@ def permitted(app,user,path,method):
     elif '/clients' in path: action='clients'
     elif '/proofs' in path or path.endswith('/layout'): action='proofs'
     elif '/tasks/' in path or path.endswith('/tasks'): action='production'
-    elif '/estimates' in path or re.search(r'/(quote|publish|share|payment-link|invoices|online-price-correction)$',path): action='quotes'
+    elif '/estimates' in path or path.endswith('/on-site-invoice') or re.search(r'/invoices/\d+/send$',path) or re.search(r'/(quote|publish|share|payment-link|invoices|online-price-correction)$',path): action='quotes'
     else: action='jobs'
     return action in PROFILES.get(profile,set())
 

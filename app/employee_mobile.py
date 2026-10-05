@@ -15,7 +15,7 @@ from . import artwork_approval, crm, job_terms
 from .db import audit, now, settings, transaction
 from .domain import create_job, get_job, panel_photos, production_started, totals
 from .images import MAX_UPLOAD, sanitize
-from .mailer import notify_customer
+from .mailer import notify_customer, notify_one
 from .pricing import calculate, cent_round, number, public_quote
 from .security import email, text
 from .staff_icon_data import ICON_PNG_B64
@@ -174,7 +174,7 @@ def _estimate(conn, payload):
                            'owner_review_required': bool(quote['review_required'] or not shop.get('checkout_tax_reviewed') or (survey and survey['removal_required']))}
 
 
-def _document_html(snapshot, status, kind, reference):
+def _document_html(snapshot, status, kind, reference, order_url=None):
     esc = html.escape
     money = lambda value: f'${int(value) / 100:,.2f}'
     def specs(line):
@@ -203,7 +203,7 @@ def _document_html(snapshot, status, kind, reference):
     <meta name="robots" content="noindex,nofollow"><title>{esc(reference)} | {esc(snapshot['shop']['name'])}</title>
     <style>body{{font:15px system-ui,sans-serif;color:#172c2e;max-width:800px;margin:35px auto;padding:24px}}h1{{font-size:32px;margin:8px 0}}header{{border-bottom:5px solid #008b8b;padding-bottom:24px}}p{{line-height:1.6}}.muted,small{{color:#52696b}}table{{width:100%;border-collapse:collapse;margin:25px 0}}td,th{{text-align:left;padding:14px 8px;border-bottom:1px solid #dae5e4}}td:last-child,th:last-child{{text-align:right}}.totals{{margin-left:auto;max-width:320px}}.totals p{{display:flex;justify-content:space-between;margin:10px 0}}.total{{font-size:22px;border-top:2px solid #008b8b;padding-top:12px}}button{{background:#007e7e;color:white;border:0;border-radius:8px;padding:12px 20px;font:inherit}}@media print{{body{{margin:0;padding:0}}button{{display:none}}thead{{display:table-header-group}}tr{{break-inside:avoid}}}}</style>
     <style>.panel-photo{{max-width:200px;max-height:140px;object-fit:contain;margin:8px 0}}</style><script defer src="/static/employee-document.js"></script></head><body>
-    <button id="print-document">Print / Save PDF</button><header><p><strong>{esc(snapshot['shop']['name'])}</strong><br>{esc(snapshot['shop']['email'])} · {esc(snapshot['shop']['phone'])}</p>
+    <button id="print-document">Print / Save PDF</button>{f' <a href="{esc(order_url, quote=True)}">View order &amp; payment</a>' if order_url else ''}<header><p><strong>{esc(snapshot['shop']['name'])}</strong><br>{esc(snapshot['shop']['email'])} · {esc(snapshot['shop']['phone'])}</p>
     <h1>{title}{' · Draft' if status == 'draft' else ''}</h1><p>{esc(reference)} · {esc(snapshot['created_at'][:10])} · Quote version {snapshot['quote_version']}</p></header>
     <p><strong>Bill to: {esc(snapshot['customer_name'])}</strong><br>{esc(snapshot['customer_email'])}<br>{esc(snapshot['phone'])}</p>
     <h2>{esc(snapshot['title'])}</h2><p class="muted">{esc(notice)}</p>
@@ -225,6 +225,47 @@ def _document_snapshot(conn, job):
             'totals': {k: m[k] for k in ('merchandise_cents','shipping_cents','tax_cents','total_cents','paid_cents','balance_cents','deposit_cents')},
             'shop': {'name': shop['shop_name'], 'email': shop['contact_email'], 'phone': shop['contact_phone']},
             'panel_photos': panel_photos(conn, job), 'created_at': now(), 'terms_notice': job_terms.PROOF_REVIEW_NOTICE}
+
+
+def _invoice_record(conn, job, user, who):
+    status = 'issued' if job['published'] and job['charges_verified'] and job['accepted_version'] == job['quote_version'] else 'draft'
+    prior = conn.execute('SELECT * FROM employee_invoices WHERE job_id=? AND quote_version=? AND status=?', (job['id'], job['quote_version'], status)).fetchone()
+    if prior:
+        return prior
+    iid = conn.execute('INSERT INTO employee_invoices(job_id,quote_version,snapshot,status,created_by,created_at) VALUES(?,?,?,?,?,?)',
+                       (job['id'], job['quote_version'], json.dumps(_document_snapshot(conn, job)), status, user['id'], now())).lastrowid
+    reference = f'INV-{now()[:4]}-{iid:04d}'
+    conn.execute('UPDATE employee_invoices SET number=? WHERE id=?', (reference, iid))
+    audit(conn, job['id'], who, 'invoice.created', {'invoice_id': iid, 'number': reference, 'status': status})
+    return conn.execute('SELECT * FROM employee_invoices WHERE id=?', (iid,)).fetchone()
+
+
+def _invoice_result(row):
+    return {'invoice_id': row['id'], 'number': row['number'], 'status': row['status']}
+
+
+def _review_invoice_request(conn, job, payload):
+    if job['archived']:
+        raise HTTPException(409, 'This project is archived.')
+    if type(payload.get('version')) is not int or payload['version'] != job['quote_version']:
+        raise HTTPException(409, 'The quote changed. Reload and review the latest version.')
+    money = totals(conn, job)
+    if type(payload.get('total_cents')) is not int or payload['total_cents'] != money['total_cents']:
+        raise HTTPException(409, 'The price changed. Reload and review the current total before sending an invoice.')
+    recipient = email(job['customer_email'])
+    if payload.get('recipient') != recipient:
+        raise HTTPException(409, 'The client email changed. Reload and confirm the invoice recipient.')
+    if payload.get('confirm') is not True:
+        raise HTTPException(422, 'Confirm the client approved this scope and total before sending the invoice.')
+    return money, recipient
+
+
+def _check_issued_invoice(row, job, money):
+    snapshot = json.loads(row['snapshot'])
+    if row['status'] != 'issued' or not job['published'] or not job['charges_verified'] or job['accepted_version'] != job['quote_version']:
+        raise HTTPException(409, 'Review the charges and record client price approval before sending an issued invoice.')
+    if row['quote_version'] != job['quote_version'] or snapshot['totals']['total_cents'] != money['total_cents'] or snapshot['customer_email'] != job['customer_email']:
+        raise HTTPException(409, 'This invoice is for an older scope, price or client email. Revise the quote before issuing an updated invoice.')
 
 
 def install(app, database, uploads, require_staff, require_admin, actor, issue_email_portal, static, access_job):
@@ -301,6 +342,27 @@ def install(app, database, uploads, require_staff, require_admin, actor, issue_e
             conn.execute('UPDATE crm_contacts SET name=?,company=?,email=?,phone=?,notes=?,updated_at=? WHERE id=?', values)
             audit(conn, None, actor(user), 'crm.contact_updated', {'contact_id': contact_id, 'source': 'employee_app'})
             return {'ok': True}
+
+    @app.get('/api/staff/jobs/{job_id}/site-survey/review')
+    def review_job_surveys(job_id: int, user=Depends(require_admin)):
+        with transaction(database) as conn:
+            job = get_job(conn, job_id)
+            surveys = [_survey_dict(conn, row) for row in conn.execute('SELECT * FROM employee_surveys WHERE job_id=? ORDER BY id', (job_id,))]
+            for survey in surveys:
+                for file in survey['files']:
+                    file['url'] = f'/api/staff/jobs/{job_id}/site-survey/files/{file["id"]}'
+            return {'surveys': surveys, 'quote_version': job['quote_version'],
+                    'quote': public_quote(json.loads(job['quote_snapshot']))}
+
+    @app.get('/api/staff/jobs/{job_id}/site-survey/files/{file_id}')
+    def review_survey_file(job_id: int, file_id: int, user=Depends(require_admin)):
+        with transaction(database) as conn:
+            get_job(conn, job_id)
+            file = conn.execute('SELECT f.* FROM employee_survey_files f JOIN employee_surveys s ON s.id=f.survey_id WHERE f.id=? AND s.job_id=?', (file_id, job_id)).fetchone()
+            if not file or not (uploads / file['stored_name']).is_file():
+                raise HTTPException(404, 'Survey file not found for this project.')
+            return FileResponse(uploads / file['stored_name'], media_type=file['mime'], filename=file['filename'], content_disposition_type='inline',
+                                headers={'Cache-Control': 'no-store', 'Content-Security-Policy': "sandbox; default-src 'none'"})
 
     @app.get('/api/staff/surveys')
     def surveys(request: Request, job_id: int | None = None, user=Depends(require_staff)):
@@ -610,23 +672,80 @@ def install(app, database, uploads, require_staff, require_admin, actor, issue_e
             job = get_job(conn, job_id)
             return HTMLResponse(_document_html(_document_snapshot(conn, job), 'issued' if job['published'] else 'draft', 'estimate', job['number']))
 
+    def deliver_invoice(invoice_id, payload, user):
+        with transaction(database, True) as conn:
+            invoice = conn.execute('SELECT * FROM employee_invoices WHERE id=?', (invoice_id,)).fetchone()
+            if not invoice:
+                raise HTTPException(404, 'Invoice not found.')
+            job = get_job(conn, invoice['job_id'])
+            money, recipient = _review_invoice_request(conn, job, payload)
+            _check_issued_invoice(invoice, job, money)
+            link = issue_email_portal(conn, job['id']) + f'&invoice={invoice_id}'
+            snapshot = json.loads(invoice['snapshot'])
+            message = '\n'.join([f'Invoice {invoice["number"]} for {job["title"]}',
+                                 *[f'{line["name"]} · Qty {line["quantity"]} · ${line["sell_cents"]/100:,.2f}' for line in snapshot['lines']],
+                                 f'Total including tax: ${money["total_cents"]/100:,.2f}',
+                                 f'Current balance: ${money["balance_cents"]/100:,.2f}',
+                                 'Open your private invoice to view the complete scope or print / save a PDF. Artwork and production approvals still apply.'])
+            result = _invoice_result(invoice)
+            job_id, shop_name = job['id'], snapshot['shop']['name']
+        sent = notify_one(database, job_id, f'invoice_ready_{invoice_id}', recipient, 'customer',
+                          f'Invoice {result["number"]} | {shop_name}', 'Your invoice is ready', message, link,
+                          'View invoice', force=payload.get('resend') is True)
+        with transaction(database, True) as conn:
+            audit(conn, job_id, actor(user), 'invoice.email_sent' if sent else 'invoice.email_failed',
+                  {'invoice_id': invoice_id, 'recipient': recipient})
+        return {**result, 'email_sent': bool(sent), 'recipient': recipient, 'portal_url': link}
+
+    @app.post('/api/staff/jobs/{job_id}/on-site-invoice')
+    def on_site_invoice(job_id: int, request: Request, payload: dict = Body(...), user=Depends(require_staff)):
+        signer = text(payload.get('customer_name', ''), 'Client approving the price', 120, True)
+        with transaction(database, True) as conn:
+            job = get_job(conn, job_id)
+            money, _ = _review_invoice_request(conn, job, payload)
+            if not job['charges_verified']:
+                if user['role'] != 'admin':
+                    raise HTTPException(403, 'An owner must review tax, delivery, installation and custom charges before issuing this invoice.')
+                if payload.get('charges_reviewed') is not True:
+                    raise HTTPException(422, 'Confirm the displayed tax, delivery, installation and custom charges have been reviewed.')
+                conn.execute('UPDATE jobs SET charges_verified=1 WHERE id=?', (job_id,))
+                audit(conn, job_id, actor(user), 'quote.charges_verified', {'version': job['quote_version'], 'source': 'on_site_invoice'})
+            if job['accepted_version'] != job['quote_version']:
+                if production_started(conn, job_id):
+                    raise HTTPException(409, 'New scope approval cannot be recorded after production starts.')
+                conn.execute('UPDATE jobs SET published=1,accepted_version=quote_version,accepted_name=?,accepted_at=? WHERE id=?', (signer, now(), job_id))
+                audit(conn, job_id, actor(user), 'quote.accepted', {'version': job['quote_version'], 'total_cents': money['total_cents'],
+                      'method': 'in_person', 'client_name': signer, 'recorded_by': user['id']}, True)
+            job = get_job(conn, job_id)
+            invoice = _invoice_record(conn, job, user, actor(user))
+            _check_issued_invoice(invoice, job, money)
+            invoice_id = invoice['id']
+        return deliver_invoice(invoice_id, payload, user)
+
+    @app.post('/api/staff/invoices/{invoice_id}/send')
+    def send_invoice(invoice_id: int, request: Request, payload: dict = Body(...), user=Depends(require_staff)):
+        return deliver_invoice(invoice_id, payload, user)
+
     @app.post('/api/staff/jobs/{job_id}/invoices')
     def create_invoice(job_id: int, request: Request, payload: dict = Body(...), user=Depends(require_staff)):
         with transaction(database, True) as conn:
             job = get_job(conn, job_id)
             if job['archived'] or payload.get('version') != job['quote_version'] or payload.get('confirm') is not True:
                 raise HTTPException(409, 'Review the current, active order before creating its invoice.')
-            status = 'issued' if job['published'] and job['charges_verified'] and job['accepted_version'] == job['quote_version'] else 'draft'
-            prior = conn.execute('SELECT id,number FROM employee_invoices WHERE job_id=? AND quote_version=? AND status=?', (job_id, job['quote_version'], status)).fetchone()
-            if prior:
-                return {'invoice_id': prior['id'], 'number': prior['number'], 'status': status}
-            snapshot = _document_snapshot(conn, job)
-            iid = conn.execute('INSERT INTO employee_invoices(job_id,quote_version,snapshot,status,created_by,created_at) VALUES(?,?,?,?,?,?)',
-                               (job_id, job['quote_version'], json.dumps(snapshot), status, user['id'], now())).lastrowid
-            reference = f'INV-{now()[:4]}-{iid:04d}'
-            conn.execute('UPDATE employee_invoices SET number=? WHERE id=?', (reference, iid))
-            audit(conn, job_id, actor(user), 'invoice.created', {'invoice_id': iid, 'number': reference, 'status': status})
-            return {'invoice_id': iid, 'number': reference, 'status': status}
+            return _invoice_result(_invoice_record(conn, job, user, actor(user)))
+
+    @app.get('/api/invoices/{invoice_id}', response_class=HTMLResponse)
+    def client_invoice_document(invoice_id: int, request: Request):
+        with transaction(database) as conn:
+            row = conn.execute('SELECT * FROM employee_invoices WHERE id=?', (invoice_id,)).fetchone()
+            if not row:
+                raise HTTPException(404, 'Invoice not found.')
+            job, _ = access_job(conn, request, row['job_id'])
+            if not request.state.user and (row['status'] != 'issued' or not job['published']):
+                raise HTTPException(404, 'Invoice not found.')
+            order_url = f'/staff#job/{job["id"]}' if request.state.user else '/portal'
+            return HTMLResponse(_document_html(json.loads(row['snapshot']), row['status'], 'invoice', row['number'], order_url),
+                                headers={'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex, nofollow'})
 
     @app.get('/api/staff/invoices/{invoice_id}', response_class=HTMLResponse)
     def invoice_document(invoice_id: int, request: Request, user=Depends(require_staff)):

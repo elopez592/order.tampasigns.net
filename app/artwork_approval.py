@@ -143,8 +143,27 @@ def install(app, database, uploads, portal_job, require_admin, add_proof, actor)
             job = get_job(conn, job_id)
             if not survey_pending(conn, job_id) or job['archived']:
                 raise HTTPException(409, 'No pending site survey exists for this job.')
-            if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='employee_surveys'").fetchone() and conn.execute("SELECT id FROM employee_surveys WHERE job_id=? AND status!='verified' LIMIT 1", (job_id,)).fetchone():
-                raise HTTPException(409, 'Verify each structured employee survey in the employee app before completing project measurements.')
+            if production_started(conn, job_id):
+                raise HTTPException(409, 'Measurements cannot change after production starts.')
+            pending = []
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='employee_surveys'").fetchone():
+                pending = conn.execute("SELECT id,version,address,measurements FROM employee_surveys WHERE job_id=? AND status!='verified' ORDER BY id", (job_id,)).fetchall()
+            if pending:
+                reviews = payload.get('reviewed_surveys')
+                if not isinstance(reviews, list) or len(reviews) != len(pending):
+                    raise HTTPException(409, 'Review every saved field survey in Record completed survey before completing measurements. Reload the project to see the review form.')
+                checked = {}
+                for review in reviews:
+                    if not isinstance(review, dict) or type(review.get('id')) is not int or type(review.get('version')) is not int or review.get('confirm') is not True or review['id'] in checked:
+                        raise HTTPException(422, 'Confirm the measurements for each saved field survey.')
+                    checked[review['id']] = review['version']
+                if payload.get('quote_version') != job['quote_version'] or checked != {row['id']: row['version'] for row in pending}:
+                    raise HTTPException(409, 'The order or a survey changed. Reopen the review form and check the latest measurements.')
+                for survey in pending:
+                    if not survey['address'] or not json.loads(survey['measurements']):
+                        raise HTTPException(422, 'Save a site address and measured areas before completing this survey.')
+                    conn.execute("UPDATE employee_surveys SET status='verified',version=version+1,updated_at=? WHERE id=?", (now(), survey['id']))
+                    audit(conn, job_id, actor(user), 'employee_survey.verify', {'survey_id': survey['id'], 'version': survey['version'], 'source': 'owner_workspace'})
             conn.execute("UPDATE job_site_surveys SET status='complete',note=?,updated_at=? WHERE job_id=?", (note, now(), job_id))
             audit(conn, job_id, actor(user), 'site_survey.completed', {'note': note}, True)
             return {'ok': True}
