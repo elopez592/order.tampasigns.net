@@ -4,12 +4,14 @@ from __future__ import annotations
 import base64
 import hashlib
 import html
+import io
 import json
 import secrets
 from decimal import Decimal
 
-from fastapi import Body, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import Body, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, Response
+from PIL import Image, UnidentifiedImageError
 
 from . import artwork_approval, crm, job_terms
 from .db import audit, now, settings, transaction
@@ -103,11 +105,25 @@ def _survey_dict(conn, row):
     item.pop('payload_hash', None)
     item['measurements'] = json.loads(item['measurements'])
     item['removal_required'] = bool(item['removal_required'])
-    contact = _contact(conn, row['contact_id'])
-    item['client_name'] = contact['company'] or contact['name']
+    item.update(dict(conn.execute('''SELECT COALESCE(NULLIF(c.company,''),c.name) client_name,
+        c.name contact_name, c.email client_email, c.phone client_phone, u.name employee_name,
+        j.number job_number, j.title job_title
+        FROM employee_surveys s JOIN crm_contacts c ON c.id=s.contact_id
+        JOIN users u ON u.id=s.created_by LEFT JOIN jobs j ON j.id=s.job_id WHERE s.id=?''', (row['id'],)).fetchone()))
     item['files'] = [dict(f) for f in conn.execute(
         'SELECT id,panel_key,filename,mime,size,created_at FROM employee_survey_files WHERE survey_id=? ORDER BY id', (row['id'],))]
+    for file in item['files']:
+        file.update(_survey_file_links(row['id'], file))
+    products = {r['id']: r['name'] for r in conn.execute('SELECT id,name FROM products')}
+    for area in item['measurements']:
+        area['product_name'] = products.get(area.get('product_id'), '')
     return item
+
+
+def _survey_file_links(survey_id, file):
+    url = f'/api/staff/surveys/{survey_id}/files/{file["id"]}'
+    return {'url': url, 'download_url': url + '?download=true',
+            'thumbnail_url': url + '/thumbnail' if file['mime'].startswith('image/') else None}
 
 
 def _measurements(conn, values):
@@ -365,11 +381,51 @@ def install(app, database, uploads, require_staff, require_admin, actor, issue_e
                                 headers={'Cache-Control': 'no-store', 'Content-Security-Policy': "sandbox; default-src 'none'"})
 
     @app.get('/api/staff/surveys')
-    def surveys(request: Request, job_id: int | None = None, user=Depends(require_staff)):
+    def surveys(request: Request, job_id: int | None = None, contact_id: int | None = None,
+                q: str = '', status: str = '', summary: bool = False,
+                limit: int = Query(500, ge=1, le=500), offset: int = Query(0, ge=0), user=Depends(require_staff)):
+        query = text(q, 'Survey search', 200).lower()
+        if status not in ('', 'draft', 'submitted', 'verified'):
+            raise HTTPException(422, 'Choose draft, submitted or verified survey status.')
         with transaction(database) as conn:
-            where, params = (' WHERE job_id=?', (job_id,)) if job_id else ('', ())
-            rows = conn.execute('SELECT * FROM employee_surveys' + where + ' ORDER BY updated_at DESC,id DESC LIMIT 500', params).fetchall()
-            return {'surveys': [_survey_dict(conn, row) for row in rows]}
+            joins = ''' FROM employee_surveys s JOIN crm_contacts c ON c.id=s.contact_id
+                JOIN users u ON u.id=s.created_by LEFT JOIN jobs j ON j.id=s.job_id'''
+            clauses, params = [], []
+            for value, column in ((job_id, 's.job_id'), (contact_id, 's.contact_id')):
+                if value is not None:
+                    clauses.append(column + '=?')
+                    params.append(value)
+            if status:
+                clauses.append('s.status=?')
+                params.append(status)
+            if query:
+                clauses.append("instr(lower(s.title||' '||s.address||' '||s.site_contact||' '||c.name||' '||c.company||' '||c.email||' '||c.phone||' '||u.name||' '||COALESCE(j.number,'')||' '||COALESCE(j.title,'')),?)>0")
+                params.append(query)
+            where = ' WHERE ' + ' AND '.join(clauses) if clauses else ''
+            total = conn.execute('SELECT COUNT(*)' + joins + where, params).fetchone()[0]
+            rows = conn.execute('''SELECT s.*, COALESCE(NULLIF(c.company,''),c.name) client_name,
+                c.name contact_name, u.name employee_name, j.number job_number, j.title job_title'''
+                + joins + where + ' ORDER BY s.updated_at DESC,s.id DESC LIMIT ? OFFSET ?', [*params, limit, offset]).fetchall()
+            if not summary:
+                return {'surveys': [_survey_dict(conn, row) for row in rows], 'total': total, 'limit': limit, 'offset': offset}
+            files = {}
+            if rows:
+                ids = [row['id'] for row in rows]
+                for file in conn.execute('SELECT id,survey_id,panel_key,filename,mime,size,created_at FROM employee_survey_files WHERE survey_id IN ('
+                                         + ','.join('?' for _ in ids) + ') ORDER BY id', ids):
+                    files.setdefault(file['survey_id'], []).append(dict(file) | _survey_file_links(file['survey_id'], file))
+            items = []
+            for row in rows:
+                item = {key: row[key] for key in ('id','contact_id','job_id','title','address','status','created_at','updated_at','client_name','contact_name','employee_name','job_number','job_title')}
+                item['area_count'] = len(json.loads(row['measurements']))
+                item['files'] = files.get(row['id'], [])
+                item['photo_count'] = sum(f['mime'].startswith('image/') for f in item['files'])
+                items.append(item)
+            counts = dict(conn.execute('''SELECT COUNT(*) surveys,
+                COALESCE(SUM(status='submitted'),0) submitted, COALESCE(SUM(status='draft'),0) draft,
+                COALESCE(SUM(status='verified'),0) verified FROM employee_surveys''').fetchone())
+            counts['photos'] = conn.execute("SELECT COUNT(*) FROM employee_survey_files WHERE mime LIKE 'image/%'").fetchone()[0]
+            return {'surveys': items, 'total': total, 'limit': limit, 'offset': offset, 'totals': counts}
 
     @app.get('/api/staff/surveys/{survey_id}')
     def survey_detail(survey_id: int, request: Request, user=Depends(require_staff)):
@@ -468,13 +524,34 @@ def install(app, database, uploads, require_staff, require_admin, actor, issue_e
             raise
 
     @app.get('/api/staff/surveys/{survey_id}/files/{file_id}')
-    def survey_file(survey_id: int, file_id: int, request: Request, user=Depends(require_staff)):
+    def survey_file(survey_id: int, file_id: int, request: Request, download: bool = False, user=Depends(require_staff)):
         with transaction(database) as conn:
             _survey(conn, survey_id)
             row = conn.execute('SELECT * FROM employee_survey_files WHERE id=? AND survey_id=?', (file_id, survey_id)).fetchone()
             if not row or not (uploads / row['stored_name']).is_file():
                 raise HTTPException(404, 'Survey attachment not found.')
-            return FileResponse(uploads / row['stored_name'], media_type=row['mime'], filename=row['filename'], content_disposition_type='inline')
+            return FileResponse(uploads / row['stored_name'], media_type=row['mime'], filename=row['filename'],
+                                content_disposition_type='attachment' if download else 'inline',
+                                headers={'Cache-Control': 'no-store', 'Content-Security-Policy': "sandbox; default-src 'none'"})
+
+    @app.get('/api/staff/surveys/{survey_id}/files/{file_id}/thumbnail')
+    def survey_thumbnail(survey_id: int, file_id: int, user=Depends(require_staff)):
+        with transaction(database) as conn:
+            _survey(conn, survey_id)
+            row = conn.execute('SELECT * FROM employee_survey_files WHERE id=? AND survey_id=?', (file_id, survey_id)).fetchone()
+            if not row or not row['mime'].startswith('image/') or not (uploads / row['stored_name']).is_file():
+                raise HTTPException(404, 'Survey photo not found.')
+            try:
+                with Image.open(uploads / row['stored_name']) as source:
+                    source.thumbnail((480, 360))
+                    preview = Image.new('RGB', source.size, 'white')
+                    rgba = source.convert('RGBA')
+                    preview.paste(rgba, mask=rgba.getchannel('A'))
+                    out = io.BytesIO()
+                    preview.save(out, format='JPEG', quality=80)
+            except (OSError, ValueError, UnidentifiedImageError):
+                raise HTTPException(404, 'Survey photo preview unavailable.')
+        return Response(out.getvalue(), media_type='image/jpeg', headers={'Cache-Control': 'no-store'})
 
     @app.delete('/api/staff/surveys/{survey_id}/files/{file_id}')
     def remove_survey_file(survey_id: int, file_id: int, request: Request, user=Depends(require_staff)):
