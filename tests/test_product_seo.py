@@ -9,8 +9,11 @@ def test_product_page_has_indexable_metadata_and_fallback(env):
     assert '<title>USDOT Decals | Tampa Signs and Stickers</title>' in response.text
     assert '<link rel="canonical" href="http://testserver/products/usdot-decals">' in response.text
     assert '<meta name="robots" content="index,follow,max-image-preview:large">' in response.text
-    assert '"@type": "Product"' in response.text
+    assert '"@type": "Service"' in response.text
+    assert '"@type": "BreadcrumbList"' in response.text
     assert '<h1>USDOT Decals</h1>' in response.text
+    assert 'Related custom products' in response.text
+    assert '/static/products/client-jobs/usdot-decals.webp' in response.text
 
 
 def test_unknown_product_page_is_not_served(env):
@@ -38,3 +41,21 @@ def test_all_products_page_has_its_own_canonical_metadata(env):
     assert response.status_code == 200
     assert '<link rel="canonical" href="http://testserver/products">' in response.text
     assert '<title>Custom Signs, Wraps, Decals and Apparel | Tampa Signs</title>' in response.text
+    assert '<h1>Shop Custom Signs, Wraps, Stickers &amp; Apparel</h1>' in response.text
+    assert '"@type": "ItemList"' in response.text
+    assert '/products/usdot-decals' in response.text
+
+
+def test_homepage_has_server_rendered_h1_and_catalog_links(env):
+    app, _, _ = env
+    response = anonymous(app).get('/')
+    assert response.status_code == 200
+    assert '<h1>Custom Signs, Vehicle Wraps, Stickers &amp; Printing in Tampa</h1>' in response.text
+    assert '/products/die-cut-stickers' in response.text
+
+
+def test_sitemap_deduplicates_public_slugs(env):
+    app, _, _ = env
+    response = anonymous(app).get('/sitemap.xml')
+    assert response.status_code == 200
+    assert response.text.count('<loc>http://testserver/products/vehicle-wraps</loc>') == 1
