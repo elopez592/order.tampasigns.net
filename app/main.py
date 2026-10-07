@@ -200,20 +200,184 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
     def seo_html(title: str, description: str, canonical: str, product=None) -> str:
         source = (STATIC / 'index.html').read_text()
         safe_title = html.escape(title, quote=True)
-        safe_description = html.escape(description, quote=True)
+
+        body_description = ' '.join(str(description or '').split())
+        meta_description = body_description
+        if len(meta_description) < 80:
+            suffix = ' Custom ordering from Tampa Signs and Stickers in Tampa, Florida.'
+            meta_description = (meta_description.rstrip('. ') + '.' + suffix) if meta_description else suffix.strip()
+        if len(meta_description) > 155:
+            shortened = meta_description[:152].rsplit(' ', 1)[0].rstrip(' ,.;:-')
+            meta_description = (shortened or meta_description[:152]).rstrip() + '...'
+
+        safe_description = html.escape(meta_description, quote=True)
         safe_canonical = html.escape(canonical, quote=True)
-        schema = {
-            '@context': 'https://schema.org',
-            '@type': 'Product' if product else 'WebSite',
-            'name': public_product_name(product['name']) if product else 'Tampa Signs and Stickers Online Ordering',
-            'description': description,
-            'url': canonical,
+        logo_url = public_url + '/static/brand/tampa-black.png'
+        fallback_marker = '<div id="app"><div class="initial-loading"><img class="loading-logo" src="/static/brand/tampa-black.png" alt="Tampa Signs and Stickers"><p>Opening Tampa Signs and Stickers...</p></div></div>'
+
+        organization = {
+            '@type': 'Organization',
+            '@id': public_url + '/#organization',
+            'name': 'Tampa Signs and Stickers',
+            'url': public_url + '/',
+            'logo': logo_url,
         }
+        graph = [organization]
+        og_image = logo_url
+
         if product:
-            schema['brand'] = {'@type': 'Brand', 'name': 'Tampa Signs and Stickers'}
-            schema['category'] = product['category']
+            cfg = json.loads(product['config'])
+            name = public_product_name(product['name'])
+            slug = product_slug(product['name'])
+            category = str(product['category'] or 'Custom printing')
+            image_path = None
+            for candidate in (
+                f'products/{slug}.webp',
+                f'products/client-jobs/{slug}.webp',
+            ):
+                if (STATIC / candidate).is_file():
+                    image_path = '/static/' + candidate
+                    break
+            if image_path:
+                og_image = public_url + image_path
+
+            graph.append({
+                '@type': 'Service',
+                '@id': canonical + '#service',
+                'name': name,
+                'description': body_description,
+                'url': canonical,
+                'image': og_image,
+                'serviceType': category,
+                'provider': {'@id': public_url + '/#organization'},
+                'areaServed': {'@type': 'City', 'name': 'Tampa'},
+            })
+            graph.append({
+                '@type': 'BreadcrumbList',
+                'itemListElement': [
+                    {'@type': 'ListItem', 'position': 1, 'name': 'Products', 'item': public_url + '/products'},
+                    {'@type': 'ListItem', 'position': 2, 'name': name, 'item': canonical},
+                ],
+            })
+
+            specs = []
+            materials = [str(option.get('label') or '').strip() for option in cfg.get('material_options', [])
+                         if isinstance(option, dict) and str(option.get('label') or '').strip()]
+            if materials:
+                specs.append('Material options: ' + ', '.join(materials[:5]))
+            laminates = [str(option.get('label') or '').strip() for option in cfg.get('lamination_options', [])
+                         if isinstance(option, dict) and str(option.get('label') or '').strip()]
+            if laminates:
+                specs.append('Finishing options: ' + ', '.join(laminates[:4]))
+            try:
+                minimum_quantity = int(Decimal(str(cfg.get('min_quantity') or '1')))
+            except Exception:
+                minimum_quantity = 1
+            if minimum_quantity > 1:
+                specs.append(f'Minimum quantity: {minimum_quantity}')
+            if cfg.get('supports_installation') or cfg.get('requires_installation'):
+                specs.append('Installation options are available for eligible jobs.')
+            if cfg.get('quote_only'):
+                specs.append('This configuration is handled as a custom quote.')
+            elif cfg.get('instant'):
+                specs.append('Standard configurations can be priced through the online ordering flow.')
+            if not specs:
+                specs.append('Custom sizing and artwork options are selected in the online ordering flow.')
+
+            with transaction(database) as conn:
+                related_rows = conn.execute(
+                    '''SELECT id,name,category FROM products
+                       WHERE public=1 AND active=1 AND id!=?
+                       ORDER BY CASE WHEN category=? THEN 0 ELSE 1 END, name
+                       LIMIT 6''',
+                    (product['id'], product['category'])
+                ).fetchall()
+            related_links = ''.join(
+                f'<li><a href="/products/{html.escape(product_slug(row["name"]), quote=True)}">'
+                f'{html.escape(public_product_name(row["name"]))}</a></li>'
+                for row in related_rows
+            )
+            specs_html = ''.join(f'<li>{html.escape(item)}</li>' for item in specs)
+            image_html = (f'<img src="{html.escape(image_path, quote=True)}" alt="{html.escape(name)} example" '
+                          f'loading="eager" width="960" height="720">') if image_path else ''
+            fallback = (
+                '<main class="initial-loading seo-product">'
+                '<nav aria-label="Breadcrumb"><a href="/products">All products</a></nav>'
+                f'<article>{image_html}<p>{html.escape(category)}</p><h1>{html.escape(name)}</h1>'
+                f'<p>{html.escape(body_description)}</p>'
+                f'<h2>Custom {html.escape(name)} in Tampa</h2>'
+                '<p>Tampa Signs and Stickers provides made-to-order graphics, signs and print products for '
+                'businesses, organizations and local projects. Use the online ordering flow to choose the '
+                'available size, quantity, material, finishing and artwork options for this item.</p>'
+                f'<h2>{html.escape(name)} options</h2><ul>{specs_html}</ul>'
+                '<h2>Artwork and ordering</h2>'
+                '<p>Upload print-ready artwork when available or use the design-help options shown for the '
+                'product. The ordering flow records the selected dimensions and production options before '
+                'checkout, while projects that require proofing, installation or a custom quote follow the '
+                'appropriate review steps.</p>'
+                f'<h2>Related custom products</h2><ul>{related_links}</ul>'
+                '<p><a href="/products">Browse all custom signs, wraps, stickers, banners and apparel</a>.</p>'
+                '</article></main>'
+            )
+            source = source.replace(fallback_marker, f'<div id="app">{fallback}</div>')
         else:
-            schema['publisher'] = {'@type': 'Organization', 'name': 'Tampa Signs and Stickers'}
+            with transaction(database) as conn:
+                catalog_rows = conn.execute(
+                    'SELECT name,category FROM products WHERE public=1 AND active=1 ORDER BY category,name'
+                ).fetchall()
+            product_links = ''.join(
+                f'<li><a href="/products/{html.escape(product_slug(row["name"]), quote=True)}">'
+                f'{html.escape(public_product_name(row["name"]))}</a>'
+                f' <span>{html.escape(str(row["category"] or ""))}</span></li>'
+                for row in catalog_rows
+            )
+            if canonical.rstrip('/').endswith('/products'):
+                graph.append({
+                    '@type': 'ItemList',
+                    '@id': canonical + '#catalog',
+                    'name': 'Tampa Signs and Stickers product catalog',
+                    'itemListElement': [
+                        {
+                            '@type': 'ListItem',
+                            'position': index,
+                            'name': public_product_name(row['name']),
+                            'url': public_url + '/products/' + product_slug(row['name']),
+                        }
+                        for index, row in enumerate(catalog_rows, start=1)
+                    ],
+                })
+                fallback = (
+                    '<main class="initial-loading seo-catalog">'
+                    '<h1>Shop Custom Signs, Wraps, Stickers &amp; Apparel</h1>'
+                    '<p>Browse made-to-order signs, vehicle graphics, stickers, banners, window graphics, '
+                    'apparel and other print products from Tampa Signs and Stickers. Open a product to see '
+                    'its available sizes, quantities, materials, artwork options and ordering details.</p>'
+                    f'<ul>{product_links}</ul>'
+                    '<p><a href="https://www.tampasigns.net/">Visit the Tampa Signs and Stickers main website</a> '
+                    'for service guides, project information and Tampa Bay sign resources.</p>'
+                    '</main>'
+                )
+            else:
+                featured = ''.join(
+                    f'<li><a href="/products/{html.escape(product_slug(row["name"]), quote=True)}">'
+                    f'{html.escape(public_product_name(row["name"]))}</a></li>'
+                    for row in catalog_rows[:12]
+                )
+                fallback = (
+                    '<main class="initial-loading seo-home">'
+                    '<h1>Custom Signs, Vehicle Wraps, Stickers &amp; Printing in Tampa</h1>'
+                    '<p>Order custom signs, stickers, vehicle graphics, window graphics, banners and apparel '
+                    'from Tampa Signs and Stickers. Standard products can be configured online, while larger '
+                    'or installation-heavy projects can move into a custom quote and proofing workflow.</p>'
+                    f'<h2>Popular custom products</h2><ul>{featured}</ul>'
+                    '<p><a href="/products">Browse the complete product catalog</a> or '
+                    '<a href="https://www.tampasigns.net/contact.html">contact Tampa Signs and Stickers</a> '
+                    'for a custom project.</p>'
+                    '</main>'
+                )
+            source = source.replace(fallback_marker, f'<div id="app">{fallback}</div>')
+
+        schema = {'@context': 'https://schema.org', '@graph': graph}
         schema_json = json.dumps(schema, ensure_ascii=False).replace('</', '<\\/')
         metadata = (f'<meta name="description" content="{safe_description}">\n'
                     f'  <meta name="robots" content="index,follow,max-image-preview:large">\n'
@@ -222,16 +386,12 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
                     f'  <meta property="og:title" content="{safe_title}">\n'
                     f'  <meta property="og:description" content="{safe_description}">\n'
                     f'  <meta property="og:url" content="{safe_canonical}">\n'
-                    f'  <meta name="twitter:card" content="summary">\n'
+                    f'  <meta property="og:image" content="{html.escape(og_image, quote=True)}">\n'
+                    f'  <meta name="twitter:card" content="summary_large_image">\n'
                     f'  <script type="application/ld+json">{schema_json}</script>')
         source = re.sub(r'<title>.*?</title>', f'<title>{safe_title}</title>\n  {metadata}', source, count=1, flags=re.S)
-        if product:
-            name = html.escape(public_product_name(product['name']))
-            category = html.escape(product['category'])
-            body_description = html.escape(description)
-            fallback = f'<main class="initial-loading seo-product"><p>{category}</p><h1>{name}</h1><p>{body_description}</p></main>'
-            source = source.replace('<div id="app"><div class="initial-loading"><img class="loading-logo" src="/static/brand/tampa-black.png" alt="Tampa Signs and Stickers"><p>Opening Tampa Signs and Stickers...</p></div></div>', f'<div id="app">{fallback}</div>')
         return source
+
     app.state.gateway = StripeGateway()
     allowed_hosts = [h.strip() for h in getenv('ALLOWED_HOSTS', '').split(',') if h.strip()]
     if not allowed_hosts:
@@ -1913,7 +2073,13 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
         with transaction(database) as conn:
             rows = conn.execute('SELECT name,updated_at FROM products WHERE public=1 AND active=1 ORDER BY name').fetchall()
         pages = [(public_url + '/', None), (public_url + '/products', None)]
-        pages.extend((public_url + '/products/' + product_slug(row['name']), str(row['updated_at'] or '')[:10]) for row in rows)
+        seen_slugs = set()
+        for row in rows:
+            slug = product_slug(row['name'])
+            if not slug or slug in seen_slugs:
+                continue
+            seen_slugs.add(slug)
+            pages.append((public_url + '/products/' + slug, str(row['updated_at'] or '')[:10]))
         urls = ''.join('<url><loc>' + html.escape(url) + '</loc>' + (f'<lastmod>{html.escape(lastmod)}</lastmod>' if lastmod else '') + '</url>' for url, lastmod in pages)
         return Response('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + urls + '</urlset>', media_type='application/xml')
 
