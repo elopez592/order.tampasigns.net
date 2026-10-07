@@ -358,10 +358,25 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
                     '</main>'
                 )
             else:
+                preferred_slugs = [
+                    'die-cut-stickers', 'vehicle-wraps', 'banners', 'aluminum-composite-signs',
+                    'window-graphics', 'yard-signs', 'usdot-decals', 'custom-t-shirts',
+                    'magnets', 'transfer-stickers', 'roll-up-banners', 'a-frame-inserts',
+                ]
+                by_slug = {}
+                for row in catalog_rows:
+                    by_slug.setdefault(product_slug(row['name']), row)
+                featured_rows = [by_slug[slug] for slug in preferred_slugs if slug in by_slug]
+                for row in catalog_rows:
+                    slug = product_slug(row['name'])
+                    if slug not in preferred_slugs and row not in featured_rows:
+                        featured_rows.append(row)
+                    if len(featured_rows) >= 12:
+                        break
                 featured = ''.join(
                     f'<li><a href="/products/{html.escape(product_slug(row["name"]), quote=True)}">'
                     f'{html.escape(public_product_name(row["name"]))}</a></li>'
-                    for row in catalog_rows[:12]
+                    for row in featured_rows[:12]
                 )
                 fallback = (
                     '<main class="initial-loading seo-home">'
