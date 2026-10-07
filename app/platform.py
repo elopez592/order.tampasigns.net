@@ -76,13 +76,15 @@ def install(app,directory,require_admin):
         return user
     from .subscriptions import install_platform as install_billing, accessible
     install_billing(app,owner)
+    from .company_deletion import install as install_deletion
+    install_deletion(app, owner)
     reserved={urlsplit(app.state.public_url).hostname,'orders.tampasigns.net','ordertampasignsnet-production.up.railway.app'}
     reserved.update(x.strip() for x in str(getenv('ALLOWED_HOSTS','')).split(','))
 
     def validate_support(conn, session_hash, address, slug, hostname):
         expected=str(os.getenv('PLATFORM_OWNER_EMAIL',os.getenv('ADMIN_EMAIL','owner@example.test'))).lower()
         operator=conn.execute('SELECT u.email,u.role,u.active FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?',(session_hash,time.time())).fetchone()
-        company=conn.execute('SELECT * FROM platform_companies WHERE slug=?',(slug,)).fetchone()
+        company=conn.execute("SELECT * FROM platform_companies WHERE slug=? AND deleted_at=''",(slug,)).fetchone()
         if not operator or not company: return False
         from datetime import date
         return bool(operator['active'] and operator['role']=='admin' and operator['email'].lower()==expected==address.lower()
@@ -92,7 +94,7 @@ def install(app,directory,require_admin):
     @app.post('/api/platform/companies/{slug}/support')
     def support(slug:str,request:Request,user=Depends(owner)):
         with transaction(db,True) as conn:
-            row=conn.execute('SELECT * FROM platform_companies WHERE slug=?',(slug,)).fetchone()
+            row=conn.execute("SELECT * FROM platform_companies WHERE slug=? AND deleted_at=''",(slug,)).fetchone()
             if not row: raise HTTPException(404,'Company not found.')
             if not row['hostname']: raise HTTPException(422,'Connect this company’s domain in hosting first, then save it here. Each company needs its own secure workspace address.')
             if not validate_support(conn,request.state.session['token_hash'],user['email'],slug,row['hostname']):
@@ -108,7 +110,7 @@ def install(app,directory,require_admin):
 
     @app.get('/api/platform/companies')
     def list_companies(user=Depends(owner)):
-        with transaction(db) as conn: rows=[dict(r) for r in conn.execute('SELECT * FROM platform_companies ORDER BY created_at DESC')]
+        with transaction(db) as conn: rows=[dict(r) for r in conn.execute("SELECT * FROM platform_companies WHERE deleted_at='' ORDER BY created_at DESC")]
         for row in rows:
             child_db=directory/'companies'/row['slug']/'signshop.sqlite3'
             with transaction(child_db) as conn:
@@ -153,7 +155,7 @@ def install(app,directory,require_admin):
     @app.patch('/api/platform/companies/{slug}')
     def update(slug:str,payload:dict=Body(...),user=Depends(owner)):
         with transaction(db,True) as conn:
-            row=conn.execute('SELECT * FROM platform_companies WHERE slug=?',(slug,)).fetchone()
+            row=conn.execute("SELECT * FROM platform_companies WHERE slug=? AND deleted_at=''",(slug,)).fetchone()
             if not row: raise HTTPException(404,'Company not found.')
             if payload.get('revision')!=row['revision']: raise HTTPException(409,'Company changed. Reload before saving.')
             value=dict(row)
@@ -180,7 +182,7 @@ def install(app,directory,require_admin):
     @app.put('/api/platform/companies/{slug}/connections')
     def connections(slug:str,payload:dict=Body(...),user=Depends(owner)):
         with transaction(db,True) as conn:
-            row=conn.execute('SELECT * FROM platform_companies WHERE slug=?',(slug,)).fetchone()
+            row=conn.execute("SELECT * FROM platform_companies WHERE slug=? AND deleted_at=''",(slug,)).fetchone()
             if not row: raise HTTPException(404,'Company not found.')
             if not isinstance(payload,dict) or set(payload)-CONNECTIONS: raise HTTPException(422,'Unsupported connection fields.')
             path=directory/'companies'/slug/'connections.json'
@@ -214,8 +216,11 @@ class CompanyRouter:
         row=dict(record)
         from .subscriptions import accessible
         path=scope.get('path','')
+        archived_webhook=bool(row.get('deleted_at')) and path=='/api/payments/stripe/webhook' and scope.get('method')=='POST'
+        if row.get('deleted_at') and not archived_webhook:
+            return await JSONResponse({'detail':'Company workspace has been removed.'},404)(scope,receive,send)
         recovery=path in ('/staff/billing','/api/session','/api/auth/login','/api/auth/logout','/api/auth/password','/api/brand') or path.startswith(('/api/company/billing','/static/','/brand/'))
-        if not accessible(row) and not recovery:
+        if not accessible(row) and not recovery and not archived_webhook:
             if 'text/html' in headers.get(b'accept',b'').decode():
                 return await HTMLResponse('<h1>Workspace access is paused</h1><p>Your company data is retained. The owner can review billing or restore pilot access.</p><a href="/staff/billing">Open billing</a>',status_code=403)(scope,receive,send)
             return await JSONResponse({'detail':'Workspace access is paused. Open Billing to restore subscription access.','billing_url':'/staff/billing'},403)(scope,receive,send)
