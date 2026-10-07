@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS subscription_events (id TEXT PRIMARY KEY,created_at T
 CREATE TABLE IF NOT EXISTS subscription_settings (id INTEGER PRIMARY KEY CHECK(id=1),enabled INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS subscription_checkout (slug TEXT PRIMARY KEY,plan_id TEXT NOT NULL,session_id TEXT NOT NULL,url TEXT NOT NULL,expires_at REAL NOT NULL);
 INSERT OR IGNORE INTO subscription_settings VALUES(1,0);'''
-COLUMNS = {'billing_mode':"TEXT NOT NULL DEFAULT 'manual'",'plan_id':"TEXT NOT NULL DEFAULT ''",
+COLUMNS = {'deleted_at':"TEXT NOT NULL DEFAULT ''",'billing_mode':"TEXT NOT NULL DEFAULT 'manual'",'plan_id':"TEXT NOT NULL DEFAULT ''",
  'stripe_customer':"TEXT NOT NULL DEFAULT ''",'stripe_subscription':"TEXT NOT NULL DEFAULT ''",
  'subscription_status':"TEXT NOT NULL DEFAULT ''",'paid_through':"REAL NOT NULL DEFAULT 0",
  'grace_until':"REAL NOT NULL DEFAULT 0",'cancel_at_period_end':"INTEGER NOT NULL DEFAULT 0",
@@ -85,7 +85,7 @@ def migrate(app):
 
 def accessible(row,clock=None):
     clock=time.time() if clock is None else clock
-    if row['status'] in ('suspended','closed'): return False
+    if row.get('deleted_at') or row['status'] in ('suspended','closed'): return False
     mode=row.get('billing_mode','manual')
     if mode=='manual':
         from datetime import date
@@ -109,8 +109,8 @@ def connection(app):
 def reconcile(app,subscription):
     customer=subscription.get('customer');customer=customer.get('id') if isinstance(customer,dict) else customer
     with transaction(app.state.database) as conn:
-        known=conn.execute('SELECT billing_mode FROM platform_companies WHERE stripe_customer=?',(customer,)).fetchone()
-    if not known or known['billing_mode']!='stripe': return False
+        known=conn.execute('SELECT billing_mode,deleted_at FROM platform_companies WHERE stripe_customer=?',(customer,)).fetchone()
+    if not known or known['deleted_at'] or known['billing_mode']!='stripe': return False
     identifier=subscription.get('id','')
     items=subscription.get('items',{}).get('data',[])
     if len(items)!=1 or items[0].get('quantity',1)!=1: raise HTTPException(409,'Subscription needs platform-owner review.')
@@ -160,6 +160,7 @@ def checkout(app,slug,plan_id):
             row=dict(conn.execute('SELECT * FROM platform_companies WHERE slug=?',(slug,)).fetchone())
             plan=conn.execute('SELECT * FROM subscription_plans WHERE id=? AND published=1',(plan_id,)).fetchone()
             pending=conn.execute('SELECT * FROM subscription_checkout WHERE slug=?',(slug,)).fetchone()
+        if row.get('deleted_at'): raise HTTPException(404,'Company not found.')
         if row['billing_mode']!='stripe': raise HTTPException(409,'This company has free pilot or manually managed access.')
         if not plan or not plan['price_id'] or not connection(app)['enabled']: raise HTTPException(409,'This subscription plan is not open for checkout.')
         if row['stripe_subscription']:
@@ -232,7 +233,7 @@ def install_platform(app,owner):
         if mode not in ('manual','pilot','stripe') or not any(p['id']==plan for p in plans(app)): raise HTTPException(422,'Choose a billing mode and plan.')
         with transaction(app.state.database,True) as conn:
             row=conn.execute('SELECT * FROM platform_companies WHERE slug=?',(slug,)).fetchone()
-            if not row: raise HTTPException(404,'Company not found.')
+            if not row or row['deleted_at']: raise HTTPException(404,'Company not found.')
             if mode=='stripe' and not row['hostname']: raise HTTPException(422,'Connect this company’s hostname before enabling paid access.')
             if row['stripe_subscription']: raise HTTPException(409,'Manage the linked subscription in Stripe before changing its billing mode.')
             conn.execute('UPDATE platform_companies SET billing_mode=?,plan_id=?,subscription_status=?,grace_until=0,revision=revision+1 WHERE slug=?',(mode,plan,'active' if mode=='pilot' else '',slug))
