@@ -228,12 +228,14 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
         }
         graph = [organization]
         og_image = logo_url
+        og_alt = 'Tampa Signs and Stickers custom signs, vehicle graphics, stickers and business printing'
 
         if product:
             cfg = json.loads(product['config'])
             name = public_product_name(product['name'])
             slug = product_slug(product['name'])
             category = str(product['category'] or 'Custom printing')
+            og_alt = f'Custom {name} product example from Tampa Signs and Stickers in Tampa, Florida'
             image_path = None
             for candidate in (
                 f'products/{slug}.webp',
@@ -406,7 +408,13 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
                     f'  <meta property="og:description" content="{safe_description}">\n'
                     f'  <meta property="og:url" content="{safe_canonical}">\n'
                     f'  <meta property="og:image" content="{html.escape(og_image, quote=True)}">\n'
+                    f'  <meta property="og:image:alt" content="{html.escape(og_alt, quote=True)}">\n'
+                    f'  <meta property="og:site_name" content="Tampa Signs and Stickers">\n'
                     f'  <meta name="twitter:card" content="summary_large_image">\n'
+                    f'  <meta name="twitter:image" content="{html.escape(og_image, quote=True)}">\n'
+                    f'  <meta name="twitter:image:alt" content="{html.escape(og_alt, quote=True)}">\n'
+                    f'  <meta name="twitter:title" content="{safe_title}">\n'
+                    f'  <meta name="twitter:description" content="{safe_description}">\n'
                     f'  <script type="application/ld+json">{schema_json}</script>')
         source = re.sub(r'<title>.*?</title>', f'<title>{safe_title}</title>\n  {metadata}', source, count=1, flags=re.S)
         return source
