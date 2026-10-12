@@ -48,6 +48,19 @@ def test_product_gallery_source_is_company_work_only(env):
     client = anonymous(app)
     gallery = client.get('/static/product-photo-gallery.js').text
     assert '/static/projects/real-work/directional-sign.webp' in gallery
-    assert '/static/products/client-jobs/acm-signs.webp' in gallery
+    acm_gallery = gallery.split('"aluminum-composite-signs": [', 1)[1].split('"die-cut-stickers": [', 1)[0]
+    assert '/static/projects/real-work/directional-sign.webp' in acm_gallery
+    assert '/static/products/client-jobs/acm-signs.webp' not in acm_gallery
+    assert '/static/products/client-jobs/construction-signs.webp' not in acm_gallery
+    assert 'Completed ACM sign project' not in acm_gallery
+    css = client.get('/static/styles.css').text
+    assert "/static/products/client-jobs/acrylic-signs.webp" in css
+    assert "/static/products/client-jobs/acm-signs.webp" not in css
+    acrylic_page = client.get('/products/acrylic-signs')
+    assert acrylic_page.status_code == 200
+    assert '/static/products/client-jobs/acrylic-signs.webp' in acrylic_page.text
+    acrylic_image = client.get('/static/products/client-jobs/acrylic-signs.webp')
+    assert acrylic_image.status_code == 200
+    assert acrylic_image.content[:4] == b'RIFF'
     assert 'https://lh3.googleusercontent.com/' in gallery
     assert 'Tampa Signs and Stickers jobs, not stock images' in gallery

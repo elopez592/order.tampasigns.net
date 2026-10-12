@@ -35,6 +35,7 @@ def test_catalog_uses_broad_categories_and_reassigned_acrylic_photos(env):
     assert "select('acrylic_mounting','Mounting / service'" in js
     assert "acrylicMounting==='installation'" in js
     assert '.product-photo-acrylic-signs .product-example-photo' in css
-    assert "client-jobs/acm-signs.webp" in css
+    assert "client-jobs/acrylic-signs.webp" in css
+    assert "client-jobs/acm-signs.webp" not in css
     assert '.product-photo-illuminated-sign-faces .product-example-photo' in css
     assert "client-jobs/acrylic-sign-face-replacement.webp" in css

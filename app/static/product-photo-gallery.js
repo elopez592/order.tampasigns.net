@@ -116,18 +116,6 @@ const photographedWork = {
       "thumb": "/static/projects/real-work/directional-sign.webp",
       "caption": "Directional sign installation",
       "alt": "Completed commercial directional sign"
-    },
-    {
-      "src": "/static/products/client-jobs/acm-signs.webp",
-      "thumb": "/static/products/client-jobs/acm-signs.webp",
-      "caption": "Completed ACM sign project",
-      "alt": "Client sign project example from Tampa Signs"
-    },
-    {
-      "src": "/static/products/client-jobs/construction-signs.webp",
-      "thumb": "/static/products/client-jobs/construction-signs.webp",
-      "caption": "Construction and site signage",
-      "alt": "Completed outdoor construction sign project"
     }
   ],
   "die-cut-stickers": [

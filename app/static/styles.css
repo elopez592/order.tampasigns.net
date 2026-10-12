@@ -256,7 +256,7 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .product-photo-decals .product-example-photo{background-image:url('/static/products/client-jobs/decals.webp?v=20260925-1');background-position:51% 51%}
 .product-photo-usdot-decals .product-example-photo{background-image:url('/static/products/client-jobs/usdot-decals.webp?v=20260925-1');background-position:58% 53%}
 .product-photo-banners .product-example-photo{background-image:url('/static/products/client-jobs/banners.webp?v=20260925-1');background-position:50% 47%}
-.product-photo-acm-signs .product-example-photo{background-image:url('/static/products/client-jobs/acm-signs.webp?v=20260925-1');background-position:50% 48%}
+.product-photo-acm-signs .product-example-photo{background-image:url('/static/products/aluminum-composite-signs.webp?v=20260926-rigid-signs-1');background-position:center}
 .product-photo-yard-signs .product-example-photo{background-image:url('/static/products/client-jobs/yard-signs.webp?v=20260925-1');background-position:50% 46%}
 .product-photo-acrylic-sign-face-replacement .product-example-photo{background-image:url('/static/products/client-jobs/acrylic-sign-face-replacement.webp?v=20260925-1');background-position:50% 42%}
 .product-photo-a-frame-inserts .product-example-photo{background-image:url('/static/products/client-jobs/a-frame-inserts.webp?v=20260925-1');background-position:50% 48%}
@@ -482,8 +482,8 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .product-example-detail.product-photo-high-density-board-signs .product-example-photo{background-size:contain}
 
 
-/* Catalog structure: use the indoor standoff photo for Acrylic Signs and the roadside cabinet face for illuminated faces. */
-.product-photo-acrylic-signs .product-example-photo{background-image:url('/static/products/client-jobs/acm-signs.webp?v=20260926-acrylic-1');background-position:50% 48%}
+/* Rivermark Construction Group is an indoor acrylic lobby sign with standoff hardware; not ACM. */
+.product-photo-acrylic-signs .product-example-photo{background-image:url('/static/products/client-jobs/acrylic-signs.webp?v=20261012-rivermark-acrylic-1');background-position:50% 48%}
 .product-photo-illuminated-sign-faces .product-example-photo,
 .product-photo-acrylic-sign-face-replacement .product-example-photo{background-image:url('/static/products/client-jobs/acrylic-sign-face-replacement.webp?v=20260926-acrylic-1');background-position:50% 42%}
 
