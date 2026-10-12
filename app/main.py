@@ -2129,12 +2129,44 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
         return Response('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + urls + '</urlset>', media_type='application/xml')
 
     @app.get('/products/{slug}', response_class=HTMLResponse)
-    def product_page(slug: str):
+    def product_page(slug: str, request: Request):
+        # Keep shared/bookmarked URLs working after a catalog product is renamed.
+        # The client-side aliases cannot run if the server rejects the URL first.
+        legacy_slugs = {
+            'acm-signs': 'aluminum-composite-signs',
+            'acm-sign-single-sided': 'aluminum-composite-signs',
+            'construction-signs': 'aluminum-composite-signs',
+            'acrylic-sign-face-replacement': 'illuminated-sign-faces',
+        }
         with transaction(database) as conn:
             rows = conn.execute('SELECT * FROM products WHERE public=1 AND active=1 ORDER BY id').fetchall()
-            product = next((row for row in rows if product_slug(row['name']) == slug), None)
+        products_by_slug = {product_slug(row['name']): row for row in rows}
+        canonical_slug = legacy_slugs.get(slug, slug)
+        product = products_by_slug.get(canonical_slug)
+        if product and canonical_slug != slug:
+            target = '/products/' + canonical_slug
+            if request.url.query:
+                target += '?' + request.url.query
+            return RedirectResponse(target, status_code=301, headers={'Cache-Control': 'no-cache'})
         if not product:
-            raise HTTPException(404, 'Product not found.')
+            return HTMLResponse(
+                '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+                '<meta name="viewport" content="width=device-width,initial-scale=1">'
+                '<meta name="robots" content="noindex">'
+                '<title>Product unavailable | Tampa Signs and Stickers</title>'
+                '<link rel="icon" type="image/png" href="/static/brand/favicon.png">'
+                '<link rel="stylesheet" href="/static/styles.css">'
+                '</head><body><main class="public-page"><section class="hero"><div>'
+                '<a href="/"><img src="/static/brand/tampa-black.png" width="190" '
+                'alt="Tampa Signs and Stickers"></a>'
+                '<h1>That product link is no longer available.</h1>'
+                '<p>Our catalog may have changed. You can choose from all current products '
+                'or contact us for help with a custom order.</p>'
+                '<p><a class="btn primary" href="/products">Browse current products</a></p>'
+                '<p><a href="/contact">Contact the shop</a></p>'
+                '</div></section></main></body></html>',
+                status_code=404, headers={'Cache-Control': 'no-store'},
+            )
         cfg = json.loads(product['config'])
         name = public_product_name(product['name'])
         description = str(cfg.get('description') or f'Customize and order {name} from Tampa Signs and Stickers in Tampa, Florida.')[:300]
