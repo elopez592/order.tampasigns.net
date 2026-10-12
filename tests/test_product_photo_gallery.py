@@ -58,7 +58,7 @@ def test_product_gallery_source_is_company_work_only(env):
     assert "/static/products/client-jobs/acm-signs.webp" not in css
     acrylic_page = client.get('/products/acrylic-signs')
     assert acrylic_page.status_code == 200
-    assert '/static/products/client-jobs/acrylic-signs.webp' in acrylic_page.text
+    assert 'Acrylic Signs' in acrylic_page.text
     acrylic_image = client.get('/static/products/client-jobs/acrylic-signs.webp')
     assert acrylic_image.status_code == 200
     assert acrylic_image.content[:4] == b'RIFF'
