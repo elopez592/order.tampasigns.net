@@ -1,5 +1,8 @@
-"""Check product photo gallery assets and external work image policy."""
+"""Check product photo gallery assets, company-owned work, and branding compatibility."""
+import json
+
 from .conftest import anonymous
+from app.db import settings, transaction
 
 
 def test_product_gallery_is_available_and_built_into_product_pages(env):
@@ -11,7 +14,8 @@ def test_product_gallery_is_available_and_built_into_product_pages(env):
 
     assert "setupProductPhotoGallery(app);" in js
     assert "productGalleryMarkup(productSlug(product)" in js
-    assert "const galleryImages=identity.brand_custom?[]:realWorkPhotosFor(productSlug(product));" in js
+    assert "const galleryImages=state.catalog.is_primary_storefront?realWorkPhotosFor(productSlug(product)):[];" in js
+    assert "const galleryImages=identity.brand_custom?" not in js
     assert "'aluminum-composite-signs':" in gallery or '"aluminum-composite-signs":' in gallery
     assert "'vehicle-wraps':" in gallery or '"vehicle-wraps":' in gallery
     assert "data-gallery-previous" in gallery
@@ -24,6 +28,19 @@ def test_product_gallery_is_available_and_built_into_product_pages(env):
     response = client.get('/products/aluminum-composite-signs')
     assert response.status_code == 200
     assert "https://lh3.googleusercontent.com" in response.headers['content-security-policy']
+
+
+def test_custom_branding_does_not_hide_primary_storefront_gallery(env):
+    app, _, _ = env
+    with transaction(app.state.database, True) as conn:
+        shop = settings(conn)
+        shop['brand_custom'] = True
+        conn.execute('UPDATE settings SET data=? WHERE id=1', (json.dumps(shop),))
+    client = anonymous(app)
+    catalog = client.get('/api/catalog').json()
+    assert catalog['shop']['brand_custom'] is True
+    assert catalog['is_primary_storefront'] is True
+    assert "is_primary_storefront?realWorkPhotosFor" in client.get('/static/app.js').text
 
 
 def test_product_gallery_source_is_company_work_only(env):

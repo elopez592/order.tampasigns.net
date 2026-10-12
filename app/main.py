@@ -708,7 +708,7 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
                             'artwork_upload_disabled': False}
                 products.append({k: row[k] for k in ('id','name','category','version')} | {
                     'config': {k: cfg.get(k, defaults.get(k)) for k in keys}})
-            return {'products': products, 'shop': {k: shop.get(k,'') for k in ('shop_name','contact_email','contact_phone','rates_live','quote_note','business_address','business_hours','brand_logo','brand_custom','storefront_heading','storefront_description','storefront_eyebrow','storefront_stamp','storefront_category_order')},
+            return {'products': products, 'is_primary_storefront': bool(app.state.platform_enabled), 'shop': {k: shop.get(k,'') for k in ('shop_name','contact_email','contact_phone','rates_live','quote_note','business_address','business_hours','brand_logo','brand_custom','storefront_heading','storefront_description','storefront_eyebrow','storefront_stamp','storefront_category_order')},
                     'checkout': availability(shop, app.state.gateway), 'notifications': email_status(),
                     'job_terms': job_terms.public_terms(), 'approval_statement': APPROVAL_STATEMENT,
                     'rewards': rewards.public_config(shop), 'company_media': company_media.public_media(app), 'entitlements': entitlements.for_app(app)}
