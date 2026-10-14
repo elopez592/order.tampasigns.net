@@ -388,6 +388,13 @@ def upgrade_catalog(database):
                 placement_options=CHEST_PLACEMENTS, self_approve_artwork=False,
                 description=f'Choose {name.lower()}, color, sizes and chest placement. Upload a logo for a digital embroidery preview. Garment and stitch pricing is confirmed by the shop; a one-time $35 digitizing fee applies.'
             )
+        additions['Sticker packs'] = dict(
+            category='Stickers', storefront_categories=['Stickers','Events'], unit='piece',
+            sticker_pack=True, instant=False, quote_only=True, self_approve_artwork=False,
+            sell_per_sqft='0', cost_per_sqft='0', setup_price='0', setup_cost='0',
+            minimum_price='0', labor_minutes_per_unit='0', waste_percent='0',
+            default_width='1', default_height='1',
+            description='Build your own sticker pack with multiple designs and sizes. Upload each sticker and an optional fold-over header. Printing, packaging and assembly are quoted together before payment.')
         for product_name, values in additions.items():
             if conn.execute('SELECT id FROM products WHERE name=?', (product_name,)).fetchone():
                 continue

@@ -99,7 +99,7 @@ def revised_quote_snapshot(existing: dict, raw_lines) -> dict:
         is_new = not bool(base)
 
         name = text(raw.get('name', base.get('name', '')), 'Line item name', 120, True)
-        description = text(raw.get('description', base.get('description', '')), 'Line item description', 500)
+        description = text(raw.get('description', base.get('description', '')), 'Line item description', 8000 if base.get('sticker_pack') else 500)
         unit = text(raw.get('unit', base.get('unit', 'each') or 'each'), 'Line item unit', 40, True)
         quantity = number(raw.get('quantity', base.get('quantity', 1)), 'Line item quantity', '0.01', '1000000')
         width_raw = raw.get('width', base.get('width', ''))
@@ -121,6 +121,13 @@ def revised_quote_snapshot(existing: dict, raw_lines) -> dict:
             raise HTTPException(422, 'Artwork-required lines need width and height.')
 
         qty_value = int(quantity) if quantity == quantity.to_integral() else str(quantity.normalize())
+        if base.get('sticker_pack'):
+            if quantity != quantity.to_integral():
+                raise HTTPException(422, 'Number of packs must be a whole number.')
+            from .sticker_packs import normalize_pack
+            base['sticker_pack'], pack_description = normalize_pack(base['sticker_pack'], int(quantity))
+            if quantity != source_lines[source_index]['quantity']:
+                description = pack_description
         net_area = width * height * quantity / 144 if width is not None else number(0)
         line = base
         line.update({
@@ -696,7 +703,7 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
                 CASE WHEN name='Die-cut stickers' THEN 1 WHEN name='Transfer stickers' THEN 2 ELSE 100+id END, id"""):
                 from .entitlements import product_config
                 cfg = product_config(json.loads(row['config']))
-                keys = ('product_generators','finished_apparel','shirt_colors','shirt_sizes','apparel_kind','apparel_unit_price','digitizing_fee','quote_only','unit','description','min_quantity','max_quantity','max_width','max_height',
+                keys = ('sticker_pack','product_generators','finished_apparel','shirt_colors','shirt_sizes','apparel_kind','apparel_unit_price','digitizing_fee','quote_only','unit','description','min_quantity','max_quantity','max_width','max_height',
                         'default_width','default_height','min_width','min_height','instant','is_wrap','supports_installation',
                         'supports_multiple_dimensions','self_approve_artwork','lamination_options','material_options',
                         'storefront_categories','size_options','placement_options','quantity_presets','coverage_options','vehicle_type_options','thickness_options','mounting_options','quantity_only_note','min_short_axis','min_long_axis','max_short_axis','max_long_axis','usdot_customizer','usdot_logo_setup_price','contour_customizer','quantity_only','vehicle_details_required','tint_package_selector','artwork_upload_disabled')

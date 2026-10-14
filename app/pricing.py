@@ -143,7 +143,7 @@ def validate_config(cfg: dict) -> dict:
     if not isinstance(cfg.get('instant', True), bool):
         raise HTTPException(422, 'instant must be true or false.')
     result['instant'] = cfg.get('instant', True)
-    for flag in ('requires_installation', 'is_wrap', 'supports_installation', 'supports_multiple_dimensions', 'self_approve_artwork', 'usdot_customizer', 'contour_customizer', 'quantity_only', 'finished_apparel', 'quote_only', 'vehicle_details_required', 'tint_package_selector', 'artwork_upload_disabled'):
+    for flag in ('sticker_pack', 'requires_installation', 'is_wrap', 'supports_installation', 'supports_multiple_dimensions', 'self_approve_artwork', 'usdot_customizer', 'contour_customizer', 'quantity_only', 'finished_apparel', 'quote_only', 'vehicle_details_required', 'tint_package_selector', 'artwork_upload_disabled'):
         if not isinstance(cfg.get(flag, False), bool):
             raise HTTPException(422, f'{flag} must be true or false.')
         result[flag] = cfg.get(flag, False)
@@ -491,6 +491,11 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
         if qty != qty.to_integral():
             raise HTTPException(422, 'Quantity must be a whole number.')
         qty = int(qty)
+        pack = None
+        if cfg.get('sticker_pack'):
+            from .sticker_packs import normalize_pack
+            pack, description = normalize_pack(item.get('sticker_pack'), qty)
+            item = dict(item, width=1, height=1, description=description)
         garment_price = None
         garment_fee = 0
         garment_text_lines = 0
@@ -657,7 +662,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             sell = max(discounted, cost)
         if sell > 1_000_000_000:
             raise HTTPException(422, 'This project exceeds the automatic estimating limit. Split the job or request a manual quote.')
-        review = (not cfg['instant'] or cfg.get('requires_installation', False) or installation_requested or design_requested
+        review = (bool(pack) or not cfg['instant'] or cfg.get('requires_installation', False) or installation_requested or design_requested
                   or width > D(cfg['max_width']) or height > D(cfg['max_height']))
         workflow_id = cfg.get('installation_workflow_id') if installation_requested else row['workflow_id']
         if installation_requested and not workflow_id:
@@ -674,8 +679,9 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             'embroidery_text_line_count': garment_text_lines,
             'embroidery_text_fee_cents': embroidery_text_fee,
             'usdot_logo_fee_cents': usdot_logo_fee,
-            'quote_only': bool(cfg.get('quote_only')) or design_requested or installation_requested,
-            'category': row['category'], 'description': str(item.get('description', ''))[:200],
+            'sticker_pack': pack,
+            'quote_only': bool(pack) or bool(cfg.get('quote_only')) or design_requested or installation_requested,
+            'category': row['category'], 'description': str(item.get('description', ''))[:8000 if pack else 200],
             'width': str(width), 'height': str(height), 'quantity': qty, 'unit': cfg['unit'],
             'net_sqft': str(net_area.quantize(D('0.0001'))),
             'material_sqft': str(material_area.quantize(D('0.0001'))),
