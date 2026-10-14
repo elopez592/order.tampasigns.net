@@ -247,6 +247,7 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .product-photo-window-graphics .product-example-photo,.product-photo-storefront-window-tinting .product-example-photo,.product-photo-fleet-window-tinting .product-example-photo,.product-photo-custom-t-shirts .product-example-photo,.product-photo-embroidered-hats .product-example-photo,.product-photo-embroidered-polos .product-example-photo,.product-photo-roll-up-banners .product-example-photo{background-image:url('/static/products/storefront-apparel-client-jobs.webp?v=20260925-1')}
 .product-photo-window-graphics .product-example-photo{background-position:0 0}.product-photo-storefront-window-tinting .product-example-photo,.product-photo-fleet-window-tinting .product-example-photo{background-position:50% 0}.product-photo-custom-t-shirts .product-example-photo{background-position:100% 0}.product-photo-embroidered-hats .product-example-photo{background-position:0 100%}.product-photo-embroidered-polos .product-example-photo{background-position:50% 100%}.product-photo-roll-up-banners .product-example-photo{background-position:100% 100%}
 .product-photo-trailer-food-truck-wraps .product-example-photo{background-image:url('/static/wraps/trailer-coverage-blue.webp?v=20260925-1');background-size:cover;background-position:center}
+.product-photo-sticker-packs .product-example-photo{background-image:url('/static/products/sticker-packs.webp?v=20261014-1');background-position:center}
 /* Individual crops preserve product proportions and keep the subject in focus. */
 .product-example-photo{background-size:cover;background-repeat:no-repeat;background-position:center center}
 .product-photo-die-cut-stickers .product-example-photo{background-image:url('/static/products/client-jobs/die-cut-stickers.webp?v=20260925-1');background-position:50% 54%}
@@ -581,3 +582,4 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
   .product-gallery-arrow {width:36px;height:36px}
   .product-gallery-thumb {width:69px;height:55px;flex-basis:69px}
 }
+

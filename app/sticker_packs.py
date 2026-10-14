@@ -16,8 +16,8 @@ def normalize_pack(value, packs):
         name = str(row.get('name', '')).strip()[:100]
         if not name:
             raise HTTPException(422, 'Each sticker needs an artwork filename.')
-        width = number(row.get('width'), 'Sticker width', '.5', '24')
-        height = number(row.get('height'), 'Sticker height', '.5', '24')
+        width = number(row.get('width'), 'Sticker width', '.5', '7')
+        height = number(row.get('height'), 'Sticker height', '.5', '7')
         copies = number(row.get('copies', 1), 'Copies per pack', '1', '100')
         if copies != copies.to_integral():
             raise HTTPException(422, 'Copies per pack must be a whole number.')
@@ -41,3 +41,4 @@ def normalize_pack(value, packs):
     if result['notes']:
         description += ' | Notes: ' + result['notes']
     return result, description
+

@@ -28,6 +28,11 @@ def test_invalid_designs(rows):
         normalize_pack({'stickers':rows}, 50)
 
 
+def test_sticker_dimensions_cannot_exceed_seven_inches():
+    with pytest.raises(HTTPException):
+        normalize_pack({'stickers':[{'name':'large.png','width':7.01,'height':2,'copies':1}]}, 1)
+
+
 def test_catalog_and_quote_preserve_bundle(env):
     app, admin, _ = env
     catalog=admin.get('/api/catalog').json()
@@ -81,3 +86,4 @@ def test_staff_pricing_preserves_large_pack_and_updates_totals(env):
     assert revised['lines'][0]['sticker_pack']['total_stickers'] == 2250
     assert '75 packs' in revised['lines'][0]['description']
     assert revised['lines'][0]['sell_cents'] == 40000
+

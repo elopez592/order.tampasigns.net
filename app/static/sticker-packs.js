@@ -12,7 +12,7 @@ export function createPackBuilder({page,esc,api,saveDesign,getDesign,addItem}) {
     const form=document.querySelector('#pack-builder'),error=form.querySelector('#pack-error');
     function summary(){const count=rows.reduce((n,r)=>n+Number(r.copies||0),0);form.querySelector('#pack-summary').textContent=`${rows.length} designs · ${count} stickers per pack · ${count*Number(form.elements.packs.value||0)} stickers total${header?' · 1 header per pack':''}`;}
     function render(){
-      form.querySelector('#pack-rows').innerHTML=rows.map((r,i)=>`<section class="panel"><div class="row between wrap"><strong>${i+1}. ${esc(r.name)}</strong><button type="button" class="btn light" data-remove="${i}">Remove</button></div><div class="fields three">${[['width','Width (in)',.5,24],['height','Height (in)',.5,24],['copies','Copies per pack',1,100]].map(([key,label,min,max])=>`<label class="field"><span>${label}</span><input data-row="${i}" data-key="${key}" type="number" min="${min}" max="${max}" step="${key==='copies'?1:.01}" value="${esc(r[key])}" required></label>`).join('')}</div></section>`).join('');
+      form.querySelector('#pack-rows').innerHTML=rows.map((r,i)=>`<section class="panel"><div class="row between wrap"><strong>${i+1}. ${esc(r.name)}</strong><button type="button" class="btn light" data-remove="${i}">Remove</button></div><div class="fields three">${[['width','Width (in)',.5,7],['height','Height (in)',.5,7],['copies','Copies per pack',1,100]].map(([key,label,min,max])=>`<label class="field"><span>${label}</span><input data-row="${i}" data-key="${key}" type="number" min="${min}" max="${max}" step="${key==='copies'?1:.01}" value="${esc(r[key])}" required></label>`).join('')}</div></section>`).join('');
       form.querySelector('#pack-header-info').innerHTML=header?`<p>${esc(header.name)} <button type="button" class="btn light" id="remove-pack-header">Remove header</button></p>`:'';
       summary();
     }
@@ -43,3 +43,4 @@ export function createPackBuilder({page,esc,api,saveDesign,getDesign,addItem}) {
     render();
   };
 }
+
