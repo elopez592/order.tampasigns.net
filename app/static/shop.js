@@ -1,4 +1,4 @@
-import {createPackBuilder} from './sticker-packs.js?v=20261014-1';
+import {createPackBuilder} from './sticker-packs.js?v=20261015-1';
 import {catalogPromo,mountCatalogPromo} from './catalog-promos.js?v=20261014-responsive-1';
 import {belowCheckoutMinimum,minimumCheckoutMessage} from './order-checkout.js?v=20260930-checkout-3';
 import {createWindowUploads, usesDirectArtwork} from './window-upload.js?v=20260930-previews-1';
@@ -28,7 +28,7 @@ export function createShop(ctx) {
   async function storage(mode,operation){const database=await db;return new Promise((resolve,reject)=>{const tx=database.transaction('designs',mode),r=operation(tx.objectStore('designs'));tx.oncomplete=()=>resolve(r.result);tx.onerror=()=>reject(new Error('Unable to save artwork. Your browser storage may be full.'));});}
   const saveDesign=d=>storage('readwrite',s=>s.put(d));
   const getDesign=id=>storage('readonly',s=>s.get(id));
-  const packView=createPackBuilder({page,esc,api,saveDesign,getDesign,addItem:async(item,existing)=>{
+  const packView=createPackBuilder({page,esc,api,saveDesign,getDesign,showGallery:()=>state.catalog.is_primary_storefront,addItem:async(item,existing)=>{
     if(existing){const index=project.findIndex(p=>p.key===existing.key);if(index<0)throw new Error('This bundle is no longer in your project.');project[index]=item;}
     else {if(project.length>=30)throw new Error('A project supports up to 30 product lines.');project.push(item);}
     persist();history.pushState(null,'','/project');await projectView();
