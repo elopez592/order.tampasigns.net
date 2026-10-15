@@ -1,12 +1,12 @@
 import {companyProductImage,companyProjects} from './company-media.js';
-import {realWorkPhotosFor,productGalleryMarkup,setupProductPhotoGallery} from './product-photo-gallery.js?v=20261012-1';
+import {realWorkPhotosFor,productGalleryMarkup,setupProductPhotoGallery} from './product-photo-gallery.js?v=20261015-1';
 import {surveyReviewFields,reviewedSurveys} from './survey-review.js?v=20261005-1';
 import {renderCompany} from './company-admin.js?v=2';
 import {belowCheckoutMinimum,minimumCheckoutMessage,submitOrderCheckout} from './order-checkout.js?v=20260930-checkout-3';
 import {createMarketingDashboard} from './marketing-admin.js?v=20260924-1';
 import {createCrmDashboard} from './crm-admin.js?v=20260925-1';
 import {createSiteSurveys} from './site-surveys.js?v=20261007-1';
-import {createShop} from './shop.js?v=20261014-responsive-slides-1';
+import {createShop} from './shop.js?v=20261015-sticker-gallery-1';
 import {createRewards} from './rewards.js?v=20260930-referrals-1';
 import {createCheckoutProof,suggestedLines} from './checkout-proof.js?v=20260930-checkout-3';
 
