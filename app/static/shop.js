@@ -1,4 +1,4 @@
-import {createPackBuilder} from './sticker-packs.js?v=20261015-1';
+import {createPackBuilder} from './sticker-packs.js?v=20261015-header-widths-1';
 import {catalogPromo,mountCatalogPromo} from './catalog-promos.js?v=20261014-responsive-1';
 import {belowCheckoutMinimum,minimumCheckoutMessage} from './order-checkout.js?v=20260930-checkout-3';
 import {createWindowUploads, usesDirectArtwork} from './window-upload.js?v=20260930-previews-1';
