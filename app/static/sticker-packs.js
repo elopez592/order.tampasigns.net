@@ -1,4 +1,4 @@
-import {realWorkPhotosFor,productGalleryMarkup,setupProductPhotoGallery} from './product-photo-gallery.js?v=20261015-1';
+import {realWorkPhotosFor,productGalleryMarkup,setupProductPhotoGallery} from './product-photo-gallery.js?v=20261015-taquera-1';
 import {validateWindowFiles,preflightArtwork} from './window-upload.js?v=20260930-previews-1';
 
 const packMoney=cents=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(cents/100);
