@@ -125,6 +125,7 @@ def revised_quote_snapshot(existing: dict, raw_lines) -> dict:
             if quantity != quantity.to_integral():
                 raise HTTPException(422, 'Number of packs must be a whole number.')
             from .sticker_packs import normalize_pack
+            base.pop('sticker_pack_pricing', None)  # Staff overrides replace the automatic component estimate.
             base['sticker_pack'], pack_description = normalize_pack(base['sticker_pack'], int(quantity))
             if quantity != source_lines[source_index]['quantity']:
                 description = pack_description

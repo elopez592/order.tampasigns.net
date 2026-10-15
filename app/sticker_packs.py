@@ -42,3 +42,36 @@ def normalize_pack(value, packs):
         description += ' | Notes: ' + result['notes']
     return result, description
 
+
+
+def price_pack(conn, pack, packs, config, staff=False, wholesale_client_id=None):
+    """Use the same live die-cut rates as separately ordered sticker designs."""
+    import json
+    from .pricing import calculate, cents
+    sticker = conn.execute("SELECT * FROM products WHERE name='Die-cut stickers' AND active=1 ORDER BY id LIMIT 1").fetchone()
+    if not sticker or (not staff and not sticker['public']) or json.loads(sticker['config']).get('sticker_pack'):
+        raise HTTPException(422, 'Sticker pricing is unavailable. Please contact the shop for a quote.')
+    designs = []
+    sticker_sell = sticker_retail = sticker_cost = 0
+    for design in pack['stickers']:
+        line = calculate(conn, [{'product_id': sticker['id'], 'quantity': design['copies'] * packs,
+                                'width': design['width'], 'height': design['height']}],
+                         staff=staff, wholesale_client_id=wholesale_client_id)['lines'][0]
+        designs.append({'name': design['name'], 'width': design['width'], 'height': design['height'],
+                        'quantity': line['quantity'], 'sell_cents': line['sell_cents'],
+                        'product_id': sticker['id'], 'product_version': sticker['version']})
+        sticker_sell += line['sell_cents']
+        sticker_retail += line['retail_sell_cents']
+        sticker_cost += line['cost_cents']
+    header_unit = 0
+    if pack['header']:
+        large = number(pack['header']['width']) >= 5
+        key, default = ('pack_header_5_price', '2.00') if large else ('pack_header_4_price', '1.50')
+        header_unit = cents(config.get(key, default), 'Cardstock header price')
+    packaging_unit = cents(config.get('pack_packaging_price', '1.00'), 'Packaging and assembly price')
+    header_total, packaging_total = header_unit * packs, packaging_unit * packs
+    return {'designs': designs, 'stickers_cents': sticker_sell,
+            'header_unit_cents': header_unit, 'headers_cents': header_total,
+            'packaging_unit_cents': packaging_unit, 'packaging_cents': packaging_total,
+            'total_cents': sticker_sell + header_total + packaging_total,
+            'retail_total_cents': sticker_retail + header_total + packaging_total}, sticker_cost

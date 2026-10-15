@@ -123,6 +123,9 @@ def validate_config(cfg: dict) -> dict:
         ('sell_per_sqft', '8', '0', '10000'), ('cost_per_sqft', '2', '0', '10000'),
         ('setup_price', '15', '0', '100000'), ('setup_cost', '5', '0', '100000'),
         ('usdot_logo_setup_price', '20', '0', '100000'),
+        ('pack_header_4_price', '1.50', '0', '10000'),
+        ('pack_header_5_price', '2.00', '0', '10000'),
+        ('pack_packaging_price', '1.00', '0', '10000'),
         ('minimum_price', '25', '0', '100000'), ('waste_percent', '15', '0', '200'),
         ('labor_minutes_per_unit', '0', '0', '10000'),
         ('installation_minutes_per_sqft', '0', '0', '1000'),
@@ -651,8 +654,13 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
         if garment_price is not None:
             sell = cent_round(D(garment_price) * 100 * weighted_quantity(qty, cfg['tiers'])
                               + D(garment_fee) * 100 + D(embroidery_text_fee))
-        retail_sell = sell
-        wholesale_discount = product_discounts.get(row['id'], wholesale_default)
+        pack_pricing = None
+        if pack:
+            from .sticker_packs import price_pack
+            pack_pricing, cost = price_pack(conn, pack, qty, cfg, staff, wholesale_client_id)
+            sell = pack_pricing['total_cents']
+        retail_sell = pack_pricing['retail_total_cents'] if pack_pricing else sell
+        wholesale_discount = D(0) if pack else product_discounts.get(row['id'], wholesale_default)
         if wholesale and wholesale_discount > 0:
             protected_fee = min(sell, cents(cfg.get('digitizing_fee', 0) if cfg.get('finished_apparel') else cfg['setup_price'])
                                 + usdot_logo_fee + embroidery_text_fee)
@@ -680,6 +688,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             'embroidery_text_fee_cents': embroidery_text_fee,
             'usdot_logo_fee_cents': usdot_logo_fee,
             'sticker_pack': pack,
+            'sticker_pack_pricing': pack_pricing,
             'quote_only': bool(pack) or bool(cfg.get('quote_only')) or design_requested or installation_requested,
             'category': row['category'], 'description': str(item.get('description', ''))[:8000 if pack else 200],
             'width': str(width), 'height': str(height), 'quantity': qty, 'unit': cfg['unit'],
