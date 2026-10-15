@@ -28,9 +28,9 @@ def test_invalid_designs(rows):
         normalize_pack({'stickers':rows}, 50)
 
 
-def test_sticker_dimensions_cannot_exceed_seven_inches():
+def test_sticker_dimensions_cannot_exceed_four_inches():
     with pytest.raises(HTTPException):
-        normalize_pack({'stickers':[{'name':'large.png','width':7.01,'height':2,'copies':1}]}, 1)
+        normalize_pack({'stickers':[{'name':'large.png','width':4.01,'height':2,'copies':1}]}, 1)
 
 
 def test_catalog_and_quote_preserve_bundle(env):
@@ -89,7 +89,7 @@ def test_staff_pricing_preserves_large_pack_and_updates_totals(env):
 
 
 
-@pytest.mark.parametrize('packs,header_width,header_unit', [(1,4,150),(50,4,150),(75,5,200),(50,None,0)])
+@pytest.mark.parametrize('packs,header_width,header_unit', [(1,4,150),(50,4,150),(75,5,150),(50,None,150)])
 def test_pack_price_is_individual_sticker_totals_plus_header_and_packaging(env,packs,header_width,header_unit):
     app,admin,_=env
     catalog=admin.get('/api/catalog').json()['products']
@@ -153,3 +153,29 @@ def test_pack_wholesale_stickers_are_discounted_once_and_fees_stay_fixed(env):
         bundle=calculate(conn,[{'product_id':product,'quantity':50,'sticker_pack':spec}],staff=True,wholesale_client_id=client)
         assert bundle['subtotal_cents']==separate['subtotal_cents']+12500
         assert bundle['cost_cents']==separate['cost_cents']
+
+
+@pytest.mark.parametrize('width,height',[(4.01,3),(3,4.01),(5,5)])
+def test_four_inch_limit_is_enforced_on_both_sides(env,width,height):
+    app,admin,_=env
+    product=next(p for p in admin.get('/api/catalog').json()['products'] if p['name']=='Sticker packs')
+    spec={'stickers':[{'name':'sticker.png','width':width,'height':height,'copies':1}]}
+    response=admin.post('/api/calculate',json={'items':[{'product_id':product['id'],'quantity':50,'sticker_pack':spec}]})
+    assert response.status_code==422
+
+
+def test_header_artwork_is_optional_and_package_size_is_not_required(env):
+    app,admin,_=env
+    product=next(p for p in admin.get('/api/catalog').json()['products'] if p['name']=='Sticker packs')
+    spec={'stickers':[{'name':'sticker.png','width':4,'height':4,'copies':1}]}
+    item={'product_id':product['id'],'quantity':50,'sticker_pack':spec}
+    standard=admin.post('/api/calculate',json={'items':[item]}).json()['lines'][0]
+    assert standard['sticker_pack']['header_included'] is True
+    assert 'Standard cardstock header included' in standard['description']
+    assert 'Package size may vary' in standard['description']
+    assert standard['sticker_pack_pricing']['headers_cents']==7500
+    spec['header']={'name':'custom-header.pdf'}
+    custom=admin.post('/api/calculate',json={'items':[item]}).json()['lines'][0]
+    assert custom['sell_cents']==standard['sell_cents']
+    assert custom['sticker_pack']['header']=={'name':'custom-header.pdf'}
+    assert 'Custom header artwork: custom-header.pdf' in custom['description']

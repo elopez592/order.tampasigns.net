@@ -57,6 +57,8 @@ def upgrade_catalog(database):
                 if category != 'Trailers / Food Trucks'
             ]
             name = row['name']
+            if cfg.get('sticker_pack') and cfg.get('description') == 'Build your own sticker pack with multiple designs and sizes. Upload each sticker and an optional fold-over header. Printing, packaging and assembly are quoted together before payment.':
+                cfg['description'] = 'Build your own sticker pack with multiple designs, up to 4 inches per side. Every bag includes a cardstock header, packaging and assembly. Custom header artwork is optional. Package size may vary. Final pricing and artwork are confirmed before payment.'
             active, public = row['active'], row['public']
             # Retain old product records for existing jobs while retiring them from sale.
             if (name in ('Embroidered T-shirts', 'Embroidered jackets') or
@@ -394,7 +396,7 @@ def upgrade_catalog(database):
             sell_per_sqft='0', cost_per_sqft='0', setup_price='0', setup_cost='0',
             minimum_price='0', labor_minutes_per_unit='0', waste_percent='0',
             default_width='1', default_height='1',
-            description='Build your own sticker pack with multiple designs and sizes. Upload each sticker and an optional fold-over header. Printing, packaging and assembly are quoted together before payment.')
+            description='Build your own sticker pack with multiple designs, up to 4 inches per side. Every bag includes a cardstock header, packaging and assembly. Custom header artwork is optional. Package size may vary. Final pricing and artwork are confirmed before payment.')
         for product_name, values in additions.items():
             if conn.execute('SELECT id FROM products WHERE name=?', (product_name,)).fetchone():
                 continue
