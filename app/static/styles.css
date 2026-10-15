@@ -620,3 +620,14 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
   .product-gallery-arrow {width:36px;height:36px}
   .product-gallery-thumb {width:69px;height:55px;flex-basis:69px}
 }
+
+/* Full-width sticker pack photos with only previous/next controls. */
+[data-product-preview][data-product-slug="sticker-packs"] {padding:0;border:0;background:#fff;box-shadow:none}
+[data-product-slug="sticker-packs"] .product-gallery-stage {height:auto;min-height:0;border-radius:0;cursor:default}
+[data-product-slug="sticker-packs"] .product-gallery-slide {position:relative;inset:auto}
+[data-product-slug="sticker-packs"] .product-gallery-slide.is-active {display:block}
+[data-product-slug="sticker-packs"] .product-gallery-slide>img {width:100%;height:auto}
+[data-product-slug="sticker-packs"] .product-gallery-thumbs,
+[data-product-slug="sticker-packs"] .product-gallery-counter,
+[data-product-slug="sticker-packs"] .product-gallery-caption,
+[data-product-slug="sticker-packs"] .product-gallery-description {display:none}
