@@ -43,7 +43,7 @@ def test_catalog_and_quote_preserve_bundle(env):
     assert quote.status_code==200,quote.text
     q=quote.json()
     assert q['review_required']
-    assert q['lines'][0]['quote_only']
+    assert q['lines'][0]['quote_only'] is False
     assert q['lines'][0]['sticker_pack']['total_stickers']==150
     assert 'Gloss; assemble in bags' in q['lines'][0]['description']
     item['quantity']=75
@@ -53,7 +53,7 @@ def test_catalog_and_quote_preserve_bundle(env):
     assert admin.post('/api/calculate',json={'items':[item]}).status_code==422
 
 
-def test_quote_request_keeps_production_specs_and_blocks_instant_checkout(env):
+def test_quote_request_keeps_specs_and_unapproved_shop_rates_block_checkout(env):
     app, admin, _ = env
     client = anonymous(app)
     product = next(p for p in client.get('/api/catalog').json()['products'] if p['name'] == 'Sticker packs')
@@ -115,7 +115,7 @@ def test_pack_price_is_individual_sticker_totals_plus_header_and_packaging(env,p
     assert line['sticker_pack_pricing']['packaging_cents']==100*packs
     assert 'cost_cents' not in line
     assert 'cost_cents' not in line['sticker_pack_pricing']
-    assert line['quote_only']
+    assert line['quote_only'] is False
 
 
 def test_pack_configured_fees_and_live_sticker_rates_are_used(env):

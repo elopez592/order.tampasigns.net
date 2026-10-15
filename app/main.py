@@ -704,11 +704,11 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
                 CASE WHEN name='Die-cut stickers' THEN 1 WHEN name='Transfer stickers' THEN 2 ELSE 100+id END, id"""):
                 from .entitlements import product_config
                 cfg = product_config(json.loads(row['config']))
-                keys = ('sticker_pack','product_generators','finished_apparel','shirt_colors','shirt_sizes','apparel_kind','apparel_unit_price','digitizing_fee','quote_only','unit','description','min_quantity','max_quantity','max_width','max_height',
+                keys = ('pack_design_price','sticker_pack','product_generators','finished_apparel','shirt_colors','shirt_sizes','apparel_kind','apparel_unit_price','digitizing_fee','quote_only','unit','description','min_quantity','max_quantity','max_width','max_height',
                         'default_width','default_height','min_width','min_height','instant','is_wrap','supports_installation',
                         'supports_multiple_dimensions','self_approve_artwork','lamination_options','material_options',
                         'storefront_categories','size_options','placement_options','quantity_presets','coverage_options','vehicle_type_options','thickness_options','mounting_options','quantity_only_note','min_short_axis','min_long_axis','max_short_axis','max_long_axis','usdot_customizer','usdot_logo_setup_price','contour_customizer','quantity_only','vehicle_details_required','tint_package_selector','artwork_upload_disabled')
-                defaults = {'is_wrap': False, 'supports_installation': False, 'supports_multiple_dimensions': False,
+                defaults = {'pack_design_price': '25.00', 'is_wrap': False, 'supports_installation': False, 'supports_multiple_dimensions': False,
                             'self_approve_artwork': False, 'lamination_options': [], 'material_options': [],
                             'storefront_categories': [], 'size_options': [], 'placement_options': [], 'quantity_presets': [], 'coverage_options': [], 'vehicle_type_options': [], 'thickness_options': [], 'mounting_options': [], 'quantity_only_note': '', 'min_short_axis': '0.1', 'min_long_axis': '0.1', 'max_short_axis': '10000',
                             'max_long_axis': '10000', 'usdot_customizer': False, 'usdot_logo_setup_price': '20', 'contour_customizer': False, 'quantity_only': False,
@@ -814,7 +814,7 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
             generation = conn.execute('SELECT portal_hash FROM jobs WHERE id=?',(job_id,)).fetchone()[0]
             token,csrf = new_session(conn,portal_job_id=job_id,generation=generation)
         notify_customer(database, job_id, 'order_received', f'JOB-{job_id:04d} received | Tampa Signs and Stickers',
-                        'Order received', 'We have your order. Your approved upload preview can be used as your proof. We will keep you updated when production begins and your order is finished.', link)
+                        'Order received', 'We have your order. If you approved an instant proof, it remains attached. Orders requiring design or a shop proof receive their proof after payment. Printing starts only after the required proof approval.', link)
         notify_staff(database, job_id, 'order_received', f'New order JOB-{job_id:04d}',
                      'New order received', 'A new customer order has been received and is ready for review.', public_url)
         return session_response({'job_id':job_id,'number':f'JOB-{job_id:04d}','portal_url':link,'csrf':csrf},token)

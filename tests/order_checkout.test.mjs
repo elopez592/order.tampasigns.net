@@ -96,3 +96,12 @@ test('a fully covered order follows the existing zero-payment return URL',async(
   assert.equal(result.paymentFailed,false);
   assert.equal(result.checkout.url,'http://example.test/portal?payment=received');
 });
+
+test('a paid sticker bundle with a later shop proof skips prepayment artwork approval',async()=>{
+  const {options,calls}=setup('',{quote:{...quote,lines:[{proof_after_payment:true}]},review:{approve:false,files:[]},payload:{...payload,reward_credit:'0',reward_points:0}});
+  const result=await submitOrderCheckout(options);
+  assert.deepEqual(calls.map(call=>call.path),['/api/orders','/api/portal/checkout']);
+  assert.equal(result.artworkApproved,false);
+  assert.equal(result.problem,'');
+  assert.ok(result.checkout.url);
+});

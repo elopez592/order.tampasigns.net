@@ -35,6 +35,11 @@ export function createCheckoutProof({state,esc,shop,toast}) {
     const lines=state.quote.lines;
     files=[...submitted,...generated].map(file=>({file,line_indices:suggestedLines(file.name,lines),approved:!/photo-mockup|reference/i.test(file.name)}));
     if(files.length>60)throw new Error('A project supports up to 60 artwork files. Use multi-page PDFs for larger packages.');
+    if(lines.some(line=>line.proof_after_payment)){
+      files=files.map(item=>({...item,approved:false}));
+      target.innerHTML=`<div class="notice info"><strong>Your shop proof comes after payment.</strong><p>Upload artwork or references now, or send them through your order portal later. These files are not approved for printing. We will prepare your proof after payment; printing starts only after you approve it.</p></div>${files.length?`<p class="field-hint mt">Attached: ${files.map(item=>esc(item.file.name)).join(', ')}</p>`:''}`;
+      updateConsent(form);return;
+    }
     target.innerHTML=files.length?`<div class="eyebrow">YOUR PRODUCTION PROOF</div><h3 class="mt-sm">Review your files and finished sizes</h3><p class="field-hint mt-sm">Check every printed side and every page of a PDF. Assign files to the matching products. Approving here saves these exact files as your proof.</p>
       <div class="checkout-proof-files">${files.map((item,index)=>{
         const url=URL.createObjectURL(item.file);urls.push(url);

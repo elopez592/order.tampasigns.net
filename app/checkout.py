@@ -252,7 +252,7 @@ def start_checkout(database, job_id, gateway, public_url):
                 'line_items[0][price_data][tax_behavior]':'exclusive',
                 'line_items[0][quantity]':'1', 'billing_address_collection':'required',
                 'expires_at':str(int(current['expires_at'])),
-                'custom_text[submit][message]':'Approved upload previews count as your proof. Review all artwork and sizing before production.'}
+                'custom_text[submit][message]':('Your shop proof will be prepared after payment. Printing starts only after you approve it.' if any(line.get('proof_after_payment') for line in quote['lines']) else 'Approved upload previews count as your proof. Review all artwork and sizing before production.')}
         if order_data['fulfillment'] == 'shipping':
             body.update({'automatic_tax[enabled]':'true', 'shipping_address_collection[allowed_countries][0]':'US',
                          'shipping_options[0][shipping_rate_data][type]':'fixed_amount',

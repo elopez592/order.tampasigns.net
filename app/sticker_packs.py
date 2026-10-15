@@ -15,13 +15,16 @@ def normalize_pack(value, packs):
             raise HTTPException(422, 'Invalid sticker design.')
         name = str(row.get('name', '')).strip()[:100]
         if not name:
-            raise HTTPException(422, 'Each sticker needs an artwork filename.')
+            raise HTTPException(422, 'Give each sticker design a name.')
         width = number(row.get('width'), 'Sticker width', '.5', '4')
         height = number(row.get('height'), 'Sticker height', '.5', '4')
         copies = number(row.get('copies', 1), 'Copies per pack', '1', '100')
         if copies != copies.to_integral():
             raise HTTPException(422, 'Copies per pack must be a whole number.')
-        result['stickers'].append({'name': name, 'width': str(width), 'height': str(height), 'copies': int(copies)})
+        design_requested = row.get('design_requested', False)
+        if not isinstance(design_requested, bool):
+            raise HTTPException(422, 'Design assistance must be selected for each sticker design.')
+        result['stickers'].append({'name': name, 'width': str(width), 'height': str(height), 'copies': int(copies), 'design_requested': design_requested})
     header = value.get('header')
     if header is not None:
         if not isinstance(header, dict) or not str(header.get('name', '')).strip():
@@ -45,7 +48,10 @@ def normalize_pack(value, packs):
         description += f" | Custom header artwork: {h['name']} ({size}{packs} headers)"
     else:
         description += f' | Standard cardstock header included ({packs} headers)'
-    description += ' | Package size may vary.'
+    design_count = sum(s['design_requested'] for s in result['stickers'])
+    if design_count:
+        description += f' | Artwork creation requested for {design_count} sticker design(s).'
+    description += ' | Package size may vary. Shop proof follows payment; approval is required before printing.'
     if result['notes']:
         description += ' | Notes: ' + result['notes']
     return result, description
@@ -74,8 +80,12 @@ def price_pack(conn, pack, packs, config, staff=False, wholesale_client_id=None)
     header_unit = cents(config.get('pack_header_4_price', '1.50'), 'Cardstock header price')
     packaging_unit = cents(config.get('pack_packaging_price', '1.00'), 'Packaging and assembly price')
     header_total, packaging_total = header_unit * packs, packaging_unit * packs
+    design_count = sum(s.get('design_requested', False) for s in pack['stickers'])
+    design_unit = cents(config.get('pack_design_price', '25.00'), 'Sticker design service price')
+    design_fee = design_count * design_unit
     return {'designs': designs, 'stickers_cents': sticker_sell,
             'header_unit_cents': header_unit, 'headers_cents': header_total,
             'packaging_unit_cents': packaging_unit, 'packaging_cents': packaging_total,
-            'total_cents': sticker_sell + header_total + packaging_total,
-            'retail_total_cents': sticker_retail + header_total + packaging_total}, sticker_cost
+            'design_fee_cents': design_fee, 'design_unit_cents': design_unit, 'design_count': design_count,
+            'total_cents': sticker_sell + header_total + packaging_total + design_fee,
+            'retail_total_cents': sticker_retail + header_total + packaging_total + design_fee}, sticker_cost

@@ -83,7 +83,7 @@ def install(app, database, uploads, portal_job, require_admin, add_proof, actor)
                 raise HTTPException(409, 'Your requested site survey must be completed before approving sizing for print.')
             quote = json.loads(job['quote_snapshot'])
             lines = quote['lines']
-            if quote['review_required'] or any(line.get('design_requested') or line.get('installation_requested') or line.get('is_wrap') for line in lines):
+            if quote['review_required'] or any(line.get('proof_after_payment') or line.get('design_requested') or line.get('installation_requested') or line.get('is_wrap') for line in lines):
                 raise HTTPException(409, 'This custom project needs a shop proof for its verified layout and scope.')
             needed = {i for i, line in enumerate(lines) if not line.get('artwork_upload_disabled')}
             covered, seen, checked, manifest = set(), set(), [], []

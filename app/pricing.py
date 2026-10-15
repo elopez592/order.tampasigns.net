@@ -126,6 +126,7 @@ def validate_config(cfg: dict) -> dict:
         ('pack_header_4_price', '1.50', '0', '10000'),
         ('pack_header_5_price', '2.00', '0', '10000'),
         ('pack_packaging_price', '1.00', '0', '10000'),
+        ('pack_design_price', '25.00', '0', '10000'),
         ('minimum_price', '25', '0', '100000'), ('waste_percent', '15', '0', '200'),
         ('labor_minutes_per_unit', '0', '0', '10000'),
         ('installation_minutes_per_sqft', '0', '0', '1000'),
@@ -146,7 +147,7 @@ def validate_config(cfg: dict) -> dict:
     if not isinstance(cfg.get('instant', True), bool):
         raise HTTPException(422, 'instant must be true or false.')
     result['instant'] = cfg.get('instant', True)
-    for flag in ('sticker_pack', 'requires_installation', 'is_wrap', 'supports_installation', 'supports_multiple_dimensions', 'self_approve_artwork', 'usdot_customizer', 'contour_customizer', 'quantity_only', 'finished_apparel', 'quote_only', 'vehicle_details_required', 'tint_package_selector', 'artwork_upload_disabled'):
+    for flag in ('pack_checkout_enabled', 'sticker_pack', 'requires_installation', 'is_wrap', 'supports_installation', 'supports_multiple_dimensions', 'self_approve_artwork', 'usdot_customizer', 'contour_customizer', 'quantity_only', 'finished_apparel', 'quote_only', 'vehicle_details_required', 'tint_package_selector', 'artwork_upload_disabled'):
         if not isinstance(cfg.get(flag, False), bool):
             raise HTTPException(422, f'{flag} must be true or false.')
         result[flag] = cfg.get(flag, False)
@@ -484,7 +485,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
         design_requested = item.get('design_requested', False)
         if not isinstance(design_requested, bool):
             raise HTTPException(422, 'Design quote selection must be true or false.')
-        if design_requested and not cfg.get('supports_installation', False):
+        if design_requested and not (cfg.get('supports_installation', False) or cfg.get('sticker_pack')):
             raise HTTPException(422, 'A design quote is not available for this product.')
         include_roof_wrap = item.get('include_roof_wrap', False)
         if not isinstance(include_roof_wrap, bool):
@@ -498,6 +499,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
         if cfg.get('sticker_pack'):
             from .sticker_packs import normalize_pack
             pack, description = normalize_pack(item.get('sticker_pack'), qty)
+            design_requested = any(s.get('design_requested') for s in pack['stickers'])
             item = dict(item, width=1, height=1, description=description)
         garment_price = None
         garment_fee = 0
@@ -670,7 +672,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             sell = max(discounted, cost)
         if sell > 1_000_000_000:
             raise HTTPException(422, 'This project exceeds the automatic estimating limit. Split the job or request a manual quote.')
-        review = (bool(pack) or not cfg['instant'] or cfg.get('requires_installation', False) or installation_requested or design_requested
+        review = (not cfg['instant'] or cfg.get('requires_installation', False) or installation_requested or (design_requested and not pack)
                   or width > D(cfg['max_width']) or height > D(cfg['max_height']))
         workflow_id = cfg.get('installation_workflow_id') if installation_requested else row['workflow_id']
         if installation_requested and not workflow_id:
@@ -689,7 +691,8 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
             'usdot_logo_fee_cents': usdot_logo_fee,
             'sticker_pack': pack,
             'sticker_pack_pricing': pack_pricing,
-            'quote_only': bool(pack) or bool(cfg.get('quote_only')) or design_requested or installation_requested,
+            'quote_only': bool(cfg.get('quote_only')) or (design_requested and not pack) or installation_requested,
+            'proof_after_payment': bool(pack),
             'category': row['category'], 'description': str(item.get('description', ''))[:8000 if pack else 200],
             'width': str(width), 'height': str(height), 'quantity': qty, 'unit': cfg['unit'],
             'net_sqft': str(net_area.quantize(D('0.0001'))),
