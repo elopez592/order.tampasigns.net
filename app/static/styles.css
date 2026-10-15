@@ -594,6 +594,9 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 .product-gallery-slide.is-active {display:flex}
 .product-gallery-slide[hidden] {display:none!important}
 .product-gallery-slide>img {display:block;width:100%;height:100%;object-fit:contain;object-position:center;background:#101c20}
+[data-product-slug="sticker-packs"] .product-gallery-stage,
+[data-product-slug="sticker-packs"] .product-gallery-slide,
+[data-product-slug="sticker-packs"] .product-gallery-slide>img {background:#fff}
 .product-gallery-slide>.product-example,.product-gallery-slide>.company-product-image {height:100%;width:100%;margin:0;min-height:0;aspect-ratio:auto;border-radius:0}
 .product-gallery-slide .product-example .product-example-photo {inset:0}
 .product-gallery-slide .product-example-detail {min-height:0}
