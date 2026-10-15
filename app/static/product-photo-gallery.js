@@ -2,6 +2,33 @@
    Google-hosted images are sourced from the company's documented Business Profile work gallery.
    Storefronts belonging to other companies must not use this collection. */
 const photographedWork = {
+  "sticker-packs": [
+  {
+    "src": "/static/products/sticker-packs/front.jpg",
+    "caption": "Pack front",
+    "alt": "Tampa Signs sticker pack front with branded header and die-cut stickers"
+  },
+  {
+    "src": "/static/products/sticker-packs/back.jpg",
+    "caption": "Pack back",
+    "alt": "Back of the Tampa Signs sticker pack with custom packaging information"
+  },
+  {
+    "src": "/static/products/sticker-packs/handheld.jpg",
+    "caption": "Handheld pack",
+    "alt": "Tampa Signs sticker pack held in one hand"
+  },
+  {
+    "src": "/static/products/sticker-packs/multiple-packs.jpg",
+    "caption": "Multiple packs",
+    "alt": "A row of packaged Tampa Signs sticker packs"
+  },
+  {
+    "src": "/static/products/sticker-packs/laptop.jpg",
+    "caption": "Sticker in use",
+    "alt": "Hands applying a Tampa Signs van sticker to a closed laptop"
+  }
+],
   "vehicle-wraps": [
     {
       "src": "/static/projects/real-work/service-van-wrap.webp",
@@ -192,23 +219,23 @@ export function realWorkPhotosFor(slug) {
 
 export function productGalleryMarkup(slug, title, productImageMarkup, photos) {
   if (!photos?.length) return productImageMarkup;
-  const allSlides = [{main: true, caption: 'Product preview', alt: title + ' product preview'}, ...photos];
+  const allSlides = slug === 'sticker-packs' ? photos : [{main: true, caption: 'Product preview', alt: title + ' product preview'}, ...photos];
   return `<div class="product-photo-gallery" data-product-photo-gallery aria-label="${escapeHtml(title)} image gallery">
     <div class="product-gallery-stage" aria-roledescription="carousel" aria-label="${escapeHtml(title)} photos">
-      ${allSlides.map((slide, index) => `<div class="product-gallery-slide${index===0?' is-active':''}" data-gallery-slide="${index}" role="group" aria-label="Photo ${index+1} of ${allSlides.length}"${index?' hidden':''}>
+      ${allSlides.map((slide, index) => `<div class="product-gallery-slide${index===0?' is-active':''}" data-gallery-slide="${index}" data-gallery-caption-text="${escapeHtml(slide.caption)}" role="group" aria-label="Photo ${index+1} of ${allSlides.length}"${index?' hidden':''}>
         ${slide.main ? productImageMarkup : `<img src="${escapeHtml(slide.src)}" alt="${escapeHtml(slide.alt)}" loading="lazy" decoding="async" referrerpolicy="no-referrer"${slide.fallback ? ` data-gallery-fallback="${escapeHtml(slide.fallback)}"`:''}>`}
       </div>`).join('')}
       <button type="button" class="product-gallery-arrow product-gallery-prev" data-gallery-previous aria-label="Previous product photo">&#10094;</button>
       <button type="button" class="product-gallery-arrow product-gallery-next" data-gallery-next aria-label="Next product photo">&#10095;</button>
       <span class="product-gallery-counter" data-gallery-counter aria-live="polite">1 / ${allSlides.length}</span>
     </div>
-    <div class="product-gallery-caption" data-gallery-caption aria-live="polite">Product preview</div>
+    <div class="product-gallery-caption" data-gallery-caption aria-live="polite">${escapeHtml(allSlides[0].caption)}</div>
     <div class="product-gallery-thumbs" role="group" aria-label="Choose a photo">
       ${allSlides.map((slide,index) => `<button type="button" class="product-gallery-thumb${index===0?' is-active':''}" data-gallery-thumb="${index}" aria-label="Show ${escapeHtml(slide.caption)}" aria-pressed="${index===0}">
         ${slide.main ? '<span class="product-gallery-first">Product<br>preview</span>' : `<img src="${escapeHtml(slide.thumb || slide.src)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`}
       </button>`).join('')}
     </div>
-    <p class="product-gallery-description">Click a photo or use the arrows to browse. Additional photos show our completed client work.</p>
+    <p class="product-gallery-description">Click a photo or use the arrows to browse. ${slug === 'sticker-packs' ? 'Explore the packaging and stickers in use.' : 'Additional photos show our completed client work.'}</p>
   </div>`;
 }
 
@@ -222,7 +249,6 @@ export function setupProductPhotoGallery(root = document) {
   const caption = host.querySelector('[data-gallery-caption]');
   const previous = host.querySelector('[data-gallery-previous]');
   const next = host.querySelector('[data-gallery-next]');
-  const items = [`Product preview`, ...realWorkPhotosFor(host.closest('[data-product-preview]')?.dataset.productSlug || '').map(p => p.caption)];
   let current = 0;
 
   const available = () => slides.map((slide,index) => slide.dataset.galleryFailed === 'true' ? -1 : index).filter(index => index >= 0);
@@ -242,7 +268,7 @@ export function setupProductPhotoGallery(root = document) {
       button.setAttribute('aria-pressed', String(active));
     });
     counter.textContent = `${options.indexOf(resolved)+1} / ${options.length}`;
-    caption.textContent = resolved === 0 ? 'Product preview' : (items[resolved] || 'Completed client work');
+    caption.textContent = slides[resolved].dataset.galleryCaptionText || 'Product preview';
     previous.disabled = next.disabled = options.length < 2;
   };
   const move = direction => {
