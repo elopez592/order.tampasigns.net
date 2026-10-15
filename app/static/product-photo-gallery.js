@@ -32,11 +32,6 @@ const photographedWork = {
     "src": "/static/products/sticker-packs/taquera-bae-pack.jpg",
     "caption": "Your Fav Taquera Bae pack",
     "alt": "Your Fav Taquera Bae custom sticker pack with colorful printed header and taco-themed die-cut stickers"
-  },
-  {
-    "src": "/static/products/sticker-packs/taquera-bae-printing.jpg",
-    "caption": "Sticker production",
-    "alt": "Nachos Tacos custom stickers being printed on white vinyl at Tampa Signs and Stickers"
   }
 ],
   "vehicle-wraps": [
