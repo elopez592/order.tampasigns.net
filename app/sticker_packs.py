@@ -96,21 +96,11 @@ def price_pack(conn, pack, packs, config, staff=False, wholesale_client_id=None)
     design_unit = cents(config.get('pack_design_price', '25.00'), 'Manual sticker design price')
     generation_unit = cents(config.get('pack_generation_price', '12.00'), 'Sticker generation price')
     design_fee = manual_count * design_unit + generated_count * generation_unit
-    # Flat finished-pack offer: three small stickers, minimum 50 packs.
-    # Header and assembly are included in $3.50, not added a second time.
-    small_bundle = (packs >= 50 and pack['stickers_per_pack'] == 3 and
-                    all(max(float(s['width']), float(s['height'])) <= 3 and
-                        float(s['width']) * float(s['height']) <= 6
-                        for s in pack['stickers']))
-    bundle_price = 350 * packs if small_bundle else sticker_sell + header_total + packaging_total
-    retail_bundle_price = 350 * packs if small_bundle else sticker_retail + header_total + packaging_total
     return {'designs': designs, 'stickers_cents': sticker_sell,
             'header_unit_cents': header_unit, 'headers_cents': header_total,
             'packaging_unit_cents': packaging_unit, 'packaging_cents': packaging_total,
             'design_fee_cents': design_fee, 'design_unit_cents': design_unit, 'design_count': design_count,
             'manual_design_count': manual_count, 'generation_count': generated_count,
             'generation_unit_cents': generation_unit,
-            'small_bundle_offer': small_bundle,
-            'bundle_unit_cents': 350 if small_bundle else None,
-            'total_cents': bundle_price + design_fee,
-            'retail_total_cents': retail_bundle_price + design_fee}, sticker_cost
+            'total_cents': sticker_sell + header_total + packaging_total + design_fee,
+            'retail_total_cents': sticker_retail + header_total + packaging_total + design_fee}, sticker_cost
