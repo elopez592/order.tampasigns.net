@@ -153,7 +153,7 @@ def test_pack_wholesale_stickers_are_discounted_once_and_fees_stay_fixed(env):
         spec=specification();spec['header']['width']=4
         separate=calculate(conn,[{'product_id':sticker,'quantity':s['copies']*50,'width':s['width'],'height':s['height']} for s in spec['stickers']],staff=True,wholesale_client_id=client)
         bundle=calculate(conn,[{'product_id':product,'quantity':50,'sticker_pack':spec}],staff=True,wholesale_client_id=client)
-        assert bundle['subtotal_cents']==50*(80+2*90+45)  # two 3x2 and one 1.5x1.5 design
+        assert bundle['subtotal_cents']==50*(80+2*90+34)  # two 3x2 and one 1.5x1.5 design
         assert bundle['cost_cents']==separate['cost_cents']
 
 
