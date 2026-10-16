@@ -89,33 +89,35 @@ def test_staff_pricing_preserves_large_pack_and_updates_totals(env):
 
 
 
-@pytest.mark.parametrize('packs,header_width,header_unit', [(1,4,150),(50,4,150),(75,5,150),(50,None,150)])
-def test_pack_price_is_individual_sticker_totals_plus_header_and_packaging(env,packs,header_width,header_unit):
+@pytest.mark.parametrize('packs', [50, 100, 1000])
+def test_benchmark_pack_price_remains_stable_after_50(env, packs):
+    app, admin, _=env
+    product=next(p for p in admin.get('/api/catalog').json()['products'] if p['name']=='Sticker packs')
+    spec={'stickers':[{'name':'A','width':3,'height':2,'copies':2},
+                      {'name':'B','width':3,'height':2,'copies':1}]}
+    line=admin.post('/api/calculate',json={'items':[{'product_id':product['id'],'quantity':packs,'sticker_pack':spec}]}).json()['lines'][0]
+    assert line['sell_cents']==packs*350
+    assert line['sticker_pack_pricing']['bundle_unit_cents']==350
+
+
+def test_size_and_sticker_count_change_bundle_price(env):
     app,admin,_=env
-    catalog=admin.get('/api/catalog').json()['products']
-    product=next(p for p in catalog if p['name']=='Sticker packs')
-    sticker=next(p for p in catalog if p['name']=='Die-cut stickers')
-    spec=specification()
-    if header_width is None:
-        spec['header']=None
-    else:
-        spec['header']['width']=header_width
-    separate=admin.post('/api/calculate',json={'items':[
-        {'product_id':sticker['id'],'quantity':s['copies']*packs,'width':s['width'],'height':s['height']}
-        for s in spec['stickers']]}).json()
-    response=admin.post('/api/calculate',json={'items':[{
-        'product_id':product['id'],'quantity':packs,'sticker_pack':spec,
-        'sell_cents':1,'sticker_pack_pricing':{'total_cents':1}}]})
-    assert response.status_code==200,response.text
-    line=response.json()['lines'][0]
-    expected=separate['subtotal_cents']+(header_unit+100)*packs
-    assert line['sell_cents']==expected
-    assert line['sticker_pack_pricing']['total_cents']==expected
-    assert line['sticker_pack_pricing']['headers_cents']==header_unit*packs
-    assert line['sticker_pack_pricing']['packaging_cents']==100*packs
-    assert 'cost_cents' not in line
-    assert 'cost_cents' not in line['sticker_pack_pricing']
-    assert line['quote_only'] is False
+    product=next(p for p in admin.get('/api/catalog').json()['products'] if p['name']=='Sticker packs')
+    def quote(width,height,copies,qty=50):
+        spec={'stickers':[{'name':'A','width':width,'height':height,'copies':copies}]}
+        return admin.post('/api/calculate',json={'items':[{'product_id':product['id'],'quantity':qty,'sticker_pack':spec}]}).json()['lines'][0]['sell_cents']
+    assert quote(2,2,3)<quote(3,2,3)<quote(4,4,3)
+    assert quote(3,2,5)>quote(3,2,3)
+    assert quote(3,2,3,49)>49*350
+
+
+def test_generated_design_charge_is_one_time(env):
+    app,admin,_=env
+    product=next(p for p in admin.get('/api/catalog').json()['products'] if p['name']=='Sticker packs')
+    spec={'stickers':[{'name':'A','width':3,'height':2,'copies':3,'design_service':'generated'}]}
+    for packs in (50,100):
+        line=admin.post('/api/calculate',json={'items':[{'product_id':product['id'],'quantity':packs,'sticker_pack':spec}]}).json()['lines'][0]
+        assert line['sell_cents']==packs*350+1200
 
 
 def test_pack_configured_fees_and_live_sticker_rates_are_used(env):
@@ -136,7 +138,7 @@ def test_pack_configured_fees_and_live_sticker_rates_are_used(env):
         cfg=json.loads(sticker['config']);cfg.update(quantity_price_table=[],sell_per_sqft='100',minimum_price='0')
         conn.execute('UPDATE products SET config=?,version=version+1 WHERE id=?',(json.dumps(validate_config(cfg)),sticker['id']))
     second=admin.post('/api/calculate',json={'items':[item]}).json()['lines'][0]
-    assert second['sell_cents']>first['sell_cents']
+    assert second['sell_cents']==first['sell_cents']  # bundled sell rates are independent of individual die-cut retail prices
     assert second['sticker_pack_pricing']['designs'][0]['product_version']==sticker['version']+1
 
 
@@ -151,7 +153,7 @@ def test_pack_wholesale_stickers_are_discounted_once_and_fees_stay_fixed(env):
         spec=specification();spec['header']['width']=4
         separate=calculate(conn,[{'product_id':sticker,'quantity':s['copies']*50,'width':s['width'],'height':s['height']} for s in spec['stickers']],staff=True,wholesale_client_id=client)
         bundle=calculate(conn,[{'product_id':product,'quantity':50,'sticker_pack':spec}],staff=True,wholesale_client_id=client)
-        assert bundle['subtotal_cents']==separate['subtotal_cents']+12500
+        assert bundle['subtotal_cents']==50*(80+2*90+45)  # two 3x2 and one 1.5x1.5 design
         assert bundle['cost_cents']==separate['cost_cents']
 
 
