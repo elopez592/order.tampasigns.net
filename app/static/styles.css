@@ -623,10 +623,13 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 
 /* Full-width sticker pack photos with only previous/next controls. */
 [data-product-preview][data-product-slug="sticker-packs"] {padding:0;border:0;background:#fff;box-shadow:none}
-[data-product-slug="sticker-packs"] .product-gallery-stage {height:auto;min-height:0;border-radius:0;cursor:default}
-[data-product-slug="sticker-packs"] .product-gallery-slide {position:relative;inset:auto}
-[data-product-slug="sticker-packs"] .product-gallery-slide.is-active {display:block}
-[data-product-slug="sticker-packs"] .product-gallery-slide>img {width:100%;height:auto}
+[data-product-slug="sticker-packs"] .product-gallery-stage {height:clamp(300px,32vw,430px);min-height:0;border-radius:12px;cursor:default}
+[data-product-slug="sticker-packs"] .product-gallery-slide {position:absolute;inset:0}
+[data-product-slug="sticker-packs"] .product-gallery-slide.is-active {display:flex}
+[data-product-slug="sticker-packs"] .product-gallery-slide>img {display:block;width:100%;height:100%;object-fit:contain;object-position:center}
+@media(max-width:650px) {
+  [data-product-slug="sticker-packs"] .product-gallery-stage {height:clamp(240px,75vw,340px)}
+}
 [data-product-slug="sticker-packs"] .product-gallery-thumbs,
 [data-product-slug="sticker-packs"] .product-gallery-counter,
 [data-product-slug="sticker-packs"] .product-gallery-caption,
