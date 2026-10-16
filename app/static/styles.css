@@ -634,3 +634,25 @@ dialog{border:0;border-radius:17px;padding:0;max-width:min(92vw,820px);width:680
 [data-product-slug="sticker-packs"] .product-gallery-counter,
 [data-product-slug="sticker-packs"] .product-gallery-caption,
 [data-product-slug="sticker-packs"] .product-gallery-description {display:none}
+
+/* Sticker pack ordering: gallery beside configuration on desktops only. */
+@media(min-width:951px){
+  .public-grid.sticker-pack-layout{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;gap:22px}
+  .sticker-pack-layout>.product-rail{grid-column:1/-1;display:flex;overflow-x:auto;gap:8px;padding-bottom:8px}
+  .sticker-pack-layout>.product-rail .eyebrow{display:none}
+  .sticker-pack-layout>.product-rail .product-option{white-space:nowrap;flex:0 0 auto}
+  .sticker-pack-layout>.sticker-pack-gallery-panel{min-width:0}
+  .sticker-pack-layout>.sticker-pack-order-column{min-width:0;display:grid;gap:18px}
+  .sticker-pack-layout .estimate-card{position:static}
+}
+@media(min-width:701px) and (max-width:950px){
+  .public-grid.sticker-pack-layout{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:15px}
+  .sticker-pack-layout>.sticker-pack-gallery-panel,.sticker-pack-layout>.sticker-pack-order-column{min-width:0}
+  .sticker-pack-layout>.sticker-pack-order-column{display:grid;gap:15px}
+  .sticker-pack-layout .estimate-card{position:static}
+}
+@media(max-width:700px){
+  .public-grid.sticker-pack-layout{grid-template-columns:minmax(0,1fr)}
+  .sticker-pack-layout>.sticker-pack-order-column{display:grid;gap:15px;min-width:0}
+  .sticker-pack-layout .estimate-card{position:static}
+}
