@@ -96,11 +96,36 @@ def price_pack(conn, pack, packs, config, staff=False, wholesale_client_id=None)
     design_unit = cents(config.get('pack_design_price', '25.00'), 'Manual sticker design price')
     generation_unit = cents(config.get('pack_generation_price', '12.00'), 'Sticker generation price')
     design_fee = manual_count * design_unit + generated_count * generation_unit
+    # Finished-pack bundle rates are editable in the product config.
+    # Benchmark: three 3x2-inch stickers = $3.50 per pack at 50+ packs,
+    # including the printed header, bag and assembly (excluding design fees).
+    from decimal import Decimal, ROUND_HALF_UP
+    base_unit = cents(config.get('pack_bundle_base_price', '0.80'), 'Bundle packaging base')
+    sticker_unit = cents(config.get('pack_bundle_sticker_price', '0.90'), 'Bundle sticker base')
+    base_area = Decimal('6')
+    area_price = 0
+    for design in pack['stickers']:
+        area = Decimal(design['width']) * Decimal(design['height'])
+        # Area-based pricing remains proportional to material usage.
+        unit = (Decimal(sticker_unit) * area / base_area).quantize(Decimal('1'), rounding=ROUND_HALF_UP)
+        area_price += int(unit) * design['copies']
+    standard_unit = base_unit + area_price
+    # Small runs carry a surcharge. 50+ retain a stable per-pack rate.
+    minimum_run = int(config.get('pack_bundle_standard_quantity', 50))
+    if minimum_run < 1:
+        minimum_run = 50
+    short_run_multiplier = Decimal(str(config.get('pack_bundle_short_run_multiplier', '1.20')))
+    if short_run_multiplier < 1:
+        short_run_multiplier = Decimal('1')
+    unit_price = standard_unit if packs >= minimum_run else int(
+        (Decimal(standard_unit) * short_run_multiplier).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
+    bundle_total = unit_price * packs
     return {'designs': designs, 'stickers_cents': sticker_sell,
             'header_unit_cents': header_unit, 'headers_cents': header_total,
             'packaging_unit_cents': packaging_unit, 'packaging_cents': packaging_total,
             'design_fee_cents': design_fee, 'design_unit_cents': design_unit, 'design_count': design_count,
             'manual_design_count': manual_count, 'generation_count': generated_count,
             'generation_unit_cents': generation_unit,
-            'total_cents': sticker_sell + header_total + packaging_total + design_fee,
-            'retail_total_cents': sticker_retail + header_total + packaging_total + design_fee}, sticker_cost
+            'bundle_unit_cents': unit_price, 'bundle_min_quantity': minimum_run,
+            'total_cents': bundle_total + design_fee,
+            'retail_total_cents': bundle_total + design_fee}, sticker_cost
