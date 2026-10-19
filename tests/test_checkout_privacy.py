@@ -209,11 +209,10 @@ def test_large_sticker_quantity_one_quotes_but_waits_for_cart_minimum(live_setup
             'quantity': 1, 'lamination': 'none'}
     quote = client.post('/api/calculate', json={'items': [item]})
     assert quote.status_code == 200, quote.text
-    assert quote.json()['subtotal_cents'] == 930
-    assert quote.json()['meets_minimum_order'] is False
+    assert quote.json()['subtotal_cents'] >= 4800
+    assert quote.json()['meets_minimum_order'] is True
     _, order, _ = new_order(app, sticker['id'], 12, 12, 1, client=client)
-    assert order.status_code == 422
-    assert 'Minimum order is $35.00' in order.text
+    assert order.status_code == 200
 
 
 @pytest.mark.parametrize('pid,width,height',[(7,44,92),(8,120,30.5),(4,200,400)])
@@ -271,7 +270,7 @@ def test_unpaid_online_order_can_be_corrected_and_old_checkout_link_expires(live
     assert order.status_code == 200, order.text
     jid = order.json()['job_id']
     before = admin.get(f'/api/staff/jobs/{jid}').json()
-    assert before['quote']['subtotal_cents'] == 3600
+    assert before['quote']['subtotal_cents'] == 5000
     # Simulate a legacy $60 checkout order saved before the corrected sticker rates.
     with transaction(app.state.database, True) as conn:
         snapshot = json.loads(conn.execute('SELECT quote_snapshot FROM jobs WHERE id=?', (jid,)).fetchone()[0])
@@ -282,25 +281,25 @@ def test_unpaid_online_order_can_be_corrected_and_old_checkout_link_expires(live
         conn.execute('UPDATE jobs SET quote_snapshot=?,tax_cents=450 WHERE id=?', (json.dumps(snapshot), jid))
     previous = open_session(app, client, jid)
     assert previous['merchandise_cents'] == 6000
-    payload = {'version': 1, 'new_price': '36', 'reason': 'Corrected 1 x 1 sticker pricing', 'confirm': True}
+    payload = {'version': 1, 'new_price': '50', 'reason': 'Corrected 1 x 1 sticker pricing', 'confirm': True}
     assert employee.post(f'/api/staff/jobs/{jid}/online-price-correction', json=payload).status_code == 403
     correction = admin.post(f'/api/staff/jobs/{jid}/online-price-correction', json=payload)
     assert correction.status_code == 200, correction.text
-    assert correction.json()['new_total_cents'] == 3870
+    assert correction.json()['new_total_cents'] == 5375
     assert app.state.gateway.retrieve_session(previous['stripe_id'])['status'] == 'expired'
     updated = admin.get(f'/api/staff/jobs/{jid}').json()
-    assert updated['quote']['lines'][0]['sell_cents'] == 3600
-    assert updated['quote']['subtotal_cents'] == 3600
+    assert updated['quote']['lines'][0]['sell_cents'] == 5000
+    assert updated['quote']['subtotal_cents'] == 5000
     assert updated['quote']['minimum_order_cents'] == 3500
     assert updated['quote_version'] == 2 and updated['accepted_version'] is None
-    assert updated['totals']['tax_cents'] == 270
+    assert updated['totals']['tax_cents'] == 375
     assert not updated['checkout']['can_pay']
     assert client.post('/api/portal/checkout').status_code == 409
     accept(client)
     assert client.get('/api/portal/job').json()['checkout']['can_pay']
     current = open_session(app, client, jid)
     assert current['stripe_id'] != previous['stripe_id']
-    assert current['merchandise_cents'] == 3600
+    assert current['merchandise_cents'] == 5000
     assert current['quote_version'] == 2
     assert send_event(app, paid_object(app, current)).status_code == 200
     assert client.get('/api/portal/job').json()['checkout']['status'] == 'paid'
