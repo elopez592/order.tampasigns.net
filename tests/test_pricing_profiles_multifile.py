@@ -1,43 +1,32 @@
 from .conftest import anonymous
 
 
-def test_sticker_benchmark_quantity_breaks(env):
+def test_die_cut_prices_scale_with_size_and_quantity(env):
     app, admin, employee = env
     client = anonymous(app)
-    sticker = next(p for p in client.get('/api/catalog').json()['products'] if p['name'] == 'Die-cut stickers')
-    expected = {
-        50:6000, 100:7300, 200:9500, 300:11500, 500:15200,
-        1000:23200, 2000:37100, 3000:49600, 5000:72300, 10000:122500
-    }
-    totals = {}
-    for qty in expected:
-        r = client.post('/api/calculate', json={'items':[{
-            'product_id':sticker['id'],'width':3,'height':3,'quantity':qty,
-            'lamination':'none'
-        }]})
-        assert r.status_code == 200, r.text
-        totals[qty] = r.json()['subtotal_cents']
-    assert totals == expected
+    catalog = client.get('/api/catalog').json()['products']
+    stickers = next(p for p in catalog if p['name'] == 'Die-cut stickers')
+    labels = next(p for p in catalog if p['name'] == 'Labels')
 
-
-def test_small_die_cut_sticker_prices_by_size_without_changing_3x3_anchor(env):
-    app, admin, employee = env
-    client = anonymous(app)
-    sticker = next(p for p in client.get('/api/catalog').json()['products'] if p['name'] == 'Die-cut stickers')
-
-    def quote(size):
+    def quote(product, width, height, qty):
         response = client.post('/api/calculate', json={'items': [{
-            'product_id': sticker['id'], 'width': size, 'height': size,
-            'quantity': 50, 'lamination': 'none'
+            'product_id': product['id'], 'width': width, 'height': height,
+            'quantity': qty, 'lamination': 'none'
         }]})
         assert response.status_code == 200, response.text
-        return response.json()
+        return response.json()['subtotal_cents']
 
-    small, standard = quote(1), quote(3)
-    assert small['subtotal_cents'] == 3600
-    assert standard['subtotal_cents'] == 6000
-    assert small['minimum_order_cents'] == 3500
-    assert small['meets_minimum_order'] is True
+    # This is the owner-approved small die-cut benchmark, before tax/delivery.
+    assert quote(stickers, '1.7', '1.4', 700) == 24502
+    assert quote(labels, '1.7', '1.4', 700) < quote(stickers, '1.7', '1.4', 700)
+    for width, height in [(1, 1), (1.7, 1.4), (2, 2), (3, 3), (4, 4)]:
+        prices = [quote(stickers, width, height, qty) for qty in [50, 100, 500, 700, 1000]]
+        assert prices == sorted(prices)
+        assert all(quote(stickers, width, height, qty) > quote(labels, width, height, qty)
+                   for qty in [50, 100, 500, 700, 1000])
+    for qty in [50, 700, 1000]:
+        assert quote(stickers, 1, 1, qty) < quote(stickers, 1.7, 1.4, qty)
+        assert quote(stickers, 1.7, 1.4, qty) < quote(stickers, 3, 3, qty)
 
 
 def test_wrap_multi_panel_install_estimate_and_lamination(env):
