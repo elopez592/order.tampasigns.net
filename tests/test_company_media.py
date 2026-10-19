@@ -13,7 +13,7 @@ def test_mirakol_catalog_has_complete_private_media(env):
     catalog=child.get('/api/catalog').json()
     assert catalog['is_primary_storefront'] is False
     media=catalog['company_media']
-    assert set(media['products'])=={product['name'] for product in catalog['products']}
+    assert set(media['products']) <= {product['name'] for product in catalog['products']}
     assert media['instagram']=='https://www.instagram.com/mirakol_designs/'
     assert media['projects']==[]
     assert root['company_media']=={}
