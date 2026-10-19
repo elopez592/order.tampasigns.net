@@ -1,4 +1,5 @@
 from __future__ import annotations
+from decimal import Decimal, InvalidOperation
 import json
 import os
 from .runtime import getenv
@@ -32,6 +33,42 @@ ACM_MATERIAL_OPTIONS = [
     {'id': '6mm', 'label': '6 mm ACM (+$6/sq ft)',
      'sell_per_sqft_adjustment': '6', 'cost_per_sqft_adjustment': '3.5', 'default': False},
 ]
+
+
+LEGACY_DIE_CUT_QUANTITY_PRICE_TABLE = [
+    {'quantity': 50, 'total': '60'}, {'quantity': 100, 'total': '73'},
+    {'quantity': 200, 'total': '95'}, {'quantity': 300, 'total': '115'},
+    {'quantity': 500, 'total': '152'}, {'quantity': 1000, 'total': '232'},
+    {'quantity': 2000, 'total': '371'}, {'quantity': 3000, 'total': '496'},
+    {'quantity': 5000, 'total': '723'}, {'quantity': 10000, 'total': '1225'},
+]
+# A 700-piece, 1.7 x 1.4 inch unlaminated run should sell near $245
+# with standard $100/hour labor. Larger/smaller stickers scale by printed area.
+DIE_CUT_RETAIL_PRICING = {
+    'sell_per_sqft': '18',
+    'setup_price': '30',
+    'labor_minutes_per_unit': '0.02625',
+    'minimum_price': '50',
+}
+
+
+def _upgrade_legacy_die_cut_pricing(cfg: dict) -> bool:
+    """Replace only the untouched benchmark rate; preserve owner overrides."""
+    if cfg.get('quantity_price_table') != LEGACY_DIE_CUT_QUANTITY_PRICE_TABLE or cfg.get('unit', 'piece') != 'piece':
+        return False
+    try:
+        is_legacy = (Decimal(str(cfg.get('sell_per_sqft', '24'))) == 24 and
+                     Decimal(str(cfg.get('setup_price', '0'))) == 0 and
+                     Decimal(str(cfg.get('labor_minutes_per_unit', '0'))) == 0 and
+                     Decimal(str(cfg.get('minimum_price', '0'))) == 0 and
+                     Decimal(str(cfg.get('price_table_size_weight', '.45'))) == Decimal('.45'))
+    except (InvalidOperation, TypeError, ValueError):
+        return False
+    if not is_legacy:
+        return False
+    cfg.update(DIE_CUT_RETAIL_PRICING)
+    cfg['quantity_price_table'] = []
+    return True
 
 
 def steps_for(production):
@@ -311,23 +348,11 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     {'id':'gloss','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
                     {'id':'premium_matte','label':'Matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
                 ]
-            if 'die-cut sticker' in lname and not cfg.get('quantity_price_table'):
-                cfg['quantity_price_table'] = [
-                    {'quantity': 50, 'total': '60'}, {'quantity': 100, 'total': '73'},
-                    {'quantity': 200, 'total': '95'}, {'quantity': 300, 'total': '115'},
-                    {'quantity': 500, 'total': '152'}, {'quantity': 1000, 'total': '232'},
-                    {'quantity': 2000, 'total': '371'}, {'quantity': 3000, 'total': '496'},
-                    {'quantity': 5000, 'total': '723'}, {'quantity': 10000, 'total': '1225'}
-                ]
-                cfg['price_table_base_width'] = '3'
-                cfg['price_table_base_height'] = '3'
-                cfg['price_table_size_weight'] = '0.45'
-                cfg['minimum_price'] = '0'
-                cfg['lamination_options'] = [
-                    {'id':'none','label':'No laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},
-                    {'id':'gloss','label':'Gloss laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False},
-                    {'id':'premium_matte','label':'Matte laminate','sell_per_sqft':'2','cost_per_sqft':'1','default':False}
-                ]
+            diecut_pricing_changed = (
+                product_name == 'die-cut stickers' and _upgrade_legacy_die_cut_pricing(cfg)
+            )
+            if diecut_pricing_changed and cfg.get('description') == 'Printed vinyl stickers with laminate. One design per line.':
+                cfg['description'] = 'Printed vinyl stickers with optional laminate. One design per line.'
 
             if any(x in lname for x in ('die-cut sticker','transfer sticker')):
                 cfg['lamination_options'] = [
@@ -354,7 +379,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             if old['category'].lower() == 'windows' and old['name'] != 'Window Graphics':
                 conn.execute("UPDATE products SET name='Window Graphics' WHERE id=?", (old['id'],))
             conn.execute('UPDATE products SET config=? WHERE id=?', (json.dumps(cfg), old['id']))
-            if acm_changed:
+            if acm_changed or diecut_pricing_changed:
                 conn.execute('UPDATE products SET version=version+1,updated_at=? WHERE id=?', (now(), old['id']))
         print_wrap = conn.execute("SELECT * FROM products WHERE name IN ('Cast wrap film - print and laminate','Vehicle Wraps') ORDER BY id LIMIT 1").fetchone()
         installed_wrap = conn.execute("SELECT * FROM products WHERE name='Vehicle wrap - installed estimate' ORDER BY id LIMIT 1").fetchone()
@@ -397,7 +422,7 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
         if not conn.execute('SELECT id FROM products LIMIT 1').fetchone():
             # Demonstration inputs only. Not competitor prices or supplier quotations.
             entries = [
-              ('Die-cut stickers', 'Stickers', 1, 'piece', '24', '4', '0', '8', '0', 1, 3, 3, 24, 48, True, 'Die-cut vinyl stickers with quantity-break pricing benchmarked to current Sticker Mule public pricing.'),
+              ('Die-cut stickers', 'Stickers', 1, 'piece', '18', '4', '30', '8', '50', 1, 3, 3, 24, 48, True, 'Custom die-cut vinyl stickers with optional lamination; contour cutting and handling included.'),
               ('Labels', 'Labels', 1, 'piece', '18', '3', '30', '10', '45', 1, 2, 2, 12, 12, True, 'Example label configuration; confirm roll direction and packaging.'),
               ('Magnets', 'Magnets', 1, 'piece', '18', '5', '20', '8', '50', 1, 18, 12, 48, 48, True, 'Printed magnetic stock. Thickness and suitability require confirmation.'),
               ('Banners', 'Banners', 2, 'sqft', '5', '1.5', '10', '4', '45', 1, 72, 36, 120, 1200, True, 'Single-sided banner, standard hem and grommets.'),
@@ -437,14 +462,10 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
                     'min_width': '1' if 'sticker' in name.lower() else '0.1',
                     'min_height': '1' if 'sticker' in name.lower() else '0.1',
                     'self_approve_artwork': any(x in name.lower() for x in ('sticker','magnet','banner')),
+                    'labor_minutes_per_unit': '0.02625' if name == 'Die-cut stickers' else '0',
                     'installation_minutes_per_sqft': '4' if 'vehicle wrap' in name.lower() else '0',
                     'installation_setup_minutes': '60' if 'vehicle wrap' in name.lower() else '0',
-                    'quantity_price_table': [
-                        {'quantity':50,'total':'60'},{'quantity':100,'total':'73'},{'quantity':200,'total':'95'},
-                        {'quantity':300,'total':'115'},{'quantity':500,'total':'152'},{'quantity':1000,'total':'232'},
-                        {'quantity':2000,'total':'371'},{'quantity':3000,'total':'496'},
-                        {'quantity':5000,'total':'723'},{'quantity':10000,'total':'1225'}
-                    ] if 'die-cut sticker' in name.lower() else [],
+                    'quantity_price_table': [],
                     'price_table_base_width': '3', 'price_table_base_height': '3', 'price_table_size_weight': '0.45',
                     'lamination_options': (
                         [{'id':'none','label':'No laminate','sell_per_sqft':'0','cost_per_sqft':'0','default':True},

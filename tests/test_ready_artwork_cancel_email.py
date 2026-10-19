@@ -66,7 +66,7 @@ def test_sticker_accepts_one_piece_and_preserves_size_limit(env):
         'lamination': 'none'
     }]})
     assert valid.status_code == 200, valid.text
-    assert valid.json()['subtotal_cents'] == 3600
+    assert valid.json()['subtotal_cents'] == 5000
     assert valid.json()['minimum_order_cents'] == 3500
     assert valid.json()['meets_minimum_order'] is True
 
