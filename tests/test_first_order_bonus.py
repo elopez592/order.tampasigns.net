@@ -26,6 +26,13 @@ def bonus_history(client):
     return [row for row in wallet(client)['history'] if row['kind'] == 'first_order_bonus']
 
 
+def earned_points(paid, refunded_cents=0):
+    # Base rewards are floored paid merchandise dollars; the first-order bonus is separate.
+    eligible = paid['amount_subtotal']
+    remaining = paid['amount_total'] - refunded_cents
+    return (eligible * remaining // paid['amount_total']) // 100
+
+
 def test_first_order_bonus_waits_for_payment_and_is_extra_once(live_setup):
     app, admin, _ = live_setup
     client, _ = account(app)
@@ -38,11 +45,11 @@ def test_first_order_bonus_waits_for_payment_and_is_extra_once(live_setup):
     assert send_event(app, paid, event_id='evt_first_bonus').status_code == 200
     assert send_event(app, paid, event_id='evt_first_bonus').json()['duplicate']
     assert send_event(app, paid).status_code == 200
-    assert wallet(client)['points'] == 110  # $60 merchandise + 50 bonus points.
+    assert wallet(client)['points'] == earned_points(paid) + 50
     first_bonus = bonus_history(client)
     assert len(first_bonus) == 1 and first_bonus[0]['points'] == 50
-    pay_order(app, client)
-    assert wallet(client)['points'] == 170  # A later $60 order adds only its usual points.
+    _, second_paid = pay_order(app, client)
+    assert wallet(client)['points'] == earned_points(paid) + earned_points(second_paid) + 50
     assert bonus_history(client) == first_bonus
 
 
@@ -56,7 +63,7 @@ def test_simultaneous_first_payments_share_one_bonus(live_setup):
     with ThreadPoolExecutor(max_workers=2) as pool:
         responses = list(pool.map(lambda obj: send_event(app, obj), paid))
     assert [r.status_code for r in responses] == [200, 200]
-    assert wallet(client)['points'] == 170
+    assert wallet(client)['points'] == sum(earned_points(item) for item in paid) + 50
     assert len(bonus_history(client)) == 1
 
 
@@ -67,13 +74,13 @@ def test_bonus_kept_for_partial_refund_reversed_for_full_refund_and_not_reearned
     refund = {'payment_intent': paid['payment_intent'], 'amount_refunded': paid['amount_total'] // 2}
     assert send_event(app, refund, kind='charge.refunded').status_code == 200
     assert send_event(app, refund, kind='charge.refunded').status_code == 200
-    assert wallet(client)['points'] == 80  # 30 purchase points plus the fixed bonus.
+    assert wallet(client)['points'] == earned_points(paid, refund['amount_refunded']) + 50
     refund['amount_refunded'] = paid['amount_total']
     assert send_event(app, refund, kind='charge.refunded').status_code == 200
     assert send_event(app, refund, kind='charge.refunded').status_code == 200
     assert wallet(client)['points'] == 0
-    pay_order(app, client)
-    assert wallet(client)['points'] == 60
+    _, second_paid = pay_order(app, client)
+    assert wallet(client)['points'] == earned_points(second_paid)
     assert len(bonus_history(client)) == 1
     reversals = [r for r in wallet(client)['history'] if r['kind'] == 'first_order_bonus_reversed']
     assert len(reversals) == 1 and reversals[0]['points'] == -50
@@ -90,7 +97,7 @@ def test_dispute_reverses_and_restores_the_original_bonus_once(live_setup):
     dispute['status'] = 'won'
     assert send_event(app, dispute, kind='charge.dispute.closed').status_code == 200
     assert send_event(app, dispute, kind='charge.dispute.closed').status_code == 200
-    assert wallet(client)['points'] == 110
+    assert wallet(client)['points'] == earned_points(paid) + 50
     assert len(bonus_history(client)) == 1
     restorations = [r for r in wallet(client)['history'] if r['kind'] == 'first_order_bonus_restored']
     assert len(restorations) == 1 and restorations[0]['points'] == 50
@@ -101,21 +108,21 @@ def test_earlier_guest_payment_blocks_bonus_on_new_account_order(live_setup):
     guest = anonymous(app)
     pay_order(app, guest)
     client, _ = account(app)
-    pay_order(app, client)
-    assert wallet(client)['points'] == 60
+    _, paid = pay_order(app, client)
+    assert wallet(client)['points'] == earned_points(paid)
     assert bonus_history(client) == []
 
 
 def test_matching_account_can_link_its_first_guest_order_once(live_setup):
     app, _, _ = live_setup
     guest = anonymous(app)
-    pay_order(app, guest)
+    _, paid = pay_order(app, guest)
     client, _ = account(app)
     guest.cookies.set('signshop_customer', client.cookies.get('signshop_customer'))
     for _ in range(2):
         result = guest.post('/api/portal/rewards/link', json={})
         assert result.status_code == 200, result.text
-    assert wallet(client)['points'] == 110
+    assert wallet(client)['points'] == earned_points(paid) + 50
     assert len(bonus_history(client)) == 1
 
 
@@ -141,12 +148,12 @@ def test_existing_payment_rewards_are_not_backfilled_on_retry(live_setup, monkey
     with monkeypatch.context() as previous_release:
         previous_release.setattr(rewards, 'sync_first_order_bonus', lambda *args: None)
         _, paid = pay_order(app, client)
-    assert wallet(client)['points'] == 60
+    assert wallet(client)['points'] == earned_points(paid)
     assert send_event(app, paid).status_code == 200
     refund = {'payment_intent': paid['payment_intent'], 'amount_refunded': paid['amount_total'] // 2}
     assert send_event(app, refund, kind='charge.refunded').status_code == 200
-    pay_order(app, client)
-    assert wallet(client)['points'] == 90
+    _, second_paid = pay_order(app, client)
+    assert wallet(client)['points'] == earned_points(paid, refund['amount_refunded']) + earned_points(second_paid)
     assert bonus_history(client) == []
 
 
