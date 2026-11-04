@@ -1783,6 +1783,49 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
                      'Proof sent for approval', 'The current proof is now waiting for customer review.', public_url)
         return {'ok': True, 'proof_id': pid, 'email_sent': bool(sent)}
 
+    @app.post('/api/staff/jobs/{job_id}/proofs/{proof_id}/email-approval')
+    def record_email_proof_approval(job_id: int, proof_id: int, request: Request,
+                                    payload: dict = Body(...), user=Depends(require_admin)):
+        signer = text(payload.get('name', ''), 'Customer name', 120, True)
+        approved_at = text(payload.get('approved_at', ''), 'Email approval date', 40, True)
+        email_reference = text(payload.get('email_reference', ''), 'Email reference', 1000, True)
+        if payload.get('confirm') is not True:
+            raise HTTPException(422, 'Confirm that the email approves this exact proof and scope.')
+        try:
+            from datetime import datetime
+            datetime.fromisoformat(approved_at.replace('Z', '+00:00'))
+        except ValueError:
+            raise HTTPException(422, 'Enter a valid email approval date and time.')
+        with transaction(database, True) as conn:
+            job = get_job(conn, job_id)
+            proof = latest_proof(conn, job_id)
+            if job['archived'] or not proof or proof['id'] != proof_id or proof['status'] != 'pending':
+                raise HTTPException(409, 'Only the latest pending proof can be recorded as approved.')
+            if not job['published'] or job['accepted_version'] != job['quote_version']:
+                raise HTTPException(409, 'The current quote must be accepted first.')
+            if artwork_approval.survey_pending(conn, job_id):
+                raise HTTPException(409, 'Complete the requested site survey before approving sizing.')
+            if production_started(conn, job_id):
+                raise HTTPException(409, 'Production has started. Use a separate change order.')
+            asset = conn.execute('SELECT * FROM assets WHERE id=? AND job_id=?', (proof['asset_id'], job_id)).fetchone()
+            try:
+                actual_hash = hashlib.sha256((uploads / asset['stored_name']).read_bytes()).hexdigest()
+            except (OSError, TypeError):
+                raise HTTPException(409, 'The proof file is unavailable. Upload a new proof.')
+            if actual_hash != asset['sha256']:
+                raise HTTPException(409, 'The proof file changed. Upload a new proof.')
+            comment = f'Approval received by email on {approved_at}. Reference: {email_reference}'
+            conn.execute('''INSERT INTO proof_decisions
+                (proof_id,action,signer_name,comment,statement,quote_version,file_hash,created_at,method)
+                VALUES(?,'approve',?,?,?,?,?,?,'owner_recorded_email')''',
+                (proof_id, signer, comment, 'Owner recorded customer approval received by email; customer did not approve in the portal.',
+                 job['quote_version'], asset['sha256'], now()))
+            conn.execute("UPDATE proofs SET status='approved' WHERE id=?", (proof_id,))
+            audit(conn, job_id, actor(user), 'proof.email_approval_recorded',
+                  {'proof_version': proof['version'], 'customer_name': signer, 'approved_at': approved_at,
+                   'email_reference': email_reference, 'sha256': asset['sha256']}, True)
+        return {'ok': True}
+
     @app.post('/api/staff/jobs/{job_id}/proofs/{proof_id}/send')
     def send_proof_for_approval(job_id: int, proof_id: int, request: Request, user=Depends(require_staff)):
         with transaction(database, True) as conn:
