@@ -1498,6 +1498,8 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
     def publish_quote(job_id: int, request: Request, payload: dict = Body(...), user=Depends(require_admin)):
         with transaction(database, True) as conn:
             job = get_job(conn, job_id)
+            if not json.loads(job['quote_snapshot']).get('lines'):
+                raise HTTPException(422, 'Add and review the quote lines before publishing this draft.')
             if job['archived'] or not job['charges_verified'] or payload.get('reviewed') is not True:
                 raise HTTPException(422, 'Review the scope, material costs, tax, delivery and total before publishing.')
             if payload.get('version') != job['quote_version']:
@@ -2148,6 +2150,8 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
         return app.openapi()
 
     crm.install(app, database, require_admin, issue_email_portal)
+    from . import email_intake
+    email_intake.install(app, require_admin, background=platform)
     from .customers import install as install_customers
     install_customers(app, database, production, throttle, issue_portal, uploads)
     rewards.install(app, database, require_admin, portal_job)

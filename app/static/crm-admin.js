@@ -34,7 +34,7 @@ export function createCrmDashboard({api,staffShell,esc,money,showModal,closeModa
     if(filters.q)params.set('q',filters.q);
     const data=await api('/api/admin/crm'+(params.toString()?'?'+params:''));
     const t=data.totals;
-    staffShell(`<div class="page-heading"><div><div class="eyebrow">CUSTOMERS & LEADS</div><h1>CRM</h1><p>Customer details, lead follow-ups and order history in one place.</p></div><div class="row wrap"><button class="btn light" data-action="crm-run-auto">Run reminder check now</button><a class="btn light" href="/api/admin/crm.csv">Export CSV</a><button class="btn primary" data-action="crm-new">+ Add contact</button></div></div>
+    staffShell(`<div class="page-heading"><div><div class="eyebrow">CUSTOMERS & LEADS</div><h1>CRM</h1><p>Customer details, lead follow-ups and order history in one place.</p></div><div class="row wrap"><a class="btn primary" href="/staff#email-inquiries">Email inquiries</a><button class="btn light" data-action="crm-run-auto">Run reminder check now</button><a class="btn light" href="/api/admin/crm.csv">Export CSV</a><button class="btn primary" data-action="crm-new">+ Add contact</button></div></div>
       <div class="kpis">
         <section class="kpi"><div class="eyebrow">CONTACTS</div><div class="metric">${number(t.contacts)}</div><small class="muted">Customers and leads</small></section>
         <section class="kpi"><div class="eyebrow">ACTIVE LEADS</div><div class="metric">${number(t.leads)}</div><small class="muted">Still in sales follow-up</small></section>

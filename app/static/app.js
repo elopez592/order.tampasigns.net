@@ -1,10 +1,11 @@
+import {createEmailIntake} from './email-intake.js?v=20261104-1';
 import {companyProductImage,companyProjects} from './company-media.js';
 import {realWorkPhotosFor,productGalleryMarkup,setupProductPhotoGallery} from './product-photo-gallery.js?v=20261015-taquera-2';
 import {surveyReviewFields,reviewedSurveys} from './survey-review.js?v=20261005-1';
 import {renderCompany} from './company-admin.js?v=2';
 import {belowCheckoutMinimum,minimumCheckoutMessage,submitOrderCheckout} from './order-checkout.js?v=20260930-checkout-3';
 import {createMarketingDashboard} from './marketing-admin.js?v=20260924-1';
-import {createCrmDashboard} from './crm-admin.js?v=20260925-1';
+import {createCrmDashboard} from './crm-admin.js?v=20261104-email-intake';
 import {createSiteSurveys} from './site-surveys.js?v=20261007-1';
 import {createShop} from './shop.js?v=20261015-taquera-2';
 import {createRewards} from './rewards.js?v=20260930-referrals-1';
@@ -194,6 +195,8 @@ async function route(){
     if(hash==='company')return renderCompany({api,esc,staffShell,toast});
     if(hash==='reports')return loadReports();
     if(hash==='crm')return crmDashboard.render();
+    if(hash==='email-inquiries')return emailIntake.render();
+    if(hash.startsWith('email-inquiry/')){await emailIntake.render();return emailIntake.open(Number(hash.split('/')[1]));}
     if(hash==='surveys'||hash.startsWith('surveys?'))return surveysDashboard.render(hash);
     if(hash.startsWith('survey/'))return surveysDashboard.detail(Number(hash.split('/')[1]));
     if(hash==='rewards')return rewardsUi.render();
@@ -720,7 +723,7 @@ function eventSummary(e){
 }
 function eventsView(events){return events.length?events.map(e=>`<div class="audit-event"><h4>${esc(titleCase(e.action.replaceAll('.',' ')))}</h4><p>${esc(e.actor)} / ${date(e.created_at)}</p><p class="prewrap mt-sm">${esc(eventSummary(e))}</p></div>`).join(''):'<p class="muted tiny">No activity yet.</p>';}
 
-function jobActivity(j){return `<div class="job-columns"><section class="panel"><h2 class="mb">Job activity</h2>${eventsView(j.events)}</section><section class="panel"><h3 class="mb">Add an update</h3><form data-form="staff-message" class="stack"><label class="field"><span>Message / note</span><textarea name="message" required maxlength="3000"></textarea></label>${checkbox('public','Share this message in the customer portal')}<div class="form-error"></div><button class="btn primary">Save update</button></form><p class="field-hint mt-sm">Customer-visible updates are saved in the portal and emailed to the customer when email delivery is available.</p></section></div>`;}
+function jobActivity(j){return `${owner()&&j.email_inquiries?.length?'<section class="panel mb"><h3>Email correspondence</h3>'+j.email_inquiries.map(i=>'<a class="btn light mt-sm" href="/staff#email-inquiry/'+i.id+'">INQ-'+i.id+' · '+esc(i.title)+'</a>').join('')+'</section>':''}<div class="job-columns"><section class="panel"><h2 class="mb">Job activity</h2>${eventsView(j.events)}</section><section class="panel"><h3 class="mb">Add an update</h3><form data-form="staff-message" class="stack"><label class="field"><span>Message / note</span><textarea name="message" required maxlength="3000"></textarea></label>${checkbox('public','Share this message in the customer portal')}<div class="form-error"></div><button class="btn primary">Save update</button></form><p class="field-hint mt-sm">Customer-visible updates are saved in the portal and emailed to the customer when email delivery is available.</p></section></div>`;}
 async function loadQueue(){
   const response=await api('/api/staff/task-queue');state.tasks=response.tasks;
   staffShell(`<div class="page-heading"><div><div class="eyebrow mb" style="margin-bottom:8px">SHOP FLOOR</div><h1>Your next task, clearly.</h1><p>Pick up available work, start the timer, and move the job forward.</p></div></div><div class="filter-row"><div class="segmented">${[['available','Available'],['mine','Assigned to me'],['all','All open tasks']].map(([id,label])=>`<button data-action="queue-filter" data-value="${id}" class="${state.queueFilter===id?'active':''}">${label}</button>`).join('')}</div><p class="muted tiny">First 300 open tasks across active jobs</p></div><section class="panel" id="task-list"></section>`,'tasks','Task queue');renderQueue();
@@ -1066,6 +1069,7 @@ const forms = {
 };
 
 const marketingDashboard=createMarketingDashboard({api,staffShell,esc,money,forms,toast});
+const emailIntake=createEmailIntake({api,staffShell,esc,showModal,closeModal,forms,actions,toast});
 const crmDashboard=createCrmDashboard({api,staffShell,esc,money,showModal,closeModal,forms,actions,toast});
 const surveysDashboard=createSiteSurveys({api,state,esc,staffShell,showModal,actions,forms});
 checkoutProof=createCheckoutProof({state,esc,shop:()=>shop,toast});

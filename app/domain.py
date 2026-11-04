@@ -234,6 +234,9 @@ def serialize_job(conn, job, audience='admin', detail=True, gateway=None):
     result['price_override_cents'] = job['price_override_cents']
     result['adjustment_note'] = job['adjustment_note']
     if audience == 'admin':
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='email_inquiries'").fetchone():
+            result['email_inquiries'] = [dict(r) for r in conn.execute(
+                'SELECT id,title FROM email_inquiries WHERE job_id=? ORDER BY id', (job['id'],))]
         result['extra_cost_cents'] = job['extra_cost_cents']
         from .rewards import active_redemption
         redemption = active_redemption(conn, job['id'])
