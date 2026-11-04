@@ -360,7 +360,7 @@ def _auto_convert_inquiry(db, inquiry_id):
                 continue
             save_asset(conn, db.parent/'uploads', jid, raw, name, mime, suffix, 'artwork', 'Automatic email intake')
         conn.execute('INSERT OR IGNORE INTO crm_contact_jobs VALUES(?,?)', (inquiry['contact_id'], jid))
-        conn.execute('UPDATE email_inquiries SET job_id=?,status='linked',updated_at=? WHERE id=?', (jid, now(), inquiry_id))
+        conn.execute("UPDATE email_inquiries SET job_id=?,status='linked',updated_at=? WHERE id=?", (jid, now(), inquiry_id))
         audit(conn, jid, 'Automatic email intake', 'email.inquiry_auto_converted', {'inquiry_id': inquiry_id})
         return jid
 
