@@ -288,8 +288,11 @@ def _price_inquiry(db, inquiry_id, job_id):
         try:
             quote = calculate(conn, items, staff=True)
         except HTTPException as exc:
+            shop = settings(conn)
             quote = {'lines': [], 'subtotal_cents': 0, 'cost_cents': 0, 'minimum_order_adjustment_cents': 0,
-                     'minimum_order_cents': 0, 'meets_minimum_order': True, 'currency': 'USD', 'wholesale': None}
+                     'minimum_order_cents': 0, 'meets_minimum_order': True, 'currency': 'USD', 'wholesale': None,
+                     'settings_snapshot': {k: shop[k] for k in ('target_margin_percent', 'overhead_percent',
+                         'labor_cost_per_hour', 'labor_sell_per_hour', 'minimum_order_price')}}
             review_items.append(ReviewItem(product_id=None, requested_label='Requested catalog item', width=None, height=None, quantity=1, missing=['Catalog options or dimensions'], suggestion=str(exc.detail)))
         placeholders = []
         for item in review_items:
