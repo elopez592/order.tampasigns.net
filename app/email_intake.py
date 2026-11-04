@@ -57,6 +57,12 @@ CREATE TABLE IF NOT EXISTS email_attachments (
  id INTEGER PRIMARY KEY, message_id INTEGER NOT NULL REFERENCES email_messages(id),
  filename TEXT NOT NULL, stored_name TEXT NOT NULL, size INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS email_drafts (
+ id INTEGER PRIMARY KEY, inquiry_id INTEGER NOT NULL REFERENCES email_inquiries(id),
+ recipient TEXT NOT NULL, subject TEXT NOT NULL, body TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'draft', created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+ UNIQUE(inquiry_id)
+);
 '''
 
 
@@ -92,12 +98,24 @@ class PriceLine(BaseModel):
     vehicle_type: str = ''
 
 
+class ReviewItem(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    product_id: int | None = None
+    requested_label: str = Field(default='', max_length=240)
+    width: float | None = None
+    height: float | None = None
+    quantity: int = Field(default=1, ge=1, le=100000)
+    missing: list[str] = Field(default_factory=list, max_length=15)
+    suggestion: str = Field(default='', max_length=800)
+
+
 class PriceDecision(BaseModel):
     model_config = ConfigDict(extra='forbid')
     lines: list[PriceLine] = Field(default_factory=list, max_length=12)
     confidence: float = Field(ge=0, le=1)
     reason: str = Field(default='', max_length=800)
     missing: list[str] = Field(default_factory=list, max_length=15)
+    review_items: list[ReviewItem] = Field(default_factory=list, max_length=12)
 
 
 PROMPT = '''You handle incoming email for a sign/print shop selling signs, stickers, wraps,
@@ -189,11 +207,14 @@ def review(message, context, api_key):
     return Decision.model_validate_json(output)
 
 
-PRICE_PROMPT = '''Extract only confidently identifiable catalog-priced products from this customer inquiry.
+PRICE_PROMPT = '''Extract confidently identifiable catalog-priced products from this customer inquiry, and separately list every identifiable requested product or service that needs owner review.
 The catalog is authoritative for product IDs and option IDs; never invent a product ID, size, quantity,
 material, finish, vehicle type or installation choice. Use null width/height when the customer did not
-provide dimensions. Do not price custom work, wraps without a clearly supported vehicle/coverage choice,
-installation, artwork cleanup or anything requiring an owner quote. It is acceptable to return no lines.
+provide dimensions. Put an item in review_items when it is recognizable but missing information prevents
+pricing. Always include requested_label, quantity and concrete missing details, plus a practical suggestion
+for the customer. Do not price custom work, wraps without a clearly supported vehicle/coverage choice,
+installation, artwork cleanup or anything requiring an owner quote. It is acceptable to return no priced lines,
+but do not omit recognizable requested products from review_items.
 The result is a draft for an owner to review, never a customer-facing promise.'''
 
 
@@ -247,29 +268,72 @@ def _price_inquiry(db, inquiry_id, job_id):
                      if item.get('type') == 'message' for p in item.get('content', [])
                      if p.get('type') == 'output_text')
     decision = PriceDecision.model_validate_json(output)
-    if not decision.lines or decision.confidence < .78:
-        return {'priced': False, 'reason': decision.reason or 'No high-confidence catalog match.', 'missing': decision.missing}
+    if decision.confidence < .65:
+        return {'priced': False, 'reason': decision.reason or 'The request needs clarification before catalog pricing.', 'missing': decision.missing}
     with transaction(db, True) as conn:
         job = conn.execute('SELECT * FROM jobs WHERE id=?', (job_id,)).fetchone()
         items = []
+        review_items = list(decision.review_items)
+        catalog = {int(row['id']): row['name'] for row in conn.execute('SELECT id,name FROM products WHERE active=1')}
         for line in decision.lines:
             if line.width is None or line.height is None:
-                return {'priced': False, 'reason': decision.reason or 'Dimensions are required for this catalog item.', 'missing': decision.missing}
+                review_items.append(ReviewItem(product_id=line.product_id, requested_label=catalog.get(line.product_id, line.description or 'Requested product'),
+                    width=line.width, height=line.height, quantity=line.quantity,
+                    missing=['Finished width and height'], suggestion='Confirm the finished size before pricing.'))
+                continue
             item = line.model_dump(exclude_none=True)
             item['product_id'] = int(item['product_id'])
             items.append(item)
         try:
             quote = calculate(conn, items, staff=True)
         except HTTPException as exc:
-            return {'priced': False, 'reason': str(exc.detail)}
+            quote = {'lines': [], 'subtotal_cents': 0, 'cost_cents': 0, 'minimum_order_adjustment_cents': 0,
+                     'minimum_order_cents': 0, 'meets_minimum_order': True, 'currency': 'USD', 'wholesale': None}
+            review_items.append(ReviewItem(requested_label='Requested catalog item', missing=['Catalog options or dimensions'], suggestion=str(exc.detail)))
+        placeholders = []
+        for item in review_items:
+            label = item.requested_label or catalog.get(item.product_id or -1, 'Requested product or service')
+            missing = item.missing or decision.missing or ['Confirm product details']
+            placeholders.append({'product_id': item.product_id, 'name': label, 'description': 'Needs owner review: ' + '; '.join(missing),
+                'quantity': item.quantity, 'width': str(item.width or ''), 'height': str(item.height or ''),
+                'unit': 'piece', 'category': 'Review', 'sell_cents': 0, 'cost_cents': 0,
+                'price_per_item_cents': 0, 'review_required': True, 'unpriced': True,
+                'review_reason': '; '.join(missing), 'suggestion': item.suggestion})
+        quote['lines'] = quote.get('lines', []) + placeholders
         quote['review_required'] = True
-        quote['pricing_basis'] = 'Catalog-priced email draft. Server rates were applied; owner review is required before publishing.'
+        quote['review_items'] = placeholders
+        quote['pricing_basis'] = 'Email intake draft. Catalog rates were applied where possible; review items require owner confirmation before publishing.'
         version = int(job['quote_version'] or 0) + 1
         conn.execute('UPDATE jobs SET quote_snapshot=?,quote_version=?,accepted_version=NULL,accepted_at=NULL WHERE id=?',
                      (json.dumps(quote), version, job_id))
         audit(conn, job_id, 'email-intake', 'email.quote_priced',
-              {'inquiry_id': inquiry_id, 'line_count': len(quote['lines']), 'subtotal_cents': quote['subtotal_cents']})
-    return {'priced': True, 'job_id': job_id, 'subtotal_cents': quote['subtotal_cents'], 'line_count': len(quote['lines'])}
+              {'inquiry_id': inquiry_id, 'line_count': len(quote['lines']), 'review_count': len(placeholders), 'subtotal_cents': quote['subtotal_cents']})
+    return {'priced': True, 'job_id': job_id, 'subtotal_cents': quote['subtotal_cents'], 'line_count': len(quote['lines']), 'review_count': len(placeholders)}
+
+
+def _followup_draft(db, inquiry_id):
+    with transaction(db, True) as conn:
+        inquiry = conn.execute('''SELECT i.*,c.name,c.email FROM email_inquiries i
+            JOIN crm_contacts c ON c.id=i.contact_id WHERE i.id=?''', (inquiry_id,)).fetchone()
+        if not inquiry or not inquiry['email']:
+            raise HTTPException(404, 'Inquiry or customer email not found.')
+        details = json.loads(inquiry['details'] or '{}')
+        missing = details.get('missing') or []
+        subject = f"A few details needed for your quote · {inquiry['title']}"
+        body = f"Hi {inquiry['name'] or 'there'},\n\nThanks for reaching out to Tampa Signs and Stickers. We can help with your request for {inquiry['title'].lower()}. To prepare an accurate quote, could you confirm the following?\n\n"
+        if missing:
+            body += ''.join(f"• {item}\n" for item in missing)
+        else:
+            body += "• Finished sizes and quantities for each item\n• Material, finish, and color preferences\n"
+        body += "\nA good starting point for shop signs is 3 mm ACM for a rigid outdoor sign, or vinyl graphics applied to an existing smooth surface. For die-cut stickers, please include the finished size, quantity, contour or shape cut, and whether you prefer gloss or matte laminate. If you need installation or have a deadline, please include that as well.\n\nOnce we have those details and the logo/artwork, we’ll send the quote and turnaround time.\n\nThank you,\nTampa Signs and Stickers"
+        stamp = now()
+        conn.execute('''INSERT INTO email_drafts(inquiry_id,recipient,subject,body,status,created_at,updated_at)
+            VALUES(?,?,?,?,?,?,?) ON CONFLICT(inquiry_id) DO UPDATE SET recipient=excluded.recipient,
+            subject=excluded.subject,body=excluded.body,status='draft',updated_at=excluded.updated_at''',
+            (inquiry_id, inquiry['email'], subject, body, 'draft', stamp, stamp))
+        draft = conn.execute('SELECT * FROM email_drafts WHERE inquiry_id=?', (inquiry_id,)).fetchone()
+        audit(conn, inquiry['job_id'], 'email-intake', 'email.followup_draft_created', {'inquiry_id': inquiry_id})
+        return dict(draft)
 
 
 def context_for(db, message):
@@ -555,6 +619,8 @@ def install(app, require_admin, background=False):
             for message in result['messages']:
                 message['attachments'] = [dict(r) for r in conn.execute('SELECT id,filename,size FROM email_attachments WHERE message_id=?', (message['id'],))]
             result['jobs'] = [dict(r) for r in conn.execute('SELECT id,number,title FROM jobs WHERE lower(customer_email)=? AND archived=0 ORDER BY id DESC LIMIT 100', (inquiry['email'].lower(),))]
+            draft = conn.execute('SELECT * FROM email_drafts WHERE inquiry_id=?', (inquiry_id,)).fetchone()
+            result['draft'] = dict(draft) if draft else None
         return result
 
     @app.get(prefix + '/attachments/{attachment_id}')
@@ -629,6 +695,17 @@ def install(app, require_admin, background=False):
         if not row or not row['job_id']:
             raise HTTPException(422, 'Create or link a job for this inquiry first.')
         return _price_inquiry(db, inquiry_id, row['job_id'])
+
+    @app.post(prefix + '/inquiries/{inquiry_id}/draft-email')
+    def draft_email(inquiry_id: int, payload: dict | None = Body(None), user=Depends(require_admin)):
+        draft = _followup_draft(db, inquiry_id)
+        if payload and ('subject' in payload or 'body' in payload):
+            subject = text(payload.get('subject', draft['subject']), 'Subject', 300, True)
+            body = text(payload.get('body', draft['body']), 'Email body', 12000, True)
+            with transaction(db, True) as conn:
+                conn.execute('UPDATE email_drafts SET subject=?,body=?,updated_at=? WHERE id=?', (subject, body, now(), draft['id']))
+                draft = dict(conn.execute('SELECT * FROM email_drafts WHERE id=?', (draft['id'],)).fetchone())
+        return {'draft': draft, 'sent': False}
 
     if background:
         previous_lifespan = app.router.lifespan_context
