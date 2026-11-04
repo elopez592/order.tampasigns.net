@@ -290,7 +290,7 @@ def _price_inquiry(db, inquiry_id, job_id):
         except HTTPException as exc:
             quote = {'lines': [], 'subtotal_cents': 0, 'cost_cents': 0, 'minimum_order_adjustment_cents': 0,
                      'minimum_order_cents': 0, 'meets_minimum_order': True, 'currency': 'USD', 'wholesale': None}
-            review_items.append(ReviewItem(requested_label='Requested catalog item', missing=['Catalog options or dimensions'], suggestion=str(exc.detail)))
+            review_items.append(ReviewItem(product_id=None, requested_label='Requested catalog item', width=None, height=None, quantity=1, missing=['Catalog options or dimensions'], suggestion=str(exc.detail)))
         placeholders = []
         for item in review_items:
             label = item.requested_label or catalog.get(item.product_id or -1, 'Requested product or service')
