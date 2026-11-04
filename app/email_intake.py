@@ -319,14 +319,14 @@ def _followup_draft(db, inquiry_id):
         if not inquiry or not inquiry['email']:
             raise HTTPException(404, 'Inquiry or customer email not found.')
         details = json.loads(inquiry['details'] or '{}')
-        missing = details.get('missing') or []
+        missing = [item for item in (details.get('missing') or []) if not any(word in item.lower() for word in ('deadline', 'due date', 'needed by', 'turnaround'))]
         subject = f"A few details needed for your quote · {inquiry['title']}"
         body = f"Hi {inquiry['name'] or 'there'},\n\nThanks for reaching out to Tampa Signs and Stickers. We can help with your request for {inquiry['title'].lower()}. To prepare an accurate quote, could you confirm the following?\n\n"
         if missing:
             body += ''.join(f"• {item}\n" for item in missing)
         else:
             body += "• Finished sizes and quantities for each item\n• Material, finish, and color preferences\n"
-        body += "\nA good starting point for shop signs is 3 mm ACM for a rigid outdoor sign, or vinyl graphics applied to an existing smooth surface. For die-cut stickers, please include the finished size, quantity, contour or shape cut, and whether you prefer gloss or matte laminate. If you need installation or have a deadline, please include that as well.\n\nOnce we have those details and the logo/artwork, we’ll send the quote and turnaround time.\n\nThank you,\nTampa Signs and Stickers"
+        body += "\nA good starting point for shop signs is 3 mm ACM for a rigid outdoor sign, or vinyl graphics applied to an existing smooth surface. For die-cut stickers, please include the finished size, quantity, contour or shape cut, and whether you prefer gloss or matte laminate. If you need installation, please include that as well.\n\nOnce we have those details and the logo/artwork, we’ll send the quote and include our normal turnaround time. A deadline is not required unless you have a specific date you need us to meet.\n\nThank you,\nTampa Signs and Stickers"
         stamp = now()
         conn.execute('''INSERT INTO email_drafts(inquiry_id,recipient,subject,body,status,created_at,updated_at)
             VALUES(?,?,?,?,?,?,?) ON CONFLICT(inquiry_id) DO UPDATE SET recipient=excluded.recipient,
@@ -398,8 +398,9 @@ def record_message(db, message, decision):
                             if inquiry: break
                 linked_job = conn.execute('SELECT id FROM jobs WHERE id=? AND lower(customer_email)=?',
                                           (decision.target_job_id, message['sender'])).fetchone() if message['sender'] and action == 'update' else None
+                missing = [item for item in decision.missing if not any(word in item.lower() for word in ('deadline', 'due date', 'needed by', 'turnaround'))]
                 details = json.dumps({'specifications': decision.specifications, 'deadline': decision.deadline,
-                                      'missing': decision.missing, 'confidence': decision.confidence})
+                                      'missing': missing, 'confidence': decision.confidence})
                 if inquiry:
                     inquiry_id = inquiry['id']
                     status = 'needs_clarification' if action == 'uncertain' else ('linked' if inquiry['job_id'] else 'new')
