@@ -1,4 +1,4 @@
-import {createEmailIntake} from './email-intake.js?v=20261104-1';
+import {createEmailIntake} from './email-intake.js?v=20261104-2';
 import {companyProductImage,companyProjects} from './company-media.js';
 import {realWorkPhotosFor,productGalleryMarkup,setupProductPhotoGallery} from './product-photo-gallery.js?v=20261015-taquera-2';
 import {surveyReviewFields,reviewedSurveys} from './survey-review.js?v=20261005-1';
@@ -101,1060 +101,984 @@ const specialtyProductIllustration = p => {
   else if(p.category==='Promotional Products')drawing=name.includes('pen')?'<path d="M55 190 L215 55" stroke="#222" stroke-width="22" stroke-linecap="round"/><path d="M70 178 L195 74" stroke="currentColor" stroke-width="14"/><path d="M205 48 L235 72 L203 100" fill="none" stroke="#aaa" stroke-width="7"/>':'<rect x="38" y="85" width="224" height="108" rx="14" fill="#222"/><circle cx="60" cy="110" r="6" fill="#eee"/><path d="M92 118 L235 118 M92 155 L205 155" stroke="currentColor" stroke-width="9"/>';
   return drawing?`<div class="specialty-product-example" style="padding:24px;background:#f4f3ef;color:var(--accent);text-align:center;border-radius:12px" role="img" aria-label="Illustration of ${esc(publicProductName(p))}"><svg viewBox="0 0 300 260" style="display:block;max-height:230px;width:100%" aria-hidden="true">${drawing}</svg><span style="font-size:10px;color:#444">PRODUCT ILLUSTRATION</span></div>`:'';
 };
-const productImage = (p,size='detail') => { const media=companyProductImage(state.catalog?.company_media,p);if(media)return `<div class="company-product-image company-product-image-${esc(size)}"><img src="${esc(media.image)}" alt="${esc(String(media.alt||'').trim()||('Custom '+publicProductName(p)+' example from '+shopName()))}" loading="lazy" decoding="async"><span class="example-caption">PRODUCT MOCKUP</span></div>`;if(state.catalog?.company_media?.products)return '';const illustration=specialtyProductIllustration(p);if(illustration)return illustration;const kind=productImageKind(p); return kind?`<div class="product-example product-example-${esc(kind)} product-example-${esc(size)} product-photo-${esc(productSlug(p))}" role="img" aria-label="Photographic example of ${esc(publicProductName(p))}"><span class="product-example-photo"></span><span class="example-caption">${productSlug(p)==='acrylic-signs'?'REAL WORK Â· ACRYLIC SIGN':'PRODUCT EXAMPLE'}</span></div>`:''; };
-const realWorkProjects = [
-  {slug:'trailer-food-truck-wraps',title:'Food-trailer wrap',summary:'Full-color printed and laminated trailer graphics.',image:'/static/projects/real-work/food-trailer-wrap.webp',alt:'Finished black food trailer wrap with orange wing graphics'},
-  {slug:'vehicle-wraps',title:'Service-van graphics',summary:'Branded fleet visibility across the van body.',image:'/static/projects/real-work/service-van-wrap.webp',alt:'White service van with full business graphics'},
-  {slug:'window-graphics',title:'Storefront window graphics',summary:'Cut vinyl lettering and promotional window graphics.',image:'/static/projects/real-work/storefront-window-graphics.webp',alt:'Retail storefront with red and white window graphics'},
-  {slug:'aluminum-composite-signs',title:'Rigid directional sign',summary:'High-contrast sign built for quick readability.',image:'/static/projects/real-work/directional-sign.webp',alt:'Black and white directional business sign'},
-  {slug:'decals',title:'Vehicle window lettering',summary:'Clean rear-window branding and contact details.',image:'/static/projects/real-work/vehicle-window-lettering.webp',alt:'Rear truck window with white business lettering'},
-  {slug:'illuminated-sign-faces',title:'Illuminated sign face',summary:'Replacement sign face built for a lighted cabinet and street visibility.',image:'/static/projects/real-work/roadside-sign.webp',alt:'Installed roadside illuminated business sign beside a Tampa street'}
-];
-const realWorkCard = (work,featured=false) => `<a class="real-work-card ${featured?'featured':''}" href="/products/${esc(work.slug)}"><img src="${esc(work.image)}" alt="${esc(work.alt)}" loading="lazy" decoding="async"><span class="real-work-shade"></span><span class="real-work-caption"><strong>${esc(work.title)}</strong><small>${esc(work.summary)}</small><span class="real-work-build">Build something like this â†’</span></span></a>`;
-const currentRealWork = () => companyProjects(state.catalog?.company_media,state.catalog?.shop?.brand_custom,realWorkProjects);
-const realWorkGallery = () => {
-  const projects=currentRealWork(),custom=state.catalog?.shop?.brand_custom,instagram=state.catalog?.company_media?.instagram;
-  if(!projects.length)return instagram?`<section class="real-work-section"><div class="real-work-heading"><div><div class="eyebrow">FROM THE MIRAKOL STUDIO</div><h2>See our latest work</h2></div><p>Explore recent apparel, signs and promotional projects on Instagram.</p></div><a class="btn primary" href="${esc(instagram)}" target="_blank" rel="noopener noreferrer">Visit Mirakol on Instagram ${icon('arrow')}</a></section>`:'';
-  return `<section class="real-work-section" aria-labelledby="real-work-heading"><div class="real-work-heading"><div><div class="eyebrow">${custom?'FROM OUR STUDIO':'MADE IN TAMPA'}</div><h2 id="real-work-heading">Real work from our shop</h2></div><p>${custom?'Finished projects from '+esc(state.catalog.shop.shop_name)+'. Choose a project to start from a similar product.':'Finished signs, wraps and graphics produced for local businesses. Choose a project to start from a similar product.'}</p></div><div class="real-work-grid">${projects.map((work,index)=>realWorkCard(work,index<2)).join('')}</div></section>`;
-};
-const realWorkForProduct = p => currentRealWork().find(work=>work.slug===productSlug(p));
-const realWorkProductSection = p => {const work=realWorkForProduct(p);return work?`<section class="real-work-detail"><img src="${esc(work.image)}" alt="${esc(work.alt)}" loading="lazy" decoding="async"><div><div class="eyebrow">REAL PROJECT</div><h2>${esc(work.title)}</h2><p>${esc(work.summary)} This finished project is shown as a shop-work example; your artwork, dimensions and installation needs will be reviewed separately.</p><a class="btn primary mt" href="/products/${esc(work.slug)}">Build something like this</a></div></section>`:'';};
-const badge = (text_,type='') => `<span class="badge ${type}">${esc(text_)}</span>`;
-const shopName = () => state.catalog?.shop?.shop_name||document.querySelector('meta[name="shop-name"]')?.content||'Tampa Signs and Stickers';
-const shopLogo = () => state.catalog?.shop?.brand_logo?'/brand/images/'+state.catalog.shop.brand_logo:document.querySelector('meta[name="shop-logo"]')?.content||'/static/brand/tampa-white.png';
-const brand = () => `<a class="brand" href="/" aria-label="${esc(shopName())} home"><img class="brand-logo" src="${esc(shopLogo())}" alt="${esc(shopName())}"></a>`;
-const customerStages = {received:'Order received',production:'In production',finished:'Finished'};
-const input = (name,label,value='',type='text',attrs='') => `<label class="field"><span>${esc(label)}</span><input name="${esc(name)}" type="${type}" value="${esc(value)}" ${attrs}></label>`;
-const select = (name,label,options,value) => `<label class="field"><span>${esc(label)}</span><select name="${name}">${options.map(o=>`<option value="${esc(o[0])}" ${String(o[0])===String(value)?'selected':''}>${esc(o[1])}</option>`).join('')}</select></label>`;
-const checkbox = (name,label,checked=false,attrs='') => `<label class="check"><input name="${name}" type="checkbox" ${checked?'checked':''} ${attrs}><span>${esc(label)}</span></label>`;
-const formFooter = (label='Save changes') => `<div class="form-error"></div><div class="modal-footer"><button type="button" class="btn light" data-action="close">Cancel</button><button type="submit" class="btn primary">${esc(label)} ${icon('arrow','icon-sm')}</button></div>`;
-const stageLabels = {quote:'Quote & intake',prepress:'Design & approval',ready:'Ready to produce',production:'In production',complete:'Complete',archived:'Archived'};
+const productImage = (p,size='detail') => { const media=companyProductImage(state.catalog?.company_media,p);if(media)return `<div class="company-product-image company-product-image-${esc(size)}"><img src="${esc(media.image)}" alt="${esc(String(media.alt||'').trim()||('Custom '+publicProductName(p)+' example from '+shopName()))}" loading="lazy" decoding="async"><span class="example-caption">PRODUCT MOCKUP</span></div>`;if(state.catalog?.company_media?.products)return '';const illustration=specialtyProductIllustration(p);if(illustration)return illustration;const kind=productImageKind(p); return kind?`<div class="product-example product-example-${esc(kind)} product-example-${esc(size)} produxç_w¶‰Ëkºwµç\][™È[İ\ˆ˜[[˜ÙKÜ˜Âˆ[ÙH^[Y[IÏ]ˆÛ\ÜÏH››İXÙH[™›È]\›İ™HHİ\œ™[][İHÈ[›ØÚÈ^[Y[Ü[ÛœËÙ]‰ÎÂ‚ˆÛÛœİ›Ú™Xİ]Z[ÏX]Z[ÈÛ\ÜÏHœÜ[[[Ü™KY]Z[È‚ˆİ[[X\OÜ[İ›Û™Ï“[Ü™H›Ú™Xİ]Z[ÏÜİ›Û™ÏÛX[•\]\Ë›ÛÙˆ\İÜKØÚY[[™ËTˆİ]\È[™Y\ÜØYÙ\ÏÜÛX[ÜÜ[Ü[ˆÛ\ÜÏH™]Z[ËXÚ]œ›Ûˆ¸£!ÜÜ[Üİ[[X\O‚ˆ]ˆÛ\ÜÏHœÜ[[[Ü™KYÜšY‚ˆ	Ü›ÛÙ’\İÜJ‹œ›ÛÙœÊ_BˆÙXİ[ÛˆÛ\ÜÏHœ[™[ÈÛ\ÜÏH›Xˆ“Ü™\ˆ\]\ÏÚÏ‰Ù]™[ÕšY]Ê‹™]™[ËœÛXÙJLŠJ_OÜÙXİ[Û‚ˆÙXİ[ÛˆÛ\ÜÏHœ[™[Ï”ØÚY[HH™^İ\ÚÏÛ\ÜÏH™šY[Z[]\ÛH”™\]Y\İHÚ]Hİ\™^KÛÛœİ[][Û‹[œİ[][ÛˆÚ[™İËÜˆXÚİ\ÛÛÜ™[˜][Û‹Ü]ÛˆÛ\ÜÏH˜ˆYÚ]ˆ]KXXİ[ÛHœÜ[X\Ú[Y[”™\]Y\İH[YOØ]ÛÜÙXİ[Û‚ˆÙXİ[ÛˆÛ\ÜÏHœ[™[Ï”Ú\™XX›H›Ø‹\İ]\ÈTÚÏÛ\ÜÏH™šY[Z[]\ÛHÜ™X]\ÈH[Z]Yİ]\È[šÈÚ]İ]][İK\ÛÜšË›ÛÙ‹^[Y[Üˆİ\İÛY\ˆ]Z[ËÜ]ÛˆÛ\ÜÏH˜ˆYÚ]ˆ]KXXİ[ÛHœÜ[\İ]\Ë\\ˆ”ÚİÈİ]\ÈTØ]ÛÜÙXİ[Û‚ˆÙXİ[ÛˆÛ\ÜÏHœ[™[ÈÛ\ÜÏH›Xˆ“Y\ÜØYÙHHÚÜÚÏ›Ü›H]KY›Ü›OHœÜ[[Y\ÜØYÙHˆÛ\ÜÏHœİXÚÈX™[Û\ÜÏH™šY[Ü[–[İ\ˆY\ÜØYÙOÜÜ[^\™XH˜[YOH›Y\ÜØYÙHˆ™\]Z\™YX^[™İHŒÌˆXÙZÛ\H”]Y\İ[ÛˆX›İ]\È›Ú™Xİ‹‹ˆİ^\™XOÛX™[]ˆÛ\ÜÏH™›Ü›KY\œ›ÜˆÙ]]ÛˆÛ\ÜÏH˜ˆYÚ”Ù[™Y\ÜØYÙH	ÚXÛÛŠ	ÛXZ[	Ë	ÚXÛÛ‹\ÛIÊ_OØ]ÛÙ›Ü›OÜÙXİ[Û‚ˆÛ\ÜÏH[H]]YÜ[\š]˜]K[›İH’ÙY\[İ\ˆš]˜]H›Ú™XİÙ[\ˆ[šÈÙXİ\™Kˆ][˜ÛY\È][İH[™›ÛÙˆXØÙ\ÜËÜ‚ˆÙ]‚ˆÙ]Z[Ï˜Â‚ˆ\š[›™\’S\X›XÒXY\Š
+JØXZ[ˆÛ\ÜÏHœÜ[\YÙH‚ˆÙXİ[ÛˆÛ\ÜÏHœÜ[Z\›È‚ˆ]ˆÛ\ÜÏHœ›İÈ™]ÙY[ˆ]]ˆÛ\ÜÏH™^YXœ›İÈ”“Ò‘PÕÑS•TˆÈ	Ù\ØÊ‹›[X™\Š_OÙ]O‰Ù\ØÊ‹]J_OÚOÛ\ÜÏH›]]Y]\ÛH‰Ù\ØÊ‹˜İ\İÛY\—Û˜[YJ_H0­È	Ù\ØÊİ\İÛY\”İYÙ\ÖÚ‹œİYÙW_	ÓÜ™\ˆ™XÙZ]™Y	Ê_OÜÙ]]ÛˆÛ\ÜÏH˜ˆYÚÛX[ˆ]KXXİ[ÛHœÜ[\™Yœ™\Ú‰ÚXÛÛŠ	Ü™Yœ™\Ú	Ë	ÚXÛÛ‹\ÛIÊ_H™Yœ™\ÚØ]ÛÙ]‚ˆÛÛ\ÜÏH˜İ\İÛY\‹\›ÙÜ™\ÜÈˆ\šXK[X™[H“Ü™\ˆ›ÙÜ™\ÜÈ‰ÖÖÉÜ™XÙZ]™Y	Ë	ÓÜ™\ˆ™XÙZ]™Y	×KÉÜ›ÙXİ[Û‰Ë	Ò[ˆ›ÙXİ[Û‰×KÉÙš[š\ÚY	Ë	Ñš[š\ÚY	×WK›X\
 
-async function api(path,method='GET',body){
-  const headers = {'Accept':'application/json'};
-  if(method !== 'GET') headers['X-CSRF-Token'] = state.csrf;
-  if(body && !(body instanceof FormData)) headers['Content-Type']='application/json';
-  const response = await fetch(path,{method,headers,credentials:'same-origin',body:body instanceof FormData?body:body?JSON.stringify(body):undefined});
-  let data;
-  try{ data=await response.json(); }catch{ throw new Error('The server did not return a valid response.'); }
-  if(!response.ok) throw new Error(typeof data.detail==='string'?data.detail:`Request failed (${response.status}). Check the form values.`);
-  return data;
-}
-function toast(message,error=false){const box=$('#toast');box.textContent=message;box.className='visible'+(error?' error':'');clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>box.className='',4500);}
-function showModal(title,body,wide=false){modal.classList.toggle('wide',wide);$('#modal-content').innerHTML=`<div class="modal-head"><h2>${esc(title)}</h2><button class="close-btn" data-action="close" aria-label="Close dialog">&times;</button></div><div class="modal-body">${body}</div>`;if(!modal.open)modal.showModal();}
-function closeModal(){modal.close();}
-function publicHeader(){const count=shop?.count?.()||0;return `<div class="public-masthead"><header class="public-header">${brand()}<nav class="nav-links" aria-label="Customer navigation"><a href="/">Shop</a><a href="/products">All products</a><a href="/industries">Industries</a><a href="/contact">Contact</a><a href="/project">Project <span class="nav-count" data-project-count>${count}</span></a>${state.customer?'<a href="/account">My account</a><button class="nav-button" data-action="customer-logout">Sign out</button>':'<a href="/account">Customer sign in</a>'}<a href="/terms">Terms</a></nav></header></div>`;}
-function loading(){app.innerHTML=`<div class="initial-loading"><img src="${esc(shopLogo())}" class="loading-logo" alt="${esc(shopName())}"><p class="muted">Loading...</p></div>`;}
-async function contactView(){
-  if(!state.catalog)state.catalog=await api('/api/catalog');
-  const identity=state.catalog.shop,custom=!!identity.brand_custom,shopName=identity.shop_name;
-  const phone=identity.contact_phone||(custom?'':'(813) 749-4500'),email=identity.contact_email||(custom?'':'info@tampasigns.net'),tel=String(phone).replace(/[^0-9+]/g,'');
-  const address=identity.business_address||(custom?'':'9236 Lazy Ln, Tampa, FL 33614'),maps=encodeURIComponent(address);
-  document.title='Contact '+shopName+' | Order Support';
-  const description='Contact '+shopName+' for order help, custom signs, wraps, stickers, apparel, pickup and project questions.';
-  let meta=document.querySelector('meta[name="description"]');if(!meta){meta=document.createElement('meta');meta.name='description';document.head.appendChild(meta);}meta.content=description;
-  let canonical=document.querySelector('link[rel="canonical"]');if(!canonical){canonical=document.createElement('link');canonical.rel='canonical';document.head.appendChild(canonical);}canonical.href=location.origin+'/contact';
-  app.innerHTML=publicHeader()+`<main class="public-page contact-order-page">
-    <section class="contact-order-hero">
-      <div class="contact-order-copy"><div class="eyebrow">CONTACT ${esc(shopName.toUpperCase())}</div><h1>Need help with an order or custom project?</h1><p>Call, email, or visit the shop. We can help with product selection, artwork questions, measurements, installation, pickup, or a project that does not fit the standard online options.</p><div class="contact-order-actions"><a class="btn primary" href="tel:${esc(tel)}">Call ${esc(phone)}</a><a class="btn light" href="mailto:${esc(email)}">Email the shop</a><a class="btn light" href="/products">Browse products</a></div></div>
-      <aside class="panel contact-order-card"><div class="contact-order-item"><span>Phone</span><a href="tel:${esc(tel)}">${esc(phone)}</a></div><div class="contact-order-item"><span>Email</span><a href="mailto:${esc(email)}">${esc(email)}</a></div><div class="contact-order-item"><span>Address & hours</span><strong>${esc(address||'Contact the shop for location details')}<br>${esc(identity.business_hours||'')}</strong></div></aside>
-    </section>
-    <section class="contact-order-grid"><div class="contact-map-card panel"><iframe class="contact-order-map" title="Map to ${esc(shopName)}" src="https://www.google.com/maps?q=${maps}&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe><div class="row between wrap mt"><strong>${esc(address)}</strong><a class="btn primary small" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/dir/?api=1&destination=${maps}">Get directions</a></div></div>
-    <div class="panel contact-order-help"><div class="eyebrow">ORDER SUPPORT</div><h2>Already started a project?</h2><p class="muted">Use your Project page or private Project Center link for artwork, proofs, payments and status. Contact the shop when you need a person to review measurements, installation details or a special request.</p><div class="stack-sm mt"><a class="btn light wide" href="/project">Open Project</a><a class="btn light wide" href="/account">Customer sign in</a></div></div></section>
-  </main>`;
-}
-async function statusView(){
-  const token=new URLSearchParams(location.hash.replace(/^#/,'')).get('token')||'';
-  if(!token){app.innerHTML=publicHeader()+'<main class="public-page"><section class="panel"><h1>Order status</h1><p class="muted mt">This status link is missing its access token.</p></section></main>';return;}
-  try{
-    const data=await api('/api/status?token='+encodeURIComponent(token));
-    app.innerHTML=publicHeader()+`<main class="public-page"><section class="status-public-card panel"><div class="eyebrow">LIMITED STATUS VIEW</div><h1>${esc(data.number)}</h1><div class="status-public-stage">${esc(data.label)}</div><p class="muted mt">This QR page intentionally does not show customer details, pricing, artwork, proofs, or payment information.</p></section></main>`;
-  }catch(error){
-    app.innerHTML=publicHeader()+`<main class="public-page"><section class="panel"><h1>Status link unavailable</h1><p class="muted mt">${esc(error.message)}</p></section></main>`;
-  }
-}
-async function loadProductReviews(productId){
-  const target=$('#product-reviews');if(!target)return;
-  try{
-    const data=await api('/api/reviews/'+productId);
-    if(!data.count){target.remove();return;}
-    target.innerHTML=`<div class="real-work-heading"><div><div class="eyebrow">VERIFIED PROJECT REVIEWS</div><h2>${esc(String(data.average))} / 5 from ${data.count} completed project${data.count===1?'':'s'}</h2></div></div><div class="review-grid">${data.reviews.map(review=>`<article class="panel review-card"><strong aria-label="${review.rating} out of 5 stars">${'â˜…'.repeat(review.rating)}${'â˜†'.repeat(5-review.rating)}</strong><p>${esc(review.comment||'')}</p><small>${esc(review.display_name)} Â· Verified project</small></article>`).join('')}</div>`;
-  }catch{target.remove();}
-}
-async function route(){
-  const path=location.pathname;
-  if(path==='/staff'){
-    if(!state.user)return loginView();
-    const hash=location.hash.slice(1)||'dashboard';
-    if(hash.startsWith('job/')){state.jobTab=state.job?.id===Number(hash.split('/')[1])?state.jobTab:'overview';return loadJob(Number(hash.split('/')[1]));}
-    if(hash==='products')return loadProducts();
-    if(hash==='workflows')return loadWorkflows();
-    if(hash==='team')return loadTeam();
-    if(hash==='settings')return loadSettings();
-    if(hash==='billing'){location.href='/staff/billing';return;}
-    if(hash==='company')return renderCompany({api,esc,staffShell,toast});
-    if(hash==='reports')return loadReports();
-    if(hash==='crm')return crmDashboard.render();
-    if(hash==='email-inquiries')return emailIntake.render();
-    if(hash.startsWith('email-inquiry/')){await emailIntake.render();return emailIntake.open(Number(hash.split('/')[1]));}
-    if(hash==='surveys'||hash.startsWith('surveys?'))return surveysDashboard.render(hash);
-    if(hash.startsWith('survey/'))return surveysDashboard.detail(Number(hash.split('/')[1]));
-    if(hash==='rewards')return rewardsUi.render();
-    if(hash==='conversions')return marketingDashboard.render();
-    if(hash==='tasks')return loadQueue();
-    if(hash==='new')return newJobView();
-    if(hash==='audit')return loadAudit();
-    return loadDashboard();
-  }
-  if(path==='/portal')return loadPortal();
-  if(path==='/status')return statusView();
-  if(path==='/contact'||path==='/contact.html')return contactView();
-  if(path.startsWith('/products/')){const requested=decodeURIComponent(path.slice('/products/'.length)),aliases={'acrylic-sign-face-replacement':'illuminated-sign-faces','acm-signs':'aluminum-composite-signs'},slug=aliases[requested]||requested;const product=state.catalog?.products?.find(p=>productSlug(p)===slug);if(product){if(requested!==slug)history.replaceState(null,'',productPath(product));state.selectedProduct=product.id;state.selectedCategory=product.config.storefront_categories?.[0]||state.selectedCategory;sessionStorage.setItem('storefront_category',state.selectedCategory);await calculatorView();return shop?.resumeCanva?.();}}
-  if(shop?.handles(path)){await shop.route(path);return shop.resumeCanva?.();}
-  await calculatorView();return shop?.resumeCanva?.();
-}
-function loginView(){
-  app.innerHTML=`<div class="login-wrap"><section class="login-art">${brand()}<div><div class="eyebrow" style="color:#99b6c2">ONE CONNECTED WORKSPACE</div><h1 class="mt">From first quote<br>to final install.</h1><p>Keep the estimate, proof, payment and every production task moving together.</p></div><small class="muted">Signs / Stickers / Wraps</small></section><section class="login-content"><div class="login-box"><div class="eyebrow mb">STAFF WORKSPACE</div><h1>Welcome back.</h1><p class="muted">Sign in to keep the shop moving.</p><form data-form="login" class="stack">${input('email','Email','','email','required autocomplete="username"')}${input('password','Password','','password','required autocomplete="current-password"')}<div class="form-error"></div><button class="btn primary wide">Sign in ${icon('arrow')}</button></form><p class="muted tiny mt">New local installation? Your generated owner credentials appear in the server terminal on first startup.</p><a href="/" class="link tiny" style="display:block;margin-top:24px">Back to customer pricing</a></div></section></div>`;
-}
-function staffShell(content,active='dashboard',heading='Shop workspace'){
-  const items=[['dashboard','grid','Job board'],['tasks','tasks','My task queue'],...(state.catalog?.entitlements?.mobile_app===false?[]:[['surveys','image','Site Surveys']]),...(owner()?[['crm','users','CRM'],['rewards','users','Client rewards'],['reports','chart','Revenue & reports'],['conversions','chart','Traffic & conversions'],['products','box','Products & rates'],['workflows','flow','Workflows'],['team','users','Team'],['company','settings','Company settings'],['billing','credit','Subscription & billing'],['settings','settings','Shop settings'],['audit','clock','Activity log']]:[])];
-  app.innerHTML=`<div class="workspace"><aside class="sidebar">${brand()}<div class="eyebrow">WORKSPACE</div>${items.map(([id,ic,label])=>`<a class="side-link ${active===id?'active':''}" href="/staff#${id}" title="${label}">${icon(ic)}<span>${label}</span></a>`).join('')}${state.catalog?.entitlements?.mobile_app===false?`<a class="side-link" href="/staff/billing">${icon('lock')}<span>Staff app Â· Studio</span></a>`:`<a class="side-link" href="/staff/app" title="Employee phone app">${icon('tasks')}<span>Employee phone app</span></a>`}${state.user.platform_owner?'<a class="side-link" href="/platform">Platform Control</a>':''}<div class="eyebrow" style="margin-top:28px">CUSTOMER EXPERIENCE</div><a class="side-link" href="/" target="_blank" rel="noopener" title="Customer calculator">${icon('arrow')}<span>Price calculator</span></a><div class="sidebar-footer"><div class="row"><div class="avatar">${esc(initials(state.user.name))}</div><div class="profile-text grow"><strong style="color:white;font-size:11px">${esc(state.user.name)}</strong><div class="tiny">${owner()?'Owner / Admin':'Employee'}</div></div></div><div class="row mt-sm wrap">${state.user.support_company?'':`<button class="side-link" data-action="password" title="Change password">${icon('lock')}<span>Change password</span></button>`}<button class="side-link" data-action="logout" title="Sign out">${icon('logout')}<span>Sign out</span></button></div></div></aside><div class="work-main"><header class="topbar"><div class="topbar-label">Your shop <span style="margin:0 8px;color:#c2cdd2">/</span><strong style="color:var(--ink)">${esc(heading)}</strong></div><div class="row">${badge('SHOP WORKSPACE','blue')}<button class="btn light small" data-action="refresh">${icon('refresh','icon-sm')} Refresh</button></div></header><main class="work-content">${state.user.support_company?`<div class="notice info row between wrap" role="status"><span><strong>Managing ${esc(state.catalog?.shop?.shop_name||state.user.support_company)}</strong> Â· Platform support access</span><button class="btn light small" data-action="return-platform">Return to Platform Control</button></div>`:''}${content}</main></div></div>`;
-}
-function pricingNotice(){return `<div class="notice">Example rates are loaded for testing. Replace material costs, labor allowances and selling prices before using this with real customers. Existing job prices are saved as snapshots.</div>`;}
+ÚÙ^KX™[KJOO˜HÛ\ÜÏH‰ÚOZ[™^ÉØXİ]™IÎ‰ÉßHˆ	ÚOOOZ[™^ÉØ\šXKXİ\œ™[Hœİ\‰Î‰ÉßOÜ[‰ÚO[™^ÚXÛÛŠ	ØÚXÚÉË	ÚXÛÛ‹\ÛIÊNšJÌ_OÜÜ[İ›Û™Ï‰ÛX™[OÜİ›Û™ÏÛO˜
+Kš›Ú[Š	ÉÊ_OÛÛ‚ˆÜÙXİ[Û‚ˆ	Ü›Ú™XİÙ[\“İ™\šY]Ê‹XØÙ\Y
+_IÚ‹š[›ÚXÙ\ÏË›[™İØÙXİ[ÛˆÛ\ÜÏHœ[™[XˆÏ’[›ÚXÙ\ÏÚÏ]ˆÛ\ÜÏHœİXÚÈ]‰Ú‹š[›ÚXÙ\Ë›X\
+OO˜HÛ\ÜÏH˜ˆYÚˆ™YH‹Ø\KÚ[›ÚXÙ\ËÉÚKšYHˆ\™Ù]H—Ø›[šÈˆ™[H››ÛÜ[™\ˆ•šY]È[›ÚXÙH	Ù\ØÊK›[X™\Š_H0­È][İH‰ÚKœ][İWİ™\œÚ[ÛŸOØO˜
+Kš›Ú[Š	ÉÊ_OÙ]ÜÙXİ[Û˜‰ÉßIÚ‹œÚ]WÜİ\™^OËœİ]\ÏOOIÜ™\]Y\İY	ÏÉÏ]ˆÛ\ÜÏH››İXÙHXˆ”Ú]Hİ\™^H™\]Y\İYˆHÚÜÚ[ÛÛ™š\›HH^˜H™YH[™\Ú[Y[ˆš[[™È\ÈÛˆÛ[[YX\İ\™[Y[È\™H™\šYšYYÙ]‰Î‰ÉßBˆ	Ü™]\›š[™ÏOOIÜ™XÙZ]™Y	É‰˜ÛÏËœİ]\ÏOOIØ]ØZ][™×Ü^[Y[	ÏÉÏ]ˆÛ\ÜÏH››İXÙH[™›ÈXˆ•ÙH\™HÛÛ™š\›Z[™È[İ\ˆ^[Y[ˆX\ÙHÈ›İ^HYØZ[ˆÚ[HÛÛ™š\›X][Ûˆ\È[™[™ËÙ]‰Î‰ÉßBˆ	Ü™]\›š[™ÏOOIØØ[˜Ù[Y	ÏÉÏ]ˆÛ\ÜÏH››İXÙHXˆÚXÚÛİ]Ø\ÈØ[˜Ù[Yˆ[İ\ˆ›Ú™Xİ\ÈØ]™YÈ[İHØ[ˆ™\İ[YH^[Y[™[İËÙ]‰Î‰ÉßBˆ]ˆÛ\ÜÏHœÜ[YÜšY‚ˆ]ˆÛ\ÜÏHœİXÚÈ‚ˆÙXİ[ÛˆÛ\ÜÏHœ[™[Ü[\š[X\K\[™[ˆYHœÜ[\][İH]ˆÛ\ÜÏHœ[™[ZXY\ˆ]]ˆÛ\ÜÏH™^YXœ›İÈ‰ØÛÏÉÖSÕTˆÔ‘T‰Î‰ÖSÕTˆUSÕIßOÙ]ˆÛ\ÜÏH›]\ÛH‰ØÛÏÉÔ›Ú™Xİ]Z[ÉÎš‹œX›\ÚYÉÔ™]šY]È[İ\ˆ][İIÎ‰ÕÙH]™H[İ\ˆ™\]Y\İ	ßOÚÙ]‰Ø˜YÙJXØÙ\YÉĞÛÛ™š\›YY	Îš‹œX›\ÚYÉÔ™]šY]È][İIÎ‰Ô][İH™\]Y\İY	ËXØÙ\YÉÙÜ™Y[‰Î‰ÛÜ˜[™ÙIÊ_OÙ]‰ÈZ‹œX›\ÚYÉÏ]ˆÛ\ÜÏH››İXÙH[™›ÈXˆ“İ\ˆX[H\È™]šY]Ú[™È[İ\ˆ›Ú™Xİ[™Ú[X›\Ú[İ\ˆ][İH\™KÙ]‰Î‰ÉßIÜ][İUX›JŠ_IÚ‹˜Y\İY[Û›İOÉÏÛ\ÜÏH[H]]Y™]Ü˜\]‰ÊÙ\ØÊ‹˜Y\İY[Û›İJJÉÏÜ‰Î‰ÉßIÚ‹œX›\ÚY	‰ˆXXØÙ\YÉÏ]ÛˆÛ\ÜÏH˜ˆš[X\H]ˆ]KXXİ[ÛH˜XØÙ\\][İH”™]šY]È	ˆXØÙ\][İOØ]Û‰Î‰ÉßOÜÙXİ[Û‚ˆÙXİ[ÛˆÛ\ÜÏHœ[™[Ü[\š[X\K\[™[ˆYHœÜ[\›ÛÙˆ]ˆÛ\ÜÏH™^YXœ›İÈXˆ”“ÓÑÙ]ˆÛ\ÜÏH›Xˆ–[İ\ˆ›Ú™Xİ›ÛÙÚÛ\ÜÏH›]]Y[HXˆÚXÚÈ\ÛÜšËÜ[[™Ë[Y[œÚ[ÛœÈ[™XÙ[Y[ˆ›ÙXİ[Ûˆ›ÛİÜÈ[İ\ˆ\›İ˜[Ü‰Ü›ÛÙØ\™
+‹œ›ÛÙœÖÌKXØÙ\Y‹š›Ø—İ\›\Ê_IÊ‹œ›ÛÙœÖÌOË˜\›İ™YÙš[\ß×JK›X\
+š[OO˜HÛ\ÜÏH™š[K\›İÈˆ™YH‹Ø\KØ\ÜÙ]ËÉÙš[K˜\ÜÙ]ÚYHˆ\™Ù]H—Ø›[šÈˆ™[H››ÛÜ[™\ˆ‰Ù\ØÊš[K™š[[˜[YJ_H0­È\›İ™YÛİ\˜ÙH8¡¥ÏØO˜
+Kš›Ú[Š	ÉÊ_IÜÙ[\›İ˜[›Ş
+‹XØÙ\Y
+_OHÛ\ÜÏH›[šÈ[H]ˆ™YH‹İ\›\Èˆ\™Ù]H—Ø›[šÈˆ™[H››ÛÜ[™\ˆ\ÛÜšÈ	ˆÚ^š[™È\›\È8¡¥ÏØOÜÙXİ[Û‚ˆ	ØXØÙ\Ğ\ÛÜšÏØÙXİ[ÛˆÛ\ÜÏHœ[™[]ˆÛ\ÜÏHœ[™[ZXY\ˆ]]ˆÛ\ÜÏH™^YXœ›İÈ‘’STÏÙ]Ï–[İ\ˆ\ÛÜšÏÚÏÙ]]ÛˆÛ\ÜÏH˜ˆYÚÛX[ˆ]KXXİ[ÛHœÜ[X\ÛÜšÈ‰ÚXÛÛŠ	Ü\ÉË	ÚXÛÛ‹\ÛIÊ_H\ØY\ÛÜšÏØ]ÛÙ]‰Ø\ÜÙ]\İ
+‹˜\ÜÙ]Ë™š[\ŠOO˜KšÚ[™OOIØ\ÛÜšÉÊJ_OÜÙXİ[Û˜‰ÉßBˆ	Ü›Ú™Xİ]Z[ßBˆÙ]‚ˆ\ÚYHÛ\ÜÏHœİXÚÈ‚ˆÙXİ[ÛˆÛ\ÜÏHœ[™[Ü[\^[Y[XØ\™ˆYHœÜ[\^[Y[]ˆÛ\ÜÏH™^YXœ›İÈ‰ØÛÏË^Ü[™[™ÏÉÓÔ‘Tˆ
+ÈSU‘T–K‘Q“Ô‘HV	Î‰ÔVSQS•	ßOÙ]]ˆÛ\ÜÏH›Y]šXÈ\™ÙH]\ÛH‰ÈZ‹œX›\ÚY	‰š‹İ[Ëİ[ØÙ[ÏOOLÉÔ][İH[™[™ÉÎ›[Û™^J‹İ[Ëİ[ØÙ[Ê_OÙ]‰ØÛÏË^Ü[™[™ÏÉÏÛ\ÜÏH™šY[Z[]\ÛH•^\ÈØ[İ[]Y›Üˆ[İ\ˆÚ\[™ÈY™\ÜÈ]ÚXÚÛİ]Ü‰Î‰ÉßIØİ\İÛY\•İ[ÊŠ_IØÛÏÉÏÛ\ÜÏH[H]]Y]‰ÊÊÛË™[š[Y[OOIÜXÚİ\	ÏÉÓØØ[XÚİ\ˆ	ÊÙ\ØÊÛËœXÚİ\ØY™\ÜÊN‰ÕTÈÚ\[™ÉÊJÉÏÜ‰Î‰ÉßIÜ^[Y[OÜÙXİ[Û‚ˆ	Ü™]Ø\™ÕZKœÜ[›Ş
+İ]KœÜ[™]Ø\™Ê_Bˆ	Ú‹œ^[Y[Ë›[™İØÙXİ[ÛˆÛ\ÜÏHœ[™[ÈÛ\ÜÏH›Xˆ”^[Y[ÏÚÏ‰Ü^[Y[X›J‹YJ_OÜÙXİ[Û˜‰ÉßBˆ	Ú‹œİYÙOOOIÙš[š\ÚY	ÏØÙXİ[ÛˆÛ\ÜÏHœ[™[Ï”˜]H[İ\ˆÛÛ\]Y›Ú™XİÚÏÛ\ÜÏH™šY[Z[]\ÛH–[İ\ˆ™]šY]ÈÚ[™HX\šÙY\È™\šYšYYÜ›Ü›H]KY›Ü›OHœÜ[\™]šY]ÈˆÛ\ÜÏHœİXÚÈ]‰ÜÙ[Xİ
+	Ü˜][™ÉË	Ô˜][™ÉËÖÉÍIË	ÍH8 %^Ù[[	×KÉÍ	Ë	Í8 %™\HÛÛÙ	×KÉÌÉË	ÌÈ8 %ÛÛÙ	×KÉÌ‰Ë	Ìˆ8 %˜Z\‰×KÉÌIË	ÌH8 %ÛÜ‰×WK	ÍIÊ_OX™[Û\ÜÏH™šY[Ü[”™]šY]È
+Ü[Û˜[
+OÜÜ[^\™XH˜[YOH˜ÛÛ[Y[ˆX^[™İHŒLŒˆXÙZÛ\H•Ú]Úİ[]\™Hİ\İÛY\œÈÛ›İÏÈİ^\™XOÛX™[]ˆÛ\ÜÏH™›Ü›KY\œ›ÜˆÙ]]ÛˆÛ\ÜÏH˜ˆš[X\HÚYH”İX›Z]™]šY]ÏØ]ÛÙ›Ü›OÜÙXİ[Û˜‰ÉßBˆØ\ÚYO‚ˆÙ]‚ˆÛXZ[˜ÂŸB™[˜İ[Ûˆİ\İÛY\•İ[ÊŠ^ØÛÛœİZ‹İ[ÎÜ™]\›ˆ]ˆÛ\ÜÏH›]]ˆÛ\ÜÏH›[™K]İ[Ü[”›ÙXİÈ	ˆÙ\šXÙ\ÏÜÜ[İ›Û™Ï‰Û[Û™^J›Y\˜Ú[™\ÙWØÙ[ÊÊœ™]Ø\™×Ù\ØÛİ[ØÙ[ß
+J_OÜİ›Û™ÏÙ]‰İœ™]Ø\™×Ù\ØÛİ[ØÙ[ÏÉÏ]ˆÛ\ÜÏH›[™K]İ[Ü[Ü™Y]È	ˆÚ[ÏÜÜ[İ›Û™Ï¸¢$‰ÊÛ[Û™^Jœ™]Ø\™×Ù\ØÛİ[ØÙ[ÊJÉÏÜİ›Û™ÏÙ]‰Î‰ÉßO]ˆÛ\ÜÏH›[™K]İ[Ü[”Ú\[™ÏÜÜ[İ›Û™Ï‰Û[Û™^JœÚ\[™×ØÙ[Ê_OÜİ›Û™ÏÙ]]ˆÛ\ÜÏH›[™K]İ[Ü[•^ÜÜ[İ›Û™Ï‰Ú‹˜ÚXÚÛİ]Ë^Ü[™[™ÏÉĞ]ÚXÚÛİ]	Î›[Û™^J^ØÙ[Ê_OÜİ›Û™ÏÙ]]ˆÛ\ÜÏH›[™K]İ[Ü[”^[Y[™XÙZ]™YÜÜ[İ›Û™Ï‰Û[Û™^JœZYØÙ[Ê_OÜİ›Û™ÏÙ]]ˆÛ\ÜÏH›[™K]İ[Ü˜[™Ü[˜[[˜ÙOÜÜ[İ›Û™Ï‰Û[Û™^J˜˜[[˜ÙWØÙ[Ê_IÚ‹˜ÚXÚÛİ]Ë^Ü[™[™ÏÉÈ
+È^	Î‰ÉßOÜİ›Û™ÏÙ]Ù]˜ßB‚‹ÊˆX[ÙÈZ[\œÈ
+‹Â™[˜İ[Ûˆ][İT™]š\Ú[Û”›İÊ[™O^ßKÛİ\˜ÙR[™^IÉÊ^ÂˆÛÛœİ]O[[™Kœ]X[]OÏÌK[š][[™K[š]	ÙXXÚ	ËÚY[[™KÚYÏÉÉËZYÚ[[™KšZYÚÏÉÉÎÂˆÛÛœİ\ÛÜšÏ[[™K˜\ÛÜš×Ü™\]Z\™YOO][™Yš[™YÈH[[™K˜\ÛÜš×Ü™\]Z\™YŠ[[™K˜\ÛÜš×İ\ØYÙ\ØX›Y	‰ÚYOOIÉÉ‰šZYÚOOIÉÊNÂˆ™]\›ˆ]ˆÛ\ÜÏHœ][İK\™]š\Ú[Û‹[[™Hˆ]K\][İK\™]š\Ú[Û‹[[™H]K\Ûİ\˜ÙKZ[™^H‰ÜÛİ\˜ÙR[™^H‚ˆ]ˆÛ\ÜÏHœ][İK\™]š\Ú[Û‹[XZ[ˆ‚ˆ[œ]]K\™]š\Ú[Û‹[˜[YH˜[YOH‰Ù\ØÊ[™K›˜[Y_	Ó™]ÈÙ\šXÙIÊ_HˆXÙZÛ\H”›ÙXİÜˆÙ\šXÙHˆ\šXK[X™[H”›ÙXİÜˆÙ\šXÙHˆ™\]Z\™YX^[™İHŒLŒ‚ˆ[œ]]K\™]š\Ú[Û‹Y\ØÜš\[Ûˆ˜[YOH‰Ù\ØÊ[™K™\ØÜš\[ÛŸ	ÉÊ_HˆXÙZÛ\H‘\ØÜš\[ÛˆÈØÛÜHˆ\šXK[X™[H‘\ØÜš\[ÛˆÜˆØÛÜHˆX^[™İH‰Û[™KœİXÚÙ\—ÜXÚÏÎLH‚ˆ[œ]]K\™]š\Ú[Û‹\]X[]H\OH›[X™\ˆˆZ[H‹ŒHˆİ\H‹ŒHˆ˜[YOH‰Ù\ØÊ]J_Hˆ\šXK[X™[H”]X[]Hˆ™\]Z\™Y‚ˆ[œ]]K\™]š\Ú[Û‹][š]˜[YOH‰Ù\ØÊ[š]
+_HˆXÙZÛ\H•[š]ˆ\šXK[X™[H•[š]ˆX^[™İHˆ™\]Z\™Y‚ˆ[œ]]K\™]š\Ú[Û‹]ÚY\OH›[X™\ˆˆZ[H‹ŒHˆİ\H‹ŒHˆ˜[YOH‰Ù\ØÊÚY
+_HˆXÙZÛ\H•È
+[ŠHˆ\šXK[X™[H•ÚY[˜Ú\È‚ˆ[œ]]K\™]š\Ú[Û‹ZZYÚ\OH›[X™\ˆˆZ[H‹ŒHˆİ\H‹ŒHˆ˜[YOH‰Ù\ØÊZYÚ
+_HˆXÙZÛ\H’
+[ŠHˆ\šXK[X™[H’ZYÚ[˜Ú\È‚ˆ[œ]]K\™]š\Ú[Û‹\šXÙH\OH›[X™\ˆˆZ[HŒˆİ\H‹ŒHˆ˜[YOH‰Ù\ØÊ
+[™KœÙ[ØÙ[ß
+KÌL
+_HˆXÙZÛ\H”šXÙH	ˆ\šXK[X™[Hİ\İÛY\ˆ[™HšXÙHˆ™\]Z\™Y‚ˆ[œ]]K\™]š\Ú[Û‹XÛÜİ\OH›[X™\ˆˆZ[HŒˆİ\H‹ŒHˆ˜[YOH‰Ù\ØÊ
+[™K˜ÛÜİØÙ[ß
+KÌL
+_HˆXÙZÛ\HÛÜİ	ˆ\šXK[X™[H’[\›˜[\İ[X]YÛÜİˆ™\]Z\™Y‚ˆÙ]‚ˆ]ˆÛ\ÜÏHœ›İÈ™]ÙY[ˆÜ˜\][İK\™]š\Ú[Û‹]ÛÛÈX™[Û\ÜÏH˜ÚXÚÈ[H[œ]]K\™]š\Ú[Û‹X\ÛÜšÈ\OH˜ÚXÚØ›Şˆ	Ø\ÛÜšÏÉØÚXÚÙY	Î‰ÉßOˆ\ÛÜšÈÈ›ÛÙˆ™\]Z\™YÛX™[]ˆÛ\ÜÏHœ›İÈ]Ûˆ\OH˜]ÛˆˆÛ\ÜÏH˜ˆÚÜİÛX[ˆ]KXXİ[ÛHœ][İK[[™K]\ˆ\šXK[X™[H“[İ™H[™H\¸¡¤OØ]Û]Ûˆ\OH˜]ÛˆˆÛ\ÜÏH˜ˆÚÜİÛX[ˆ]KXXİ[ÛHœ][İK[[™KYİÛˆˆ\šXK[X™[H“[İ™H[™HİÛˆ¸¡¤ÏØ]Û]Ûˆ\OH˜]ÛˆˆÛ\ÜÏH˜ˆ[™Ù\ˆÛX[ˆ]KXXİ[ÛHœ™[[İ™K\][İK[[™H”™[[İ™OØ]ÛÙ]Ù]‚ˆÙ]˜ÂŸB™[˜İ[ÛˆÛ›[™TšXÙPÛÜœ™Xİ[Û“[Ù[
 
-/* Customer-facing estimator */
-function quantityChoices(cfg){
-  const min=1,max=Math.max(min,Number(cfg.max_quantity)||min);
-  let base=cfg.quantity_presets?.length?[1,...cfg.quantity_presets]:[1,2,5,10,25,50,100];
-  return [...new Set(base.map(Number).filter(q=>q>=min&&q<=max))].sort((a,b)=>a-b);
-}
-const storefrontCategories=['Storefront','Vehicles','Fleet Services','Construction & Site Signs','Events','Stickers','Signs','Apparel','Promotional Products'];
-function storefrontProductRank(product,category){
-  const name=String(product?.name||'').toLowerCase();
-  const orders={
-    'Vehicles':['partial vehicle wraps','trailer / food truck wraps','decals','usdot decals','magnets','fleet window tinting'],
-    'Fleet Services':['partial vehicle wraps','trailer / food truck wraps','decals','usdot decals','magnets','fleet window tinting'],
-    'Storefront':['window graphics','storefront window tinting','acrylic signs','illuminated sign faces','aluminum composite signs','banners','roll-up banners','a-frame inserts','foam boards'],
-    'Construction & Site Signs':['aluminum composite signs','high-density board signs','yard signs','banners'],
-    'Events':['banners','roll-up banners','a-frame inserts','foam boards','custom t-shirts']
-  };
-  const index=(orders[category]||[]).indexOf(name);return index<0?100:index;
-}
-function sizeSelector(cfg){
-  const fieldMax=cfg.usdot_customizer?(cfg.max_long_axis||48):10000,fieldLabel=cfg.usdot_customizer?'Custom width (in)':'Width',heightLabel=cfg.usdot_customizer?'Custom height (in)':'Height';
-  const fields='<div class="fields">'+input('width',fieldLabel,cfg.default_width,'number','min="'+(cfg.min_width||0.1)+'" max="'+fieldMax+'" step="0.01" required')+input('height',heightLabel,cfg.default_height,'number','min="'+(cfg.min_height||0.1)+'" max="'+fieldMax+'" step="0.01" required')+'</div>';
-  if(!cfg.size_options?.length)return fields;
-  const customLabel=cfg.usdot_customizer?'Custom measurements (up to '+cfg.max_short_axis+' Ã— '+cfg.max_long_axis+' in)':'Custom size';
-  const options=cfg.size_options.map(o=>[o.width+'|'+o.height,o.label]).concat([['custom',customLabel]]);
-  const preset=cfg.default_width+'|'+cfg.default_height;
-  const limit=Number(cfg.max_short_axis)<10000?'<p class="field-hint mt-sm">Custom sizes: maximum '+esc(cfg.max_short_axis)+'" on the short axis and '+esc(cfg.max_long_axis)+'" on the long axis, in either orientation.</p>':'';
-  return select('size_preset','Standard size',options,preset)+fields+limit;
-}
-function placementSelector(cfg){
-  if(!cfg.placement_options?.length)return sizeSelector(cfg);
-  const options=cfg.placement_options.map(o=>[o.id,o.label]).concat([['custom','Custom size / placement']]);
-  const first=cfg.placement_options[0];
-  const fields='<div class="fields">'+input('width','Width',first.width,'number','min="'+(cfg.min_width||0.1)+'" max="10000" step="0.01" required')+input('height','Height',first.height,'number','min="'+(cfg.min_height||0.1)+'" max="10000" step="0.01" required')+'</div>';
-  const limit=Number(cfg.max_short_axis)<10000?'<p class="field-hint mt-sm">Custom artwork: maximum '+esc(cfg.max_short_axis)+'" on the short axis and '+esc(cfg.max_long_axis)+'" on the long axis, in either orientation.</p>':'';
-  return select('placement','Placement / print size',options,first.id)+fields+limit;
-}
-const usdotFonts=[
-  {id:'montserrat',name:'Montserrat',category:'Professional',family:'Montserrat, Arial, sans-serif',weight:700},
-  {id:'league_spartan',name:'League Spartan',category:'Professional',family:'"League Spartan", Arial, sans-serif',weight:700},
-  {id:'archivo_black',name:'Archivo Black',category:'Professional',family:'"Archivo Black", Arial, sans-serif',weight:400},
-  {id:'roboto_condensed',name:'Roboto Condensed',category:'Professional',family:'"Roboto Condensed", Arial, sans-serif',weight:700},
-  {id:'oswald',name:'Oswald',category:'Professional',family:'Oswald, Arial, sans-serif',weight:700},
-  {id:'barlow_condensed',name:'Barlow Condensed',category:'Professional',family:'"Barlow Condensed", Arial, sans-serif',weight:700},
-  {id:'anton',name:'Anton',category:'Bold / Display',family:'Anton, Impact, sans-serif',weight:400},
-  {id:'bebas_neue',name:'Bebas Neue',category:'Bold / Display',family:'"Bebas Neue", Impact, sans-serif',weight:400},
-  {id:'alfa_slab',name:'Alfa Slab One',category:'Bold / Display',family:'"Alfa Slab One", Rockwell, serif',weight:400},
-  {id:'black_ops',name:'Black Ops One',category:'Bold / Display',family:'"Black Ops One", Impact, sans-serif',weight:400},
-  {id:'bungee',name:'Bungee',category:'Bold / Display',family:'Bungee, Impact, sans-serif',weight:400},
-  {id:'orbitron',name:'Orbitron',category:'Bold / Display',family:'Orbitron, Arial, sans-serif',weight:700},
-  {id:'righteous',name:'Righteous',category:'Bold / Display',family:'Righteous, Arial, sans-serif',weight:400},
-  {id:'graduate',name:'Graduate',category:'Bold / Display',family:'Graduate, Rockwell, serif',weight:400},
-  {id:'luckiest_guy',name:'Luckiest Guy',category:'Fun',family:'"Luckiest Guy", Impact, sans-serif',weight:400},
-  {id:'fredoka',name:'Fredoka',category:'Fun',family:'Fredoka, Arial, sans-serif',weight:700},
-  {id:'lobster',name:'Lobster',category:'Fun',family:'Lobster, cursive',weight:400},
-  {id:'pacifico',name:'Pacifico',category:'Fun',family:'Pacifico, cursive',weight:400},
-  {id:'permanent_marker',name:'Permanent Marker',category:'Fun',family:'"Permanent Marker", cursive',weight:400},
-  {id:'playfair',name:'Playfair Display',category:'Classic',family:'"Playfair Display", Georgia, serif',weight:700},
-  {id:'merriweather',name:'Merriweather',category:'Classic',family:'Merriweather, Georgia, serif',weight:700},
-  {id:'roboto_slab',name:'Roboto Slab',category:'Classic',family:'"Roboto Slab", Rockwell, serif',weight:700},
-  {id:'cinzel',name:'Cinzel',category:'Classic',family:'Cinzel, Georgia, serif',weight:700},
-  {id:'rye',name:'Rye',category:'Classic',family:'Rye, Georgia, serif',weight:400},
-  {id:'courier_prime',name:'Courier Prime',category:'Classic',family:'"Courier Prime", "Courier New", monospace',weight:700},
-  {id:'bold',name:'Arial Bold',category:'System / Legacy',family:'Arial, Helvetica, sans-serif',weight:700},
-  {id:'condensed',name:'Arial Narrow',category:'System / Legacy',family:'"Arial Narrow", Arial, sans-serif',weight:700},
-  {id:'industrial',name:'Impact',category:'System / Legacy',family:'Impact, "Arial Black", sans-serif',weight:400},
-  {id:'serif',name:'Georgia',category:'System / Legacy',family:'Georgia, "Times New Roman", serif',weight:700},
-  {id:'rounded',name:'Trebuchet',category:'System / Legacy',family:'"Trebuchet MS", Arial, sans-serif',weight:700},
-  {id:'highway',name:'Arial Black',category:'System / Legacy',family:'"Arial Black", Arial, sans-serif',weight:400},
-  {id:'stencil',name:'Stencil / Impact',category:'System / Legacy',family:'Impact, "Arial Black", sans-serif',weight:400},
-  {id:'monospace',name:'Courier New',category:'System / Legacy',family:'"Courier New", monospace',weight:700},
-  {id:'modern',name:'Century Gothic',category:'System / Legacy',family:'"Century Gothic", Futura, Arial, sans-serif',weight:700},
-  {id:'slab',name:'Rockwell',category:'System / Legacy',family:'Rockwell, "Courier New", serif',weight:700}
-];
-function usdotFont(id){return usdotFonts.find(font=>font.id===id)||usdotFonts[0];}
-function usdotFontPicker(){
-  const selected=usdotFonts[0],groups=[...new Set(usdotFonts.map(font=>font.category))];
-  return '<input type="hidden" name="usdot_style" value="'+selected.id+'"><details class="usdot-font-picker"><summary><span><small>Font style</small><strong class="usdot-font-current usdot-font-'+selected.id+'">'+selected.name+'</strong></span><span class="usdot-font-current-sample usdot-font-'+selected.id+'">USDOT 1234567</span></summary><div class="usdot-font-menu">'+groups.map(group=>'<section><h4>'+group+'</h4><div class="usdot-font-grid">'+usdotFonts.filter(font=>font.category===group).map(font=>'<button type="button" class="usdot-font-option usdot-font-'+font.id+'" data-action="usdot-font" data-font="'+font.id+'"><strong>'+font.name+'</strong><span>USDOT 1234567</span></button>').join('')+'</div></section>').join('')+'</div></details>';
-}
-function usdotSizeBlock(cfg){
-  if(!cfg.usdot_customizer)return '';
-  return '<div class="usdot-size-first"><div class="row mb"><span class="step-number">1</span><h3>Choose decal size</h3>'+badge('Inches')+'</div>'+sizeSelector(cfg)+'<div class="divider"></div></div>';
-}
-function usdotCustomizer(cfg){
-  if(!cfg.usdot_customizer)return '';
-  const logoFee=Number(cfg.usdot_logo_setup_price||20);
-  const logoFeeLabel=new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(logoFee);
-  const pointSize=(name,value)=>input(name,'Size',value,'number','min="8" max="300" step="1" required inputmode="numeric"');
-  const paired=(field,size)=>'<div class="usdot-field-pair">'+field+size+'</div>';
-  const handles='<span class="usdot-transform-handle usdot-resize-handle" data-usdot-transform="resize" title="Drag to resize" aria-hidden="true"></span><span class="usdot-rotate-stem" aria-hidden="true"></span><span class="usdot-transform-handle usdot-rotate-handle" data-usdot-transform="rotate" title="Drag to rotate" aria-hidden="true"></span>';
-  const textItem=(key,cls,text)=>'<div class="usdot-preview-item '+cls+'" data-usdot-key="'+key+'"><span class="usdot-preview-content">'+text+'</span>'+handles+'</div>';
-  return '<div class="usdot-config"><div class="row mb"><span class="step-number">2</span><div><h3>Build your USDOT decal</h3><p class="field-hint">Select any item in the preview. Drag it to move, drag the corner to resize, and drag the round handle to rotate.</p></div></div>'+
-    '<div class="usdot-identity-choice"><label><input type="radio" name="usdot_identity" value="text" checked> Lettering only <small>Base price</small></label><label><input type="radio" name="usdot_identity" value="logo"> Company logo <small>+'+logoFeeLabel+' setup</small></label></div>'+
-    '<div class="usdot-text-identity">'+paired(input('company_name','Company name','','text','maxlength="80" placeholder="Company name"'),pointSize('usdot_company_points',56))+'</div>'+
-    '<div class="usdot-logo-identity" hidden><label class="field"><span>Company logo</span><input id="usdot-logo-file" name="usdot_logo_file" type="file" accept="image/png,image/jpeg,image/webp"></label>'+input('usdot_logo_width','Logo width (%)',42,'number','min="10" max="95" step="1" inputmode="numeric"')+'<p class="field-hint">PNG with a transparent background works best.</p><div class="notice info usdot-color-disclaimer"><strong>Logo pricing:</strong> A company logo adds '+logoFeeLabel+' for logo setup. Full-color artwork is not included in the logo setup charge and will cost more. Multicolor, gradients, photographic, or unusually complex artwork may also require additional pricing. We will confirm the additional charge before production.</div></div>'+
-    paired(input('phone_line','Phone number (optional)','','tel','maxlength="40" placeholder="(813) 555-0123"'),pointSize('usdot_phone_points',30))+
-    paired(input('usdot_number','USDOT number','','text','required maxlength="20" placeholder="1234567"'),pointSize('usdot_number_points',72))+
-    paired(input('license_line','Other licenses (optional)','','text','maxlength="100" placeholder="MC 123456 Â· FL 987654"'),pointSize('usdot_license_points',30))+
-    paired(input('location_line','City / State or extra line (optional)','','text','maxlength="80" placeholder="Tampa, FL"'),pointSize('usdot_location_points',32))+
-    usdotFontPicker()+'<div class="fields usdot-color-row">'+input('usdot_text_color','Letter color','#111111','color')+'</div>'+
-    '<div class="usdot-preview" id="usdot-preview" aria-label="Live USDOT decal preview">'+
-      textItem('company','usdot-preview-company','YOUR COMPANY')+
-      '<div class="usdot-preview-item usdot-preview-logo" data-usdot-key="logo" hidden><img class="usdot-preview-content" alt="Uploaded company logo">'+handles+'</div>'+
-      textItem('phone','usdot-preview-phone','')+
-      textItem('number','usdot-preview-number','USDOT 1234567')+
-      textItem('licenses','usdot-preview-licenses','')+
-      textItem('location','usdot-preview-location','')+
-    '</div><button type="button" class="btn light small mt-sm" data-action="usdot-reset-layout">Reset transforms</button>'+
-    '<p class="field-hint">Move, resize, and rotate every line or logo independently. The print-ready file uses these exact transforms.</p></div><div class="divider"></div>';
-}
-const usdotPositions={
-  company:{x:50,y:16,rotation:0},logo:{x:50,y:20,rotation:0},phone:{x:50,y:33,rotation:0},
-  number:{x:50,y:51,rotation:0},licenses:{x:50,y:69,rotation:0},location:{x:50,y:85,rotation:0}
-};
-let usdotLogoDraft=null,usdotSelectedKey='number';
-function usdotIdentity(){
-  const form=$('#calculator');return form?.querySelector('input[name="usdot_identity"]:checked')?.value||'text';
-}
-function usdotPosition(key){return usdotPositions[key]||{x:50,y:50,rotation:0};}
-function usdotSizeField(key){
-  return {company:'usdot_company_points',phone:'usdot_phone_points',number:'usdot_number_points',licenses:'usdot_license_points',location:'usdot_location_points',logo:'usdot_logo_width'}[key]||'';
-}
-function resetUsdotPositions(){
-  Object.assign(usdotPositions,{
-    company:{x:50,y:16,rotation:0},logo:{x:50,y:20,rotation:0},phone:{x:50,y:33,rotation:0},
-    number:{x:50,y:51,rotation:0},licenses:{x:50,y:69,rotation:0},location:{x:50,y:85,rotation:0}
-  });
-  const form=$('#calculator');
-  if(form){
-    const defaults={company:56,phone:30,number:72,licenses:30,location:32};
-    Object.entries(defaults).forEach(([key,value])=>{const field=form.elements[usdotSizeField(key)];if(field)field.value=value;});
-    if(form.elements.usdot_logo_width)form.elements.usdot_logo_width.value=42;
-  }
-  updateUsdotPreview();
-}
-async function loadUsdotLogo(file){
-  if(!file){usdotLogoDraft=null;updateUsdotPreview();return;}
-  if(!['image/png','image/jpeg','image/webp'].includes(file.type))throw new Error('Upload a PNG, JPG, or WebP logo.');
-  if(file.size>10*1024*1024)throw new Error('Logo files must be 10 MB or smaller.');
-  const raw=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('Unable to read that logo.'));reader.readAsDataURL(file);});
-  const image=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('Unable to open that logo image.'));im.src=raw;});
-  const maxSide=1200,scale=Math.min(1,maxSide/Math.max(image.width,image.height)),canvas=document.createElement('canvas');
-  canvas.width=Math.max(1,Math.round(image.width*scale));canvas.height=Math.max(1,Math.round(image.height*scale));
-  canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);
-  const dataUrl=canvas.toDataURL(file.type==='image/jpeg'?'image/jpeg':'image/png',.92);
-  usdotLogoDraft={id:crypto.randomUUID(),name:file.name,type:file.type,data_url:dataUrl};
-  usdotSelectedKey='logo';updateUsdotPreview();
-}
-function updateUsdotPreview(){
-  const form=$('#calculator'),preview=$('#usdot-preview');if(!form||!preview)return;
-  const identity=usdotIdentity(),company=(form.elements.company_name?.value||'YOUR COMPANY').toUpperCase();
-  const phone=(form.elements.phone_line?.value||'').toUpperCase();
-  const number=(form.elements.usdot_number?.value||'1234567').toUpperCase().replace(/^USDOT\s*/,'');
-  const licenses=(form.elements.license_line?.value||'').toUpperCase();
-  const location=(form.elements.location_line?.value||'').toUpperCase();
-  const selectedFont=usdotFont(form.elements.usdot_style?.value||'montserrat');preview.dataset.style=selectedFont.id;
-  const pointSizes={company:Number(form.elements.usdot_company_points?.value)||56,phone:Number(form.elements.usdot_phone_points?.value)||30,number:Number(form.elements.usdot_number_points?.value)||72,licenses:Number(form.elements.usdot_license_points?.value)||30,location:Number(form.elements.usdot_location_points?.value)||32};
-  preview.style.color=form.elements.usdot_text_color?.value||'#111111';
-  const width=Math.max(1,Number(form.elements.width?.value)||18),height=Math.max(1,Number(form.elements.height?.value)||12);
-  preview.style.aspectRatio=width+' / '+height;
-  const values={company,phone,number:'USDOT '+number,licenses,location};
-  Object.entries(values).forEach(([key,value])=>{
-    const item=$('[data-usdot-key="'+key+'"]',preview),content=$('.usdot-preview-content',item);if(!item||!content)return;
-    content.textContent=value;item.hidden=(key==='company'&&identity!=='text')||(['phone','licenses','location'].includes(key)&&!value);
-    content.style.fontFamily=selectedFont.family;content.style.fontWeight=selectedFont.weight;content.style.fontSize=(Math.max(8,Math.min(300,pointSizes[key]))*.42)+'px';
-  });
-  const logo=$('[data-usdot-key="logo"]',preview),logoImage=$('.usdot-preview-content',logo),logoMode=identity==='logo';
-  if(logo&&logoImage){
-    logo.hidden=!logoMode||!usdotLogoDraft;logoImage.src=usdotLogoDraft?.data_url||'';
-    logo.style.width=Math.max(10,Math.min(95,Number(form.elements.usdot_logo_width?.value)||42))+'%';
-  }
-  $('.usdot-text-identity')?.toggleAttribute('hidden',identity!=='text');
-  $('.usdot-logo-identity')?.toggleAttribute('hidden',identity!=='logo');
-  all('[data-usdot-key]',preview).forEach(item=>{
-    const p=usdotPosition(item.dataset.usdotKey);
-    item.style.left=p.x+'%';item.style.top=p.y+'%';item.style.transform='translate(-50%,-50%) rotate('+Number(p.rotation||0)+'deg)';
-    item.classList.toggle('selected',item.dataset.usdotKey===usdotSelectedKey&&!item.hidden);
-  });
-}
+^ÂˆÛÛœİ\İ]Kš›ØÂˆÚİÓ[Ù[
+	ĞÛÜœ™Xİ[œZYÛ›[™HšXÙIË›Ü›H]KY›Ü›OH›Û›[™K\šXÙKXÛÜœ™Xİ[ÛˆˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH[™›È‰Ù\ØÊ‹›[X™\Š_Nˆ	Û[J‹œ][İK›[™\ÖÌKœ]X[]J_H0åÈ	Ù\ØÊ‹œ][İK›[™\ÖÌKÚY
+_H0åÈ	Ù\ØÊ‹œ][İK›[™\ÖÌKšZYÚ
+_H	Ù\ØÊ‹œ][İK›[™\ÖÌK›˜[YJ_Kˆİ\œ™[›ÙXİšXÙNˆ	Û[Û™^J‹œ][İKœİXİ[ØÙ[Ê_KˆHÛ^[Y[[šÈÚ[™HÛÜÙYˆHİ\İÛY\ˆÚ[™XÙZ]™HHİÙ\ˆ][İH[™]\İXØÙ\]™Y›Ü™H^Z[™ËÙ]‰Ú[œ]
+	Û™]×ÜšXÙIË	ĞÛÜœ™XİY›ÙXİšXÙH
+	
+IË	ÉË	Û[X™\‰Ë	ÛZ[HŒÍHˆİ\H‹ŒHˆ™\]Z\™Y	Ê_OX™[Û\ÜÏH™šY[Ü[”™X\ÛÛˆÚİÛˆÛˆHİ\İÛY\ˆ][İOÜÜ[^\™XH˜[YOHœ™X\ÛÛˆˆX^[™İHŒLˆ™\]Z\™YXÙZÛ\HÛÜœ™XİYİXÚÙ\ˆšXÚ[™Èİ^\™XOÛX™[‰ØÚXÚØ›Ş
+	ØÛÛ™š\›IË	ÒH™]šY]ÙYH™]ÈšXÙH[™Ø[È[XZ[\ÈÛÜœ™XİY][İHÈHİ\İÛY\‹‰Ê_IÙ›Ü›Q›Ûİ\Š	ÔØ]™HÛÜœ™Xİ[Ûˆ[™[XZ[İ\İÛY\‰Ê_OÙ›Ü›O˜YJNÂŸB™[˜İ[ÛˆY]][İS[Ù[
 
-function vehicleDetailsCustomizer(cfg){
-  if(!cfg.vehicle_details_required)return '';
-  const packages=cfg.tint_package_selector&&cfg.coverage_options?.length?cfg.coverage_options.map(o=>[o.id,o.label]):[['standard','Standard â€” 4 side windows + front and rear windshields'],['large_extra','Large glass or extra windows â€” final price reviewed']];
-  return '<div class="vehicle-details-config"><div class="row mb"><span class="step-number">1</span><div><h3>Tell us about the vehicle</h3><p class="field-hint">Year, make and model are required so we can confirm the glass and final fit.</p></div></div><div class="fields three">'+input('vehicle_year','Vehicle year','','number','min="1900" max="2100" step="1" required placeholder="2024"')+input('vehicle_make','Vehicle make','','text','required maxlength="50" placeholder="Ford"')+input('vehicle_model','Vehicle model','','text','required maxlength="60" placeholder="Transit"')+'</div>'+select('window_package','Tint package',packages,packages[0][0])+'</div><div class="divider"></div>';
-}
-function coverageIcon(id,trailer=false,vehicleType=''){
-  const options=trailer?['lettering','partial','sides','sides_rear','three_quarter','full']:['spot','doors','hood','roof','half','three_quarter','full'];
-  const index=Math.max(0,options.indexOf(id)),rows=trailer?2:3;
-  const x=(index%3)*50,y=Math.floor(index/3)*100/(rows-1);
-  const kind=trailer?'trailer':vehicleType==='pickup'?'pickup':vehicleType==='car'?'sedan':vehicleType==='cargo_van'?'van':'vehicle';
-  return '<span class="coverage-photo coverage-photo-'+kind+'" style="background-position:'+x+'% '+y+'%" aria-hidden="true"></span>';
-}
-function updateCoverageVisuals(){
-  const form=$('#calculator');
-  if(!form)return;
-  const product=state.catalog.products.find(p=>p.id===state.selectedProduct);
-  const trailer=String(product?.name||'').toLowerCase()==='trailer / food truck wraps';
-  const vehicleType=form.elements.vehicle_type?.value||'';
-  all('.coverage-card',form).forEach(card=>{
-    const option=$('input[name="coverage_option"]',card);
-    const van=vehicleType==='cargo_van',largeDecals=van&&option.value==='doors';
-    const original=(product?.config.coverage_options||[]).find(item=>item.id===option.value);
-    card.hidden=van&&(option.value==='hood'||option.value==='roof');
-    $('strong',card).textContent=largeDecals?'Large decals':(original?.label||'');
-    $('small',card).textContent=largeDecals?'Large individual graphics across the van side panels.':(original?.description||'');
-    $('.coverage-visual',card).innerHTML=coverageIcon(option.value,trailer,vehicleType);
-  });
-  const selected=form.querySelector('input[name="coverage_option"]:checked');
-  if(selected?.closest('.coverage-card').hidden){
-    selected.checked=false;
-    const fallback=all('input[name="coverage_option"]',form).find(option=>!option.closest('.coverage-card').hidden);
-    if(fallback)fallback.checked=true;
-  }
-  all('.coverage-card',form).forEach(card=>card.classList.toggle('selected',!!$('input[name="coverage_option"]',card).checked));
-  const roofAddon=$('#roof-wrap-addon',form),fullSelected=form.querySelector('input[name="coverage_option"]:checked')?.value==='full';
-  if(roofAddon){roofAddon.hidden=!fullSelected;if(!fullSelected)form.elements.include_roof_wrap.checked=false;}
-}
-function coverageCustomizer(cfg){
-  if(!cfg.coverage_options?.length||cfg.tint_package_selector)return '';
-  const trailer=(cfg.vehicle_type_options||[]).some(o=>['small_trailer','large_trailer','food_truck','box_truck'].includes(o.id));
-  const defaultType=trailer?(cfg.vehicle_type_options?.[0]?.id||''):(cfg.vehicle_type_options?.find(o=>o.id==='cargo_van')?.id||cfg.vehicle_type_options?.[0]?.id||'');
-  const cards=cfg.coverage_options.map((o,i)=>'<label class="coverage-card '+(i===0?'selected':'')+'"><input type="radio" name="coverage_option" value="'+esc(o.id)+'" '+(i===0?'checked':'')+'><span class="coverage-visual">'+coverageIcon(o.id,trailer,defaultType)+'</span><strong>'+esc(o.label)+'</strong><small>'+esc(o.description||'')+'</small></label>').join('');
-  const types=cfg.vehicle_type_options?.length?select('vehicle_type',trailer?'Trailer / truck type':'Vehicle type',cfg.vehicle_type_options.map(o=>[o.id,o.label]),defaultType):'';
-  const roofAddon=trailer?'':'<label id="roof-wrap-addon" class="notice info mt" hidden><input type="checkbox" name="include_roof_wrap"> Include roof wrap with full wrap (+20% coverage)</label>';
-  return '<div class="coverage-config"><div class="row between mb"><div><h3>Choose wrap coverage</h3><p class="field-hint">Pick the closest visual coverage. We review exact panels before production.</p></div></div><div class="coverage-grid">'+cards+'</div>'+roofAddon+'<div class="mt">'+types+'</div><div class="row mt mb"><h3>Approximate dimensions <span class="muted tiny">(optional)</span></h3></div><div class="fields">'+input('approx_width',trailer?'Approx side length (in)':'Approx graphic length (in)','','number','min="1" max="1000" step=".1"')+input('approx_height','Approx height (in)','','number','min="1" max="300" step=".1"')+'</div></div><div class="divider"></div>';
-}
-function isAFrameProduct(product){return product?.name==='A-Frame inserts';}
-function quantityHeading(product,cfg){return cfg.quantity_only&&(cfg.is_wrap||cfg.vehicle_details_required)&&!isAFrameProduct(product)?'Choose vehicle count':'Choose quantity';}
-function materialControl(product,cfg){
-  if(!cfg.material_options?.length)return '';
-  if(isAFrameProduct(product))return `<div class="row mt mb"><span class="step-number">3</span><h3>Add optional frame</h3></div><label class="notice info"><input type="checkbox" name="add_frame"> Add A-frame stand (+$99)</label>`;
-  if(product?.name==='Acrylic Signs')return `<div class="row mt mb"><span class="step-number">3</span><h3>Choose acrylic color</h3></div>${select('material','Acrylic',cfg.material_options.map(o=>[o.id,o.label]),cfg.material_options.find(o=>o.default)?.id||cfg.material_options[0].id)}`;
-  return `<div class="row mt mb"><span class="step-number">${cfg.supports_installation?'3':cfg.supports_multiple_dimensions?'2':'3'}</span><h3>Choose material</h3></div>${select('material','Material',cfg.material_options.map(o=>[o.id,o.label]),cfg.material_options.find(o=>o.default)?.id||cfg.material_options[0].id)}`;
-}
-function acrylicOptionsControl(product,cfg){
-  if(product?.name!=='Acrylic Signs')return '';
-  const thickness=cfg.thickness_options||[],mounting=cfg.mounting_options||[];
-  return `<div class="row mt mb"><span class="step-number">4</span><h3>Choose thickness</h3></div>${select('acrylic_thickness','Thickness',thickness.map(o=>[o.id,o.label]),thickness.find(o=>o.default)?.id||thickness[0]?.id||'')}<div class="row mt mb"><span class="step-number">5</span><h3>Choose mounting</h3></div>${select('acrylic_mounting','Mounting / service',mounting.map(o=>[o.id,o.label]),mounting.find(o=>o.default)?.id||mounting[0]?.id||'')}<p class="field-hint mt-sm">Standoff hardware adds $25. Installation is quoted after we review the wall, height and access details.</p>`;
-}
-async function calculatorView(){
-  if(!state.catalog)state.catalog=await api('/api/catalog');
-  const products=state.catalog.products;
-  const identity=state.catalog.shop;
-  const categoryOrder=[...new Set([...(identity.storefront_category_order||'').split(',').map(c=>c.trim()).filter(c=>storefrontCategories.includes(c)),...storefrontCategories])];
-  const availableCategories=categoryOrder.filter(c=>products.some(p=>(p.config.storefront_categories||[]).includes(c)));
-  if(identity.storefront_category_order&&!sessionStorage.getItem('storefront_category')&&!state.selectedProduct)state.selectedCategory=availableCategories[0];
-  if(!availableCategories.includes(state.selectedCategory))state.selectedCategory=availableCategories[0]||'Storefront';
-  const visibleProducts=storefrontProductsFor(products,state.selectedCategory).sort((a,b)=>storefrontProductRank(a,state.selectedCategory)-storefrontProductRank(b,state.selectedCategory));
-  const product=visibleProducts.find(p=>p.id===state.selectedProduct)||visibleProducts[0]||products[0];
-  if(product?.config.sticker_pack)return shop.packView(product);
-  if(!product){app.innerHTML=publicHeader()+'<main class="public-page"><div class="empty">No public products are available yet. Please contact the shop.</div></main>';return;}
-  state.selectedProduct=product.id;
-  setPublicSeo(location.pathname.startsWith('/products/')?product:null);
-  const cfg=product.config;
-  const quantities=quantityChoices(cfg);
-  const qty=1;
-  const galleryImages=state.catalog.is_primary_storefront?realWorkPhotosFor(productSlug(product)):[];
-  app.innerHTML=publicHeader()+`<main class="public-page"><section class="hero"><div><div class="eyebrow">${esc(identity.storefront_eyebrow||identity.shop_name+' / SIGNS / STICKERS / WRAPS')}</div><h1>${identity.storefront_heading?esc(identity.storefront_heading):'Big ideas.<br><em>Made to stick.</em>'}</h1><p>${esc(identity.storefront_description||'Choose your size. Get your price. Make it yours. Order standard prints online, or let us quote your next wrap or installation.')}</p></div><div class="hero-stamp">${identity.storefront_stamp?esc(identity.storefront_stamp):'CUSTOM PRINT.<br>TAMPA SPIRIT.<span>YOUR BRAND.</span>'}</div></section>${state.catalog.checkout?.test_mode?'<div class="notice mb">Test storefront: sample pricing and test payments only. No live customer charges.</div>':''}<div class="storefront-category-tabs">${availableCategories.map(c=>`<button class="${c===state.selectedCategory?'active':''}" data-action="choose-category" data-category="${esc(c)}">${esc(c)}</button>`).join('')}</div><section class="public-grid"><aside class="product-rail"><div class="eyebrow mb" style="padding-left:12px">${esc(state.selectedCategory)}</div>${storefrontProductRail(visibleProducts,state.selectedCategory,product.id)}</aside><section class="panel"><div class="product-preview ${productImageKind(product)?'has-product-example':''} ${galleryImages.length?'product-gallery-preview':''}" data-product-preview data-product-slug="${esc(productSlug(product))}">${galleryImages.length?productGalleryMarkup(productSlug(product),publicProductName(product),productImage(product)||'<div class="preview-shape"><img src="/static/brand/tampa-black.png" alt="Tampa Signs and Stickers sample print"></div>',galleryImages):productImage(product)||'<div class="preview-shape"><img src="/static/brand/tampa-black.png" alt="Tampa Signs and Stickers sample print"></div><span class="preview-label">Your artwork. Your size. Your style.</span>'}</div><h1 class="product-page-title">${esc(publicProductName(product))}</h1><p class="muted mt-sm" style="font-size:12px">${esc(cfg.description)}</p><div class="divider"></div><form id="calculator" data-form="calculator">${coverageCustomizer(cfg)}${usdotSizeBlock(cfg)}${usdotCustomizer(cfg)}${vehicleDetailsCustomizer(cfg)}${cfg.supports_installation&&product.name!=='Acrylic Signs'?`<div class="row mb"><span class="step-number">1</span><h3>How do you need it?</h3></div><label class="field mb"><span>Vehicle wrap service</span><select name="installation_requested"><option value="false">Print only â€” I have a ready-to-print file</option><option value="true">Print + installation â€” request a wrap quote</option></select></label><div class="row mb"><span class="step-number">2</span><h3>Set your print size</h3>${badge('Inches')}</div>`:cfg.usdot_customizer?'':`<div class="row mb"><span class="step-number">1</span><h3>${cfg.finished_apparel?'Choose garment options':'Set your size'}</h3>${badge(cfg.finished_apparel?'Garments':'Inches')}</div>`}${cfg.supports_multiple_dimensions?`<div id="wrap-dimensions" class="stack-sm">${wrapDimensionRow(cfg,0,cfg.default_width,cfg.default_height,1)}</div><button type="button" class="btn light small mt-sm" data-action="add-wrap-dimension">${icon('plus','icon-sm')} ${cfg.supports_installation?'Add another size / panel':'Add another window / panel'}</button>`:`${cfg.quantity_only?`<input type="hidden" name="width" value="${esc(cfg.default_width)}"><input type="hidden" name="height" value="${esc(cfg.default_height)}"><div class="notice info">${esc(cfg.quantity_only_note||"Starting estimate. Final pricing is reviewed by the shop.")}</div>`:(cfg.usdot_customizer?'':(cfg.placement_options?.length?placementSelector(cfg):sizeSelector(cfg)))}<div class="row mt mb"><span class="step-number">${cfg.usdot_customizer?'3':'2'}</span><h3>${quantityHeading(product,cfg)}</h3></div><div class="quantity-grid">${quantities.map(q=>`<button type="button" class="quantity-btn ${q===qty?'active':''}" data-action="quantity" data-value="${q}">${num(q)}</button>`).join('')}</div><div class="mt-sm">${input('quantity','Custom quantity',qty,'number',`min="1" max="${cfg.max_quantity}" step="1" required`)}</div>`}${materialControl(product,cfg)}${acrylicOptionsControl(product,cfg)}${cfg.lamination_options?.length?`<div class="row mt mb"><span class="step-number">${cfg.supports_installation?'4':cfg.supports_multiple_dimensions?'3':'3'}</span><h3>Choose finish</h3></div>${select('lamination','Lamination',cfg.lamination_options.map(o=>[o.id,o.label]),cfg.lamination_options.find(o=>o.default)?.id||cfg.lamination_options[0].id)}`:''}<div id="calc-feedback" class="form-error"></div></form>${cfg.artwork_upload_disabled?'':`<p class="field-hint mt">${cfg.apparel_kind?.startsWith('embroidered_')?'Your uploaded logo and digital mockup will be attached to the project for shop digitizing and proofing.':cfg.is_wrap?'Attach wrap artwork, logos or reference files using Upload Design.':cfg.supports_multiple_dimensions?'Multiple window designs are welcome. Attach separate pane files or a multi-page PDF.':'One design per order. Wraps, installation and sizes outside the listed limits need a custom quote.'}</p>`}</section><aside class="panel estimate-card"><div class="estimate-head"><div class="eyebrow" id="estimate-heading">YOUR PRICE</div><div class="metric large" id="estimate-total">...</div><small id="estimate-unit">Calculating your project</small></div><div class="mt" id="estimate-details"></div><button class="btn primary wide mt" data-action="request-order" id="continue-btn" disabled>Continue to artwork ${icon('arrow')}</button><p class="tiny muted mt-sm">${esc(state.catalog.shop.quote_note)}</p><div class="divider"></div><div class="benefit">${icon('check')}<span>Review your proof before production.</span></div><div class="benefit">${icon('credit')}<span>Secure checkout for eligible print orders.</span></div><div class="benefit">${icon('tasks')}<span>Simple order updates, start to finish.</span></div></aside></section><section class="product-help-grid" aria-label="Project help"><article class="product-help-card product-help-card-featured"><div><div class="eyebrow">NOT SURE WHAT TO ORDER?</div><h2>Help me choose</h2><p>Tell us what you are branding and weâ€™ll guide you to the right product and ordering path.</p></div><button class="btn primary" data-action="help-choose">Find the right product ${icon('arrow','icon-sm')}</button></article><article class="product-help-card"><div><div class="eyebrow">DESIGN HELP</div><h2>Need design?</h2><p>Send your logo, references and project details and weâ€™ll quote the design work.</p></div><button class="btn light" data-action="design-quote">Request design quote ${icon('arrow','icon-sm')}</button></article><article class="product-help-card"><div><div class="eyebrow">CUSTOM PROJECTS</div><h2>Custom project?</h2><p>For unusual materials, dimensional signs, fleet work, bulk orders, or anything outside the catalog.</p></div><button class="btn light" data-action="custom-quote">Request custom quote ${icon('arrow','icon-sm')}</button></article></section><footer class="public-footer"><span>${esc(identity.brand_custom?identity.shop_name+' / Make your mark.':'TAMPA SIGNS AND STICKERS / Make your mark.')}</span><span class="public-footer-links"><button class="footer-link" data-action="${state.wholesaleToken?'wholesale-clear':'wholesale-login'}">${state.wholesaleToken?'Wholesale: '+esc(state.wholesaleName||'signed in'):'Wholesale pricing'}</button><a href="/terms">Artwork & sizing terms</a><a href="/staff">Staff login</a></span><span>${esc(state.catalog.shop.contact_email||'Tampa Signs and Stickers')} ${esc(state.catalog.shop.contact_phone||'')}</span></footer></main>`;
-  // Sticker packs: photography on the left, calculator and pricing on the right.
-  // Keep the existing form and estimate nodes intact so their event handlers still work.
-  if(productSlug(product)==='sticker-packs'){
-    const grid=app.querySelector('.public-grid');
-    const galleryPanel=grid?.querySelector(':scope > section.panel');
-    const preview=galleryPanel?.querySelector('[data-product-preview]');
-    const estimate=grid?.querySelector(':scope > aside.estimate-card');
-    if(grid&&galleryPanel&&preview&&estimate){
-      grid.classList.add('sticker-pack-layout');
-      galleryPanel.classList.add('sticker-pack-gallery-panel');
-      const configPanel=document.createElement('section');
-      configPanel.className='panel sticker-pack-config-panel';
-      while(preview.nextSibling)configPanel.appendChild(preview.nextSibling);
-      const orderColumn=document.createElement('div');
-      orderColumn.className='sticker-pack-order-column';
-      orderColumn.append(configPanel,estimate);
-      grid.appendChild(orderColumn);
-    }
-  }
-  setupProductPhotoGallery(app);
-  const realProject=realWorkProductSection(product);
-  if(realProject)$('.public-grid')?.insertAdjacentHTML('afterend',realProject);
-  const reviewHost=document.createElement('section');reviewHost.id='product-reviews';reviewHost.className='product-reviews-section';
-  const reviewAnchor=document.querySelector('.real-work-detail')||document.querySelector('.public-grid');
-  reviewAnchor?.insertAdjacentElement('afterend',reviewHost);
-  await loadProductReviews(product.id);
-  const heroHeading=$('.hero h1');
-  if(heroHeading){const visualHeading=document.createElement('div');visualHeading.className='hero-title';visualHeading.innerHTML=heroHeading.innerHTML;heroHeading.replaceWith(visualHeading);}
-  const productRail=$('.product-rail');
-  if(productRail){productRail.classList.toggle('grouped',['Storefront','Events'].includes(state.selectedCategory));productRail.innerHTML=`<div class="eyebrow mb" style="padding-left:12px">${esc(state.selectedCategory)}</div>${storefrontProductRail(visibleProducts,state.selectedCategory,product.id)}`;}
-  const serviceSelect=$('#calculator select[name="installation_requested"]');
-  if(serviceSelect&&!serviceSelect.querySelector('option[value="design_quote"]'))serviceSelect.options.add(new Option('Print only â€” I need a design quote','design_quote'),1);
-  const preset=$('#calculator select[name="size_preset"]');if(preset){$('#calculator').elements.width.readOnly=preset.value!=='custom';$('#calculator').elements.height.readOnly=preset.value!=='custom';}
-  const placement=$('#calculator select[name="placement"]');if(placement){$('#calculator').elements.width.readOnly=placement.value!=='custom';$('#calculator').elements.height.readOnly=placement.value!=='custom';}
-  shop?.setupProduct(product);
-  updateCoverageVisuals();
-  updateUsdotPreview();
-  await recalculate();
-}
-function wrapDimensionRow(cfg,index,width='',height='',quantity=1){return `<div class="dimension-row" data-wrap-dimension><div class="fields three">${input('wrap_width_'+index,'Width (in)',width,'number',`min="${cfg.min_width||0.1}" max="10000" step="0.01" required`)}${input('wrap_height_'+index,'Height (in)',height,'number',`min="${cfg.min_height||0.1}" max="10000" step="0.01" required`)}${input('wrap_quantity_'+index,'Qty',quantity,'number',`min="1" max="${cfg.max_quantity||100000}" step="1" required`)}</div>${index?'<button type="button" class="btn light small" data-action="remove-wrap-dimension">Remove</button>':''}</div>`;}
-function currentItems(){
-  const f=$('#calculator'),product=state.catalog.products.find(p=>p.id===state.selectedProduct);
-  if(product?.config.finished_apparel)return [shop.shirtItem()];
-  const acrylicMounting=f.elements.acrylic_mounting?.value||'',acrylicThickness=f.elements.acrylic_thickness?.value||'',service=f.elements.service_request?.value||f.elements.installation_requested?.value||'',install=acrylicMounting==='installation'||service==='installation'||service==='true',designRequested=service==='design_quote';
-  const lamination=f.elements.lamination?.value||'',material=f.elements.add_frame?.checked?'with_frame':(f.elements.material?.value||''),coverageInput=f.querySelector('input[name="coverage_option"]:checked'),coverageSelect=f.elements.window_package,coverage=coverageInput?.value||coverageSelect?.value||'',vehicleType=f.elements.vehicle_type?.value||'',coverageLabel=coverageInput?.closest('.coverage-card')?.querySelector('strong')?.textContent||coverageSelect?.selectedOptions?.[0]?.textContent||'',vehicleLabel=f.elements.vehicle_type?.selectedOptions?.[0]?.textContent||'',approxW=f.elements.approx_width?.value||'',approxH=f.elements.approx_height?.value||'',placementLabel=f.elements.placement?.value==='custom'?'Custom size':(f.elements.placement?.selectedOptions?.[0]?.textContent||'');
-  const includeRoof=!!f.elements.include_roof_wrap?.checked;
-  const wrapDesc=coverage?('Coverage: '+coverageLabel+(includeRoof?' + roof wrap':'')+(vehicleLabel?' | Type: '+vehicleLabel:'')+(approxW||approxH?' | Approx: '+(approxW||'?')+' x '+(approxH||'?')+' in':'')):'',tintDesc=product?.config.vehicle_details_required?('Vehicle: '+(f.elements.vehicle_year?.value||'')+' '+(f.elements.vehicle_make?.value||'')+' '+(f.elements.vehicle_model?.value||'')+' | Tint package: '+coverageLabel):'',acrylicDesc=product?.name==='Acrylic Signs'?[f.elements.material?.selectedOptions?.[0]?.textContent&&('Acrylic: '+f.elements.material.selectedOptions[0].textContent),f.elements.acrylic_thickness?.selectedOptions?.[0]?.textContent&&('Thickness: '+f.elements.acrylic_thickness.selectedOptions[0].textContent),f.elements.acrylic_mounting?.selectedOptions?.[0]?.textContent&&('Mounting: '+f.elements.acrylic_mounting.selectedOptions[0].textContent)].filter(Boolean).join(' | '):'';
-  const usdot=product?.config.usdot_customizer?{identity:usdotIdentity(),company:f.elements.company_name?.value||'',phone:f.elements.phone_line?.value||'',number:f.elements.usdot_number?.value||'',licenses:f.elements.license_line?.value||'',location:f.elements.location_line?.value||'',style:f.elements.usdot_style?.value||'montserrat',font_sizes:{company:f.elements.usdot_company_points?.value||'56',phone:f.elements.usdot_phone_points?.value||'30',number:f.elements.usdot_number_points?.value||'72',licenses:f.elements.usdot_license_points?.value||'30',location:f.elements.usdot_location_points?.value||'32'},positions:structuredClone(usdotPositions),logo_id:usdotLogoDraft?.id||'',logo_name:usdotLogoDraft?.name||'',logo_data_url:usdotLogoDraft?.data_url||'',logo_width:f.elements.usdot_logo_width?.value||'42',text_color:f.elements.usdot_text_color?.value||'#111111'}:null;
-  const usdotDesc=usdot?[usdot.identity==='logo'?('Logo: '+(usdot.logo_name||'uploaded')+' (+$'+Number(product.config.usdot_logo_setup_price||20).toFixed(0)+' setup)'):('Company: '+usdot.company),usdot.phone&&'Phone: '+usdot.phone,'USDOT '+usdot.number,usdot.licenses&&'Licenses: '+usdot.licenses,usdot.location,`Style: ${usdot.style}`,`Sizes: company ${usdot.font_sizes.company}pt / USDOT ${usdot.font_sizes.number}pt / secondary ${usdot.font_sizes.phone}pt`,`Letter color: ${usdot.text_color}`].filter(Boolean).join(' | '):'';
-  const scopeDesc=usdotDesc||tintDesc||wrapDesc||acrylicDesc||(placementLabel?'Placement: '+placementLabel:'');
-  const desc=[scopeDesc,designRequested?'Design quote requested':''].filter(Boolean).join(' | ');
-  const acrylicFields=product?.name==='Acrylic Signs'?{acrylic_thickness:acrylicThickness,acrylic_mounting:acrylicMounting}:{};
-  const base={product_id:state.selectedProduct,description:desc,installation_requested:install,design_requested:designRequested,lamination,material,coverage_option:coverage,include_roof_wrap:includeRoof,vehicle_type:vehicleType,...acrylicFields,...(usdot?{usdot_design:usdot}:{})};
-  if(product?.config.supports_multiple_dimensions)return all('[data-wrap-dimension]',f).map((row,i)=>{const inputs=all('input',row);return {...base,width:inputs[0].value,height:inputs[1].value,quantity:inputs[2].value,description:desc||((product.category==='Windows'?'Window / panel ':'Panel ')+(i+1))};});
-  return [{...base,width:f.elements.width.value,height:f.elements.height.value,quantity:f.elements.quantity.value}];
-}
-async function recalculate(){
-  if(!$('#calculator'))return;
-  const sequence=++state.calcSequence || (state.calcSequence=1);
-  const items=currentItems();
-  try{
-    const q=await api('/api/calculate','POST',{items,wholesale_token:state.wholesaleToken});
-    if(sequence!==state.calcSequence || !$('#estimate-total'))return;
-    state.quote=q;state.currentQuoteItems=items;$('#calc-feedback').textContent='';
-    $('#estimate-total').textContent=q.lines[0].quote_only&&q.subtotal_cents===0?'Custom quote':money(q.subtotal_cents);
-    $('#estimate-unit').textContent=q.lines[0].quote_only?'Final price after shop review':items.length>1?`${items.length} sizes / panels`:`About ${money(q.lines[0].price_per_item_cents)} per item`;
-    const totalSqft=q.lines.reduce((a,l)=>a+Number(l.net_sqft),0);const lamLabel=q.lines[0]?.lamination_label||'',materialLabel=q.lines[0]?.material_label||'',coverageLabel=q.lines[0]?.coverage_label||'',vehicleTypeLabel=q.lines[0]?.vehicle_type_label||'',acrylicThicknessLabel=q.lines[0]?.acrylic_thickness_label||'',acrylicMountingLabel=q.lines[0]?.acrylic_mounting_label||'';const wholesaleNote=q.wholesale?'<div class="notice good mb"><strong>Wholesale pricing applied</strong><br>'+esc(q.wholesale.name)+'</div>':'';$('#estimate-details').innerHTML=wholesaleNote+`${q.lines[0].finished_apparel?`<div class="line-total"><span class="muted">Garment color</span><strong>${esc(q.lines[0].shirt_color)}</strong></div>`:`<div class="line-total"><span class="muted">Sizes / panels</span><strong>${items.length}</strong></div><div class="line-total"><span class="muted">Net printed area</span><strong>${num(totalSqft)} sq ft</strong></div>`}${q.lines[0].installation_requested?'<div class="line-total"><span class="muted">Service</span><strong>'+(q.lines[0].name==='Acrylic Signs'?'Installation quote':'Print + installation')+'</strong></div>':''}${q.lines[0].design_requested?'<div class="line-total"><span class="muted">Service</span><strong>Print only + design quote</strong></div>':''}${coverageLabel?'<div class="line-total"><span class="muted">Coverage</span><strong>'+esc(coverageLabel)+'</strong></div>':''}${q.lines[0].include_roof_wrap?'<div class="line-total"><span class="muted">Roof</span><strong>Included with full wrap</strong></div>':''}${q.lines[0].digitizing_fee_cents?'<div class="line-total"><span class="muted">Digitizing fee</span><strong>'+money(q.lines[0].digitizing_fee_cents)+'</strong></div>':''}${q.lines[0].usdot_logo_fee_cents?'<div class="line-total"><span class="muted">Company logo setup</span><strong>+'+money(q.lines[0].usdot_logo_fee_cents)+'</strong></div>':''}${vehicleTypeLabel?'<div class="line-total"><span class="muted">Type</span><strong>'+esc(vehicleTypeLabel)+'</strong></div>':''}${materialLabel?'<div class="line-total"><span class="muted">Material</span><strong>'+esc(materialLabel)+'</strong></div>':''}${acrylicThicknessLabel?'<div class="line-total"><span class="muted">Thickness</span><strong>'+esc(acrylicThicknessLabel)+'</strong></div>':''}${acrylicMountingLabel?'<div class="line-total"><span class="muted">Mounting</span><strong>'+esc(acrylicMountingLabel)+'</strong></div>':''}${lamLabel?'<div class="line-total"><span class="muted">Finish</span><strong>'+esc(lamLabel)+'</strong></div>':''}${!q.meets_minimum_order?'<div class="notice mt-sm">Online checkout requires '+money(q.minimum_order_cents)+' across your project. Add this item now and combine it with other items before checkout.</div>':''}<div class="line-total"><span class="muted">Pricing</span>${badge(q.review_required?'Instant estimate / review required':!q.meets_minimum_order?'Below minimum order':state.catalog.checkout?.available?'Ready to order':'Price preview',q.review_required?'orange':!q.meets_minimum_order?'orange':'green')}</div>`;
-    const canBuy=!q.review_required&&q.meets_minimum_order&&state.catalog.checkout?.available;
-    state.canBuy=canBuy;
-    $('#estimate-heading').textContent=q.review_required?'YOUR ESTIMATE':'YOUR PRICE';
-    $('#continue-btn').innerHTML='Add to project'+icon('arrow');
-    $('#continue-btn').disabled=false;
-    all('.quantity-btn').forEach(b=>b.classList.toggle('active',b.dataset.value===String(items[0]?.quantity)));
-  }catch(error){if(sequence!==state.calcSequence)return;state.quote=null;$('#calc-feedback').textContent=error.message;$('#continue-btn').disabled=true;$('#estimate-total').textContent='--';}
-}
-function termsDetails(terms=state.catalog.job_terms,label='Read the full artwork, sizing & production terms'){
-  return `<details class="job-terms"><summary>${esc(label)}</summary>${(terms?.sections||[]).map(section=>`<h4 class="mt">${esc(section.title)}</h4><p class="field-hint">${esc(section.text)}</p>`).join('')}<a class="link" href="/terms" target="_blank" rel="noopener">Read all terms on the website â†—</a><p class="field-hint">Version ${esc(terms?.version||'')}</p></details>`;
-}
-function approvalAgreement(terms,statement){
-  return `<section class="approval-agreement"><h3>Artwork approval & terms</h3><p class="field-hint">Review the full terms below, then approve your artwork and accept the terms together.</p>${termsDetails(terms)}${checkbox('confirm',statement,false,'required')}<p class="field-hint">Your name, approval time, artwork version and accepted terms are saved with this order.</p></section>`;
-}
-async function orderModal(){
-  if(!state.quote)return;
-  if(belowCheckoutMinimum(state.quote)){showModal('Add items to reach the checkout minimum',`<div class="stack"><p>${esc(minimumCheckoutMessage(state.quote))}</p><a class="btn primary wide" href="/project">Update my project</a><a class="btn light wide" href="/products">Add more products</a></div>`);return;}
-  checkoutProof.clear();
-  const line=state.quote.lines[0],co=state.catalog.checkout||{},buy=state.canBuy,deferredProof=state.quote.lines.some(line=>line.proof_after_payment);
-  const acceptsArtwork=state.currentQuoteItems.some(item=>!state.catalog.products.find(p=>p.id===Number(item.product_id))?.config.artwork_upload_disabled);
-  state.orderRequestId=crypto.randomUUID();
-  const methods=[...(co.pickup?[['pickup','Local pickup - '+co.pickup_address]]:[]),...(co.shipping?[['shipping','US shipping - '+money(co.shipping_cents)+' + tax']]:[])];
-  const wallet=buy?await rewardsUi.checkoutBox():'';
-  showModal(buy?(deferredProof?'Review order & checkout':'Review artwork & checkout'):'Tell us about your project',`<form data-form="public-order" class="stack"><div class="notice info"><strong>${state.quote.lines.every(l=>l.quote_only)?'Quote required':money(state.quote.subtotal_cents)}</strong> before tax and shipping Â· ${state.quote.lines.length} product line(s). ${buy?(deferredProof?'Continue to secure payment now. Your design and shop proof follow payment, with approval required before printing.':'Review your artwork below, approve it once, and continue to secure payment.'):'The shop will confirm the custom scope, quote and artwork before production.'}</div>${buy&&co.test_mode?'<div class="notice">Test checkout is connected. Do not use real card details.</div>':''}<div class="fields">${input('customer_name','Your name',state.customer?.name||'','text','required maxlength="120"')}${input('customer_email','Email',state.customer?.email||state.wholesaleEmail||'','email',`required maxlength="254" ${state.customer?'readonly':''}`)}${input('phone','Phone (optional)','','tel')}${input('title','Project name',state.projectCheckout?'My '+shopName()+' project':line.name,'text','required maxlength="180"')}</div><div class="fields">${input('due_date','Need it by (optional)','','date')}${checkbox('rush_requested','Ask about rush production; availability and any fee are confirmed by the shop.')}</div>${buy?select('fulfillment','How would you like your order?',methods,methods[0]?.[0]):''}<label class="field"><span>Notes for your project</span><textarea name="notes" maxlength="5000" placeholder="Anything we should know about your project?"></textarea></label>${acceptsArtwork?'<label class="field"><span>Artwork (or upload later in your order portal)</span><input name="artwork" type="file" accept=".png,.jpg,.jpeg,.pdf" multiple></label><p class="field-hint">PNG, JPEG or PDF, up to 50 MB per file. Prepress checks may require a higher-quality file; any changed artwork needs approval.</p><section class="checkout-proof-review" id="checkout-preview-review"><p>Preparing your artwork previewsâ€¦</p></section>':''}<section class="site-survey-choice">${checkbox('site_survey_requested','Request a paid site survey to verify measurements before printing.')}<p class="field-hint">Extra cost is quoted by the shop based on location and scope. We confirm the fee and appointment first. This submits a reviewed quote request and holds printing until measurements are verified.</p>${input('survey_location','Site address (if requesting a survey)','','text','maxlength="500"')}</section>${wallet}${termsDetails()}${checkbox('confirm',state.catalog.job_terms.confirmation,false,'required')}<label class="sr-only">Leave blank<input name="website" tabindex="-1" autocomplete="off"></label>${formFooter(buy?'Continue to secure payment':'Submit project for a quote')}</form>`,true);
-  const form=$('form[data-form="public-order"]');
-  form.elements.site_survey_requested.onchange=()=>{
-    const survey=form.elements.site_survey_requested.checked;
-    checkoutProof.resetApproval(form);checkoutProof.updateConsent(form);
-    for(const key of ['reward_credit','reward_points'])if(form.elements[key])form.elements[key].disabled=survey;
-    if(!buy)form.querySelector('button[type="submit"]').textContent=survey?'Submit project & request survey':'Submit project for a quote';
-  };
-  if(acceptsArtwork)await checkoutProof.refresh();
-}
+^ØÛÛœİ\İ]Kš›ØÜÚİÓ[Ù[
+	ÑY]][İH[™\È	ˆš[˜[Ú\™Ù\ÉË›Ü›H]KY›Ü›OH™Y]\][İHˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH[™›È‘Y]^\İ[™È›ÙXİÈÜˆYÛ™K[Ù™ˆÙ\šXÙ\È\™XİHÈ\È][İKˆØ]š[™ÈÜ™X]\ÈH™]È][İH™\œÚ[Û‹ÛX\œÈİ\İÛY\ˆXØÙ\[˜ÙH[™™[[İ™\ÈH™]š[İ\È^[Y[[šËÙ]]ˆÛ\ÜÏHœ[™[ZXY\ˆ]Ï”›ÙXİÈ	ˆÙ\šXÙ\ÏÚÏÛ\ÜÏH™šY[Z[]\ÛH“[™HšXÙ\È\™Hİ\İÛY\ˆİ[È›Üˆ][™Kˆ[\›˜[ÛÜİ\È\ÙYÛ›H›ÜˆHX\™Ú[ˆ\İ[X]KˆX]™HÚY[™ZYÚ›[šÈ›ÜˆÙ\šXÙ\ÈİXÚ\È\ÚYÛ‹[œİ[][Û‹™[[İ˜[Üˆ\›Z][™[™ËÜÙ]]Ûˆ\OH˜]ÛˆˆÛ\ÜÏH˜ˆYÚÛX[ˆ]KXXİ[ÛH˜Y\][İK\Ù\šXÙH‰ÚXÛÛŠ	Ü\ÉË	ÚXÛÛ‹\ÛIÊ_HY›ÙXİÈÙ\šXÙOØ]ÛÙ]]ˆYHœ][İK\™]š\Ú[Û‹[[™\È‰Ú‹œ][İK›[™\Ë›X\
 
-/* Staff job board and production workspace */
-async function loadDashboard(){
-  const response=await api('/api/staff/jobs');state.jobs=response.jobs;
-  const jobs=state.jobs, active=jobs.filter(j=>j.stage!=='complete'), ready=jobs.filter(j=>j.stage==='ready').length;
-  staffShell(`<div class="page-heading"><div><div class="eyebrow mb" style="margin-bottom:8px">THE BIG PICTURE</div><h1>Keep every job moving.</h1><p>Quotes, approvals and production. One connected view.</p></div>${owner()?'<a class="btn primary" href="/staff#new">'+icon('plus')+' Create job</a>':''}</div>${!state.catalog?.shop.rates_live?pricingNotice():''}<div class="kpis"><section class="kpi"><div class="eyebrow">ACTIVE JOBS</div><div class="metric">${active.length}</div><small class="muted">In your shop pipeline</small></section><section class="kpi"><div class="eyebrow">NEED APPROVAL / DESIGN</div><div class="metric">${jobs.filter(j=>j.stage==='prepress').length}</div><small class="muted">Waiting to clear prepress</small></section><section class="kpi"><div class="eyebrow">IN PRODUCTION</div><div class="metric">${jobs.filter(j=>j.stage==='production').length}</div><small class="muted">On the shop floor</small></section><section class="kpi last"><div class="eyebrow">READY TO PRODUCE</div><div class="metric">${ready}</div><small class="muted">Proof + deposit cleared</small></section></div><div class="filter-row"><div class="row"><h3>Job pipeline</h3>${badge(jobs.length+' jobs')}</div><div class="row wrap"><div class="search">${icon('search')}<input id="job-search" placeholder="Search jobs or customers" aria-label="Search jobs"></div><div class="segmented"><button data-action="board-mode" data-value="board" class="${state.boardMode==='board'?'active':''}">Board</button><button data-action="board-mode" data-value="list" class="${state.boardMode==='list'?'active':''}">List</button></div></div></div><div id="job-board"></div><p class="field-hint mt">Showing up to 500 most recent active records. Draft totals are estimates, not paid revenue.</p>`,'dashboard','Job board');
-  renderBoard();
-}
-function reportOrderKind(order){
-  if(order.stage==='complete')return 'complete';
-  return order.booked?'active':'lead';
-}
-function reportTrendBins(orders,unit,count,anchorValue){
-  const anchor=anchorValue?new Date(anchorValue+'T12:00:00'):new Date();
-  const floor=date=>{
-    const d=new Date(date);
-    if(unit==='day')d.setHours(0,0,0,0);
-    if(unit==='week'){d.setHours(0,0,0,0);const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);}
-    if(unit==='month'){d.setHours(0,0,0,0);d.setDate(1);}
-    if(unit==='year'){d.setHours(0,0,0,0);d.setMonth(0,1);}
-    return d;
-  };
-  const add=(date,amount)=>{
-    const d=new Date(date);
-    if(unit==='day')d.setDate(d.getDate()+amount);
-    if(unit==='week')d.setDate(d.getDate()+amount*7);
-    if(unit==='month')d.setMonth(d.getMonth()+amount);
-    if(unit==='year')d.setFullYear(d.getFullYear()+amount);
-    return d;
-  };
-  const end=floor(anchor),bins=[];
-  for(let i=count-1;i>=0;i--){
-    const start=add(end,-i),next=add(start,1);
-    let label='';
-    if(unit==='day')label=start.toLocaleDateString(undefined,{month:'short',day:'numeric'});
-    if(unit==='week')label=start.toLocaleDateString(undefined,{month:'short',day:'numeric'});
-    if(unit==='month')label=start.toLocaleDateString(undefined,{month:'short'});
-    if(unit==='year')label=String(start.getFullYear());
-    bins.push({start,next,label,complete:0,active:0,lead:0,total:0});
-  }
-  for(const order of orders){
-    const created=new Date(order.created_at);if(Number.isNaN(created.getTime()))continue;
-    const bin=bins.find(b=>created>=b.start&&created<b.next);if(!bin)continue;
-    const kind=reportOrderKind(order);bin[kind]++;bin.total++;
-  }
-  return bins;
-}
-const reportTrendOptions={day:{name:'Daily',count:14,period:'14 days'},week:{name:'Weekly',count:12,period:'12 weeks'},month:{name:'Monthly',count:12,period:'12 months'},year:{name:'Yearly',count:5,period:'5 years'}};
-function reportTrendChart(option,bins,anchor){
-  const total=bins.reduce((sum,b)=>sum+b.total,0),step=Math.max(1,Math.ceil(Math.max(...bins.map(b=>b.total))/4)),max=step*4;
-  const left=42,right=916,top=20,bottom=242;
-  const x=i=>left+i*(right-left)/(bins.length-1),y=value=>bottom-value/max*(bottom-top);
-  const grid=Array.from({length:5},(_,i)=>{const value=i*step,pos=y(value);return `<g class="trend-grid-line"><line x1="${left}" y1="${pos}" x2="${right}" y2="${pos}"/><text x="${left-12}" y="${pos+4}" text-anchor="end">${value}</text></g>`;}).join('');
-  const lines=['complete','active','lead'].map(kind=>`<g class="trend-series ${kind}"><path d="${bins.map((b,i)=>`${i?'L':'M'}${x(i).toFixed(1)} ${y(b[kind]).toFixed(1)}`).join(' ')}"/>${bins.map((b,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(b[kind]).toFixed(1)}" r="4"><title>${esc(b.label)}: ${b[kind]} ${kind==='complete'?'completed':kind==='active'?'active':'leads'}</title></circle>`).join('')}</g>`).join('');
-  const labels=bins.map((b,i)=>`<text class="trend-axis-label" x="${x(i).toFixed(1)}" y="275" text-anchor="middle">${esc(b.label)}</text>`).join('');
-  const details=bins.map(b=>`${b.label}: ${b.complete} completed, ${b.active} active, ${b.lead} leads`).join('; ');
-  return `<div class="trend-card"><div class="trend-card-head"><div><h3>${esc(option.name)} order activity</h3><p>${esc(option.period)} ending ${esc(anchor.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}))}</p></div><strong>${total} <small>projects in view</small></strong></div>${total?`<div class="trend-chart-scroll"><svg class="trend-line-chart" viewBox="0 0 940 300" role="img" aria-labelledby="trend-chart-title trend-chart-desc"><title id="trend-chart-title">${esc(option.name)} order trends</title><desc id="trend-chart-desc">${esc(details)}</desc>${grid}${lines}${labels}</svg></div>`:'<div class="trend-empty">No orders in this view. Try another range or adjust the report dates.</div>'}<details class="trend-data"><summary>View exact counts</summary><div class="trend-data-scroll"><table><thead><tr><th>Period</th><th>Completed</th><th>Active</th><th>Leads</th></tr></thead><tbody>${bins.map(b=>`<tr><td>${esc(b.label)}</td><td>${b.complete}</td><td>${b.active}</td><td>${b.lead}</td></tr>`).join('')}</tbody></table></div></details></div>`;
-}
-function reportTrendContent(r){
-  const key=reportTrendOptions[state.reportTrendRange]?state.reportTrendRange:'month',option=reportTrendOptions[key],anchor=r.period.end?new Date(r.period.end+'T12:00:00'):new Date();
-  return reportTrendChart(option,reportTrendBins(r.orders,key,option.count,r.period.end),anchor);
-}
-function reportTrendDashboard(r){
-  const key=reportTrendOptions[state.reportTrendRange]?state.reportTrendRange:'month';
-  return `<section class="panel report-trends"><div class="panel-header trend-header"><div><div class="eyebrow">ORDER TRENDS</div><h2>Order volume over time</h2><p class="field-hint">Orders are grouped by creation date and current status. The report date filter below applies here too. Lead quotes are not booked revenue.</p></div><div class="trend-legend"><span><i class="complete"></i>Completed</span><span><i class="active"></i>Active / unfinished</span><span><i class="lead"></i>Lead / pipeline</span></div></div><div class="trend-controls" role="group" aria-label="Order trend time range">${Object.entries(reportTrendOptions).map(([value,choice])=>`<button type="button" data-action="report-trend-range" data-value="${value}" aria-pressed="${value===key}" class="${value===key?'active':''}">${choice.name}</button>`).join('')}</div><div id="report-trend-chart">${reportTrendContent(r)}</div></section>`;
-}
-async function loadReports(filters={}){
-  if(!owner())throw new Error('Owner access required.');
-  const params=new URLSearchParams();if(filters.start)params.set('start',filters.start);if(filters.end)params.set('end',filters.end);
-  const query=params.toString(),r=await api('/api/admin/reports'+(query?'?'+query:'')),t=r.totals,max=Math.max(1,...r.services.map(s=>s.revenue_cents));state.reportData=r;
-  staffShell(`<div class="page-heading"><div><div class="eyebrow mb" style="margin-bottom:8px">OWNER FINANCIALS</div><h1>Revenue, services and profit.</h1><p>Booked revenue requires an accepted quote or a verified payment. Costs and profit use the saved quote cost estimates.</p></div><a class="btn primary" href="/api/admin/reports.csv${query?'?'+query:''}">${icon('file','icon-sm')} Export CSV</a></div>${reportTrendDashboard(r)}<form data-form="report-filter" class="panel report-filters"><div class="fields"><label class="field"><span>From</span><input name="start" type="date" value="${esc(r.period.start)}"></label><label class="field"><span>Through</span><input name="end" type="date" value="${esc(r.period.end)}"></label></div><button class="btn light">Run report</button></form><div class="kpis report-kpis"><section class="kpi"><div class="eyebrow">BOOKED REVENUE</div><div class="metric">${money(t.revenue_cents)}</div><small class="muted">${t.booked_order_count} booked orders</small></section><section class="kpi"><div class="eyebrow">COLLECTED</div><div class="metric">${money(t.collected_cents)}</div><small class="muted">Verified payments</small></section><section class="kpi"><div class="eyebrow">EST. GROSS PROFIT</div><div class="metric">${money(t.profit_cents)}</div><small class="muted">${num(t.margin_percent)}% estimated margin</small></section><section class="kpi last"><div class="eyebrow">OUTSTANDING</div><div class="metric">${money(t.outstanding_cents)}</div><small class="muted">On booked orders</small></section></div><div class="report-grid"><section class="panel"><div class="panel-header"><div><h2>Service breakdown</h2><p class="field-hint">Booked sales by product or service.</p></div></div>${r.services.length?`<div class="service-bars">${r.services.map(s=>`<div class="service-row"><div class="row between"><strong>${esc(publicProductName({name:s.name}))}</strong><span class="money">${money(s.revenue_cents)}</span></div><div class="report-bar"><span style="width:${Math.max(2,s.revenue_cents/max*100)}%"></span></div><div class="row between tiny muted"><span>${s.orders} orders / ${num(s.quantity)} units</span><span>${money(s.profit_cents)} profit / ${num(s.margin_percent)}%</span></div></div>`).join('')}</div>`:'<div class="empty">No booked orders in this period.</div>'}</section><section class="panel"><h2>Accounting snapshot</h2><div class="total-summary mt"><div class="line-total"><span>All incoming quote value</span><strong>${money(t.quoted_revenue_cents)}</strong></div><div class="line-total"><span>Booked product revenue</span><strong>${money(t.revenue_cents)}</strong></div><div class="line-total"><span>Estimated direct cost</span><strong>${money(t.cost_cents)}</strong></div><div class="line-total grand"><span>Estimated gross profit</span><span>${money(t.profit_cents)}</span></div><div class="line-total"><span>Sales tax on orders</span><strong>${money(t.tax_cents)}</strong></div></div><p class="field-hint mt">This is an operating report, not a tax return or full general ledger. Add final job costs to each order for the most useful profit estimate.</p></section></div><section class="panel table-wrap mt"><table><thead><tr><th>Order</th><th>Date / Customer</th><th>Status</th><th class="right">Revenue</th><th class="right">Est. profit</th><th class="right">Collected</th></tr></thead><tbody>${r.orders.map(o=>`<tr><td><a class="link" href="/staff#job/${Number(String(o.number).replace(/\\D/g,''))}">${esc(o.number)}</a><div class="sub">${esc(o.title)}</div></td><td>${esc(date(o.created_at))}<div class="sub">${esc(o.customer)}</div></td><td>${badge(o.stage==='complete'?'Completed':o.booked?'Active / unfinished':'Lead / pipeline',o.stage==='complete'?'green':o.booked?'blue':'orange')}</td><td class="right money">${money(o.revenue_cents)}</td><td class="right money">${money(o.profit_cents)}</td><td class="right money">${money(o.paid_cents)}</td></tr>`).join('')||'<tr><td colspan="6">No orders in this period.</td></tr>'}</tbody></table></section>`,'reports','Revenue & reports');
-}
-function jobCard(j){return `<a class="job-card" href="/staff#job/${j.id}"><div class="row between"><span class="eyebrow" style="font-size:9px;letter-spacing:.8px">${esc(j.number)}</span>${j.priority==='rush'?badge('RUSH','orange'):''}</div><h3>${esc(j.title)}</h3><p class="customer">${esc(j.customer_name)}</p><div class="amount money">${money(j.totals.total_cents)} <span class="muted tiny" style="font-weight:400">${j.published?'quoted':'draft'}</span></div><div class="row between tiny muted mb" style="margin-bottom:6px"><span>Production checklist</span><span>${j.tasks_done}/${j.task_count}</span></div><div class="progress"><span style="width:${j.task_count?j.tasks_done/j.task_count*100:0}%"></span></div><div class="card-bottom"><span>${j.due_date?'Due '+esc(j.due_date):'No due date yet'}</span><span class="avatar mini-avatar" title="${esc(j.assignee||'Unassigned')}">${esc(initials(j.assignee))}</span></div></a>`;}
-function renderBoard(){
-  const filter=($('#job-search')?.value||'').toLowerCase();
-  const jobs=state.jobs.filter(j=>(j.title+' '+j.customer_name+' '+j.number).toLowerCase().includes(filter));
-  const node=$('#job-board');if(!node)return;
-  if(state.boardMode==='list'){
-    node.innerHTML=`<section class="panel table-wrap"><table><thead><tr><th>Job / Customer</th><th>Stage</th><th>Owner</th><th>Progress</th><th class="right">Quoted total</th></tr></thead><tbody>${jobs.map(j=>`<tr><td><a class="link" href="/staff#job/${j.id}">${esc(j.number)} / ${esc(j.title)}</a><div class="sub">${esc(j.customer_name)}</div></td><td>${badge(stageLabels[j.stage],j.stage==='ready'||j.stage==='complete'?'green':'')}</td><td>${esc(j.assignee||'Unassigned')}</td><td>${j.tasks_done}/${j.task_count} tasks</td><td class="right money">${money(j.totals.total_cents)}</td></tr>`).join('')||'<tr><td colspan="5">No matching jobs.</td></tr>'}</tbody></table></section>`;
-  }else node.innerHTML=`<div class="board">${Object.entries(stageLabels).filter(([k])=>k!=='archived').map(([stage,label])=>`<section class="board-column"><div class="board-title"><span>${label}</span><span class="board-count">${jobs.filter(j=>j.stage===stage).length}</span></div>${jobs.filter(j=>j.stage===stage).map(jobCard).join('')||'<div class="column-empty">No jobs in this stage</div>'}</section>`).join('')}</div>`;
-}
-async function loadJob(id){
-  const [job,users,workflows]=await Promise.all([api('/api/staff/jobs/'+id),api('/api/staff/users'),api('/api/staff/workflows')]);
-  state.job=job;state.users=users.users;state.workflows=workflows.workflows;renderJob();
-}
-function readiness(job){
-  const accepted=job.accepted_version===job.quote_version;
-  const approved=job.proofs[0]?.status==='approved';
-  const funded=job.totals.deposit_remaining_cents===0;
-  return `<div class="job-status-grid noprint">${[[accepted,'Current quote',accepted?'Accepted by '+job.accepted_name:job.published?'Waiting for customer acceptance':'Draft - review before publishing'],[approved,'Latest proof',approved?'Version '+job.proofs[0].version+' approved':job.proofs.length?'Version '+job.proofs[0].version+' / '+titleCase(job.proofs[0].status):'No proof package yet'],[funded,job.checkout?'Payment':'Required deposit',job.checkout?(funded?'Paid in full':money(job.totals.balance_cents)+' remaining'):(funded?'Verified / no deposit outstanding':money(job.totals.deposit_remaining_cents)+' awaiting verification')]].map(([ok,t,sub])=>`<section class="status-check ${ok?'good':''}"><div class="check-icon">${icon(ok?'check':'clock','icon-sm')}</div><div><h4>${t}</h4><p>${esc(sub)}</p></div></section>`).join('')}</div>`;
-}
-function totalsSummary(job,includePaid=true){
-  const t=job.totals,q=job.quote;
-  const adjustment=t.merchandise_cents+(t.rewards_discount_cents||0)-q.subtotal_cents-job.extra_price_cents;
-  return `<div class="total-summary"><div class="line-total"><span class="muted">Product subtotal</span><strong>${money(q.subtotal_cents)}</strong></div>${job.extra_price_cents?`<div class="line-total"><span class="muted">Additional services</span><strong>${money(job.extra_price_cents)}</strong></div>`:''}${t.rewards_discount_cents?`<div class="line-total"><span class="muted">Credits & points</span><strong>âˆ’${money(t.rewards_discount_cents)}</strong></div>`:''}${adjustment?`<div class="line-total"><span class="muted">Agreed-price adjustment</span><strong>${money(adjustment)}</strong></div>`:''}<div class="line-total"><span class="muted">Delivery / shipping</span><strong>${money(t.shipping_cents)}</strong></div><div class="line-total"><span class="muted">Sales tax</span><strong>${money(t.tax_cents)}</strong></div><div class="line-total grand"><span>Total</span><span>${money(t.total_cents)}</span></div>${includePaid?`<div class="line-total"><span class="muted">Verified payments</span><strong>${money(t.paid_cents)}</strong></div><div class="line-total"><span class="muted">Balance remaining</span><strong>${money(t.balance_cents)}</strong></div><div class="divider"></div><div class="line-total"><span class="muted">${job.checkout?(t.balance_cents===0?'Paid in full':'Payment required (100%)'):`Required deposit (${num(job.deposit_percent)}%)`}</span><strong>${money(job.checkout?(t.balance_cents===0?t.paid_cents:t.total_cents):t.deposit_cents)}</strong></div>`:''}</div>`;
-}
-function quoteTable(job){return `<div class="table-wrap"><table><thead><tr><th>Product / Service</th><th>Size (in)</th><th>Qty</th><th>Net sq ft</th><th class="right">Price</th></tr></thead><tbody>${job.quote.lines.map((line,index)=>{const sized=line.width!==''&&line.height!==''&&line.width!=null&&line.height!=null;return `<tr><td><strong>${esc(line.name)}</strong>${line.description?'<div class="sub">'+esc(line.description)+'</div>':''}${(job.panel_photos||[]).filter(p=>p.line_index===index).map(p=>`<img src="/api/quote-photos/${p.id}" alt="Panel reference photo" style="display:block;max-width:190px;height:120px;object-fit:contain;margin-top:10px"><div class="sub">Panel reference photo</div>`).join('')}${line.manual_quote_line?'<div class="sub">Custom quote line</div>':line.review_required?'<div class="sub">Custom scope / reviewed by shop</div>':''}</td><td style="white-space:nowrap">${sized?esc(line.width)+' x '+esc(line.height):'â€”'}</td><td>${num(line.quantity)}${line.unit?' '+esc(line.unit):''}</td><td>${sized?num(line.net_sqft):'â€”'}</td><td class="right money">${money(line.sell_cents)}</td></tr>`}).join('')}${job.quote.minimum_order_adjustment_cents?`<tr><td colspan="4"><strong>Shop minimum order adjustment</strong></td><td class="right money">${money(job.quote.minimum_order_adjustment_cents)}</td></tr>`:''}</tbody></table></div>`;}
-function renderJob(){
-  const j=state.job;
-  let content='';
-  if(state.jobTab==='overview')content=jobOverview(j);
-  else if(state.jobTab==='production')content=jobProduction(j);
-  else if(state.jobTab==='proofs')content=jobProofs(j);
-  else if(state.jobTab==='payments')content=jobPayments(j);
-  else content=jobActivity(j);
-  if(state.catalog?.entitlements?.mobile_app!==false)content=`<div class="row mb"><a class="link tiny" href="/staff#surveys?job_id=${j.id}">${icon('image','icon-sm')} View saved site surveys & photos</a></div>`+content;
-  staffShell(`<a href="/staff#dashboard" class="tiny muted">&larr; Back to job board</a><div class="page-heading mt"><div><div class="row mb" style="margin-bottom:9px"><span class="eyebrow">${esc(j.number)}</span>${badge(stageLabels[j.stage],j.stage==='ready'||j.stage==='complete'?'green':'blue')}${j.priority==='rush'?badge('RUSH','orange'):''}</div><h1>${esc(j.title)}</h1><p>${esc(j.customer_name)} &nbsp; / &nbsp; ${esc(j.customer_email)}</p></div><div class="row wrap">${!j.assignee_id?'<button class="btn light" data-action="claim-job">'+icon('users','icon-sm')+' Claim job</button>':'<span class="tiny muted">Owner: '+esc(j.assignee)+'</span>'}<button class="btn primary" data-action="share-job">${icon('link','icon-sm')} Client portal link</button>${owner()?'<button class="btn danger" data-action="cancel-job">Cancel / remove from queue</button>':''}</div></div>${readiness(j)}<nav class="tabs">${[['overview','Quote & scope'],['production','Production tasks'],['proofs','Artwork & proofs'],['payments','Payments'],['activity','Activity']].map(([id,label])=>`<button class="tab ${state.jobTab===id?'active':''}" data-action="job-tab" data-value="${id}">${label}</button>`).join('')}</nav>${content}`,'dashboard',j.number);
-}
-async function completeSiteSurveyModal(){
-  const jobId=state.job.id,review=await api(`/api/staff/jobs/${jobId}/site-survey/review`);
-  showModal('Review & complete site survey',`<form data-form="complete-site-survey" class="stack" data-job-id="${jobId}" data-quote-version="${review.quote_version}"><p class="notice info">Review the saved field measurements against the current order. Save any phone drafts to the shop first. If dimensions changed, revise the quote and proof before printing.</p><h3>Current order Â· Quote version ${review.quote_version}</h3>${quoteTable({quote:review.quote})}${surveyReviewFields(review.surveys)}<label class="field"><span>Verified measurements / survey notes</span><textarea name="note" required maxlength="2000"></textarea></label>${checkbox('confirm','The site survey is complete and measurements have been checked against the order.')}${formFooter('Save completed survey')}</form>`,true);
-}
-function jobOverview(j){return `${j.rewards_redemption?.status==='reserved'?`<section class="panel mb"><h3>Applied credits & points Â· ${money(j.rewards_redemption.discount_cents)}</h3><p class="field-hint mt-sm">Return these unused balances before changing the price or cancelling the order. Any open payment checkout is expired first.</p><button class="btn light mt-sm" data-action="owner-release-rewards">Return unused client balance</button></section>`:''}${j.site_survey?.status==='requested'?`<section class="panel mb"><h3>Site survey requested Â· printing on hold</h3><p class="field-hint mt-sm">Confirm the additional survey fee with the client. After measuring, update any changed dimensions and obtain approval of the revised scope and proof.</p>${owner()?'<button class="btn light mt-sm" data-action="complete-site-survey">Record completed survey</button>':''}</section>`:''}<div class="job-columns"><section class="panel"><div class="panel-header"><div><div class="eyebrow">QUOTE VERSION ${j.quote_version}</div><h2 class="mt-sm">${j.published?'Customer quote':'Draft estimate'}</h2></div><div class="row"><button class="btn light small" data-action="print">${icon('print','icon-sm')} Print quote</button>${owner()&&!j.checkout?'<button class="btn light small" data-action="edit-quote">'+icon('edit','icon-sm')+' Final charges</button>':''}${owner()&&j.checkout?.status==='awaiting_payment'&&j.totals.paid_cents===0&&j.quote.lines.length===1&&!j.archived&&!j.production_started?'<button class="btn light small" data-action="online-price-correction">Correct unpaid price</button>':''}</div></div>${!j.charges_verified?(j.checkout?'<div class="notice info mb">Online order: tax and payment are confirmed at checkout. Unpaid price corrections are available to the owner; scope changes need a separate change order.</div>':'<div class="notice mb">Tax and delivery have not been verified. Check supplier costs, sheet yield, labor, removal and access before publishing.</div>'):''}${quoteTable(j)}${j.adjustment_note?'<div class="divider"></div><p class="tiny prewrap"><strong>Services / agreed price:</strong> '+esc(j.adjustment_note)+'</p>':''}<div style="max-width:345px;margin:24px 0 0 auto">${totalsSummary(j,false)}</div><div class="divider"></div><div class="eyebrow mb" style="margin-bottom:8px">INTERNAL JOB NOTES</div><p class="muted prewrap" style="font-size:12px">${esc(j.notes||'No additional scope notes.')}</p>${owner()&&!j.published?'<button class="btn primary mt noprint" data-action="publish-quote">Publish reviewed quote '+icon('arrow','icon-sm')+'</button>':''}${j.accepted_version===j.quote_version?'<div class="notice good mt">Accepted by '+esc(j.accepted_name)+' on '+date(j.accepted_at)+'.</div>':''}</section><div class="stack">${owner()?`<section class="panel noprint"><div class="eyebrow">INTERNAL ESTIMATE</div><h3 class="mt-sm">Profit guardrail</h3><div class="line-total mt"><span class="muted">Estimated cost + buffer</span><strong>${money(j.totals.cost_cents)}</strong></div><div class="line-total"><span class="muted">Estimated contribution</span><strong>${money(j.totals.profit_cents)}</strong></div><div class="row between mt-sm"><span class="muted tiny">After configured cost buffer</span>${badge(j.totals.margin_percent.toFixed(1)+'%',j.totals.margin_percent>=Number(j.quote.settings_snapshot.target_margin_percent)?'green':'orange')}</div><div class="divider"></div><div class="eyebrow">PRICE AT SAVED TARGET MARGIN</div><div class="metric mt-sm">${money(j.totals.suggested_pretax_cents)}</div><p class="field-hint mt-sm">Before tax. Estimated costs are not actual costs. Include unpriced labor, full-sheet purchases, equipment and delivery in Final charges.</p></section>`:''}<section class="panel noprint"><h3>Schedule & ownership</h3><div class="line-total mt"><span class="muted">Job owner</span><strong>${esc(j.assignee||'Unassigned')}</strong></div><div class="line-total"><span class="muted">Due</span><strong>${esc(j.due_date||'Not scheduled')}</strong></div><div class="line-total"><span class="muted">Priority</span><strong>${titleCase(j.priority)}</strong></div>${owner()?'<button class="btn light wide mt" data-action="schedule-job">Edit schedule</button>':''}</section></div></div>`;}
-function taskHtml(t,jobLink=false){
-  const mine=!t.assignee_id||t.assignee_id===state.user.id||owner();
-  const active=t.status==='in_progress';
-  return `<div class="task ${t.status==='done'?'done':''}"><div class="task-number">${t.status==='done'?icon('check','icon-sm'):t.position}</div><div class="grow">${jobLink?`<a href="/staff#job/${t.job_id}" class="eyebrow" style="font-size:9px">${esc(t.number)} / ${esc(t.job_title)}</a>`:''}<div class="task-title">${esc(t.title)}</div><div class="task-meta">${esc(t.department)} &nbsp; / &nbsp; ${esc(t.assignee||'Unassigned')} ${t.tracked_minutes!==undefined?' &nbsp; / &nbsp; '+num(t.tracked_minutes)+' min tracked':''}</div>${t.blocked_reason&&t.status!=='done'?'<div class="task-warning">'+icon('lock','icon-sm')+esc(t.blocked_reason)+'</div>':''}${t.note?'<p class="tiny prewrap mt-sm muted">'+esc(t.note)+'</p>':''}</div><div class="task-actions">${badge(titleCase(t.status),t.status==='done'?'green':active?'blue':t.status==='blocked'?'red':'')}${t.status!=='done'?`${!t.assignee_id?`<button class="btn light small" data-action="task" data-id="${t.id}" data-value="claim">Claim</button>`:''}${active?`<button class="btn light small" data-action="task" data-id="${t.id}" data-value="pause" ${mine?'':'disabled'}>Pause</button><button class="btn green small" data-action="task" data-id="${t.id}" data-value="complete" ${mine&&!t.blocked_reason?'':'disabled'}>Complete</button>`:`<button class="btn small" data-action="task" data-id="${t.id}" data-value="start" ${mine&&!t.blocked_reason?'':'disabled'}>${t.started_at?'Resume':'Start'}</button>`}<button class="btn light small" data-action="block-task" data-id="${t.id}" ${mine?'':'disabled'}>Block</button>${t.assignee_id&&mine&&!active?`<button class="btn ghost small" data-action="task" data-id="${t.id}" data-value="release">Release</button>`:''}`:''}</div></div>`;
-}
-function jobProduction(j){return `<section class="panel"><div class="panel-header"><div><h2>Production checklist</h2><p class="muted tiny mt-sm">${j.tasks_done} of ${j.task_count} complete. Starting a task also starts its time log.</p></div>${owner()?'<button class="btn light small" data-action="add-task">'+icon('plus','icon-sm')+' Add task</button>':''}</div><div class="notice info mb">Production tasks check prerequisites, the accepted quote, latest proof approval and verified deposit. Delivery also checks the remaining balance.</div>${j.tasks.map(t=>taskHtml(t)).join('')}</section>`;}
-function assetList(assets){return assets.length?assets.map(a=>`<a class="file-row" href="/api/assets/${a.id}" target="_blank" rel="noopener">${icon(a.mime==='image/png'?'image':'file')}<div class="grow"><strong>${esc(a.filename)}</strong><div class="muted tiny">${titleCase(a.kind)} / ${num(a.size/1024)} KB / ${date(a.created_at)}</div></div>${icon('arrow','icon-sm')}</a>`).join(''):'<div class="empty">No files uploaded yet.</div>';}
-function proofCard(proof,customer=false,terms=null){
-  if(!proof)return '<div class="empty">'+icon('image')+'<strong>No proof package yet</strong><p>The designer will publish a complete proof for review.</p></div>';
-  const decision=proof.decisions.at(-1);
-  return `<div class="row between mb"><div><div class="eyebrow">PROOF PACKAGE / VERSION ${proof.version}</div><h3 class="mt-sm">${esc(proof.label)}</h3></div>${badge(titleCase(proof.status),proof.status==='approved'?'green':proof.status==='changes_requested'?'red':'orange')}</div>${proof.mime==='image/png'?`<a href="/api/assets/${proof.asset_id}" target="_blank" rel="noopener"><img class="proof-preview" src="/api/assets/${proof.asset_id}" alt="${esc(proof.label)} - proof version ${proof.version}"></a>`:`<div class="empty">${icon('file')}<strong>PDF proof package</strong><p>Download and review every page before approving.</p><a class="btn light" href="/api/assets/${proof.asset_id}" target="_blank" rel="noopener">Download proof PDF</a></div>`}<div class="row between mt wrap"><a class="link tiny" href="/api/assets/${proof.asset_id}" target="_blank" rel="noopener">Open exact proof file ${icon('arrow','icon-sm')}</a><small class="muted">${date(proof.created_at)}</small></div>${proof.note?'<p class="muted tiny prewrap mt-sm">'+esc(proof.note)+'</p>':''}${decision?`<div class="notice ${decision.action==='approve'?'good':''} mt"><strong>${decision.action==='approve'?(proof.terms_acceptance?'Artwork & terms approved':decision.method==='owner_recorded_email'?'Email approval recorded':'Approved'):'Changes requested'} by ${esc(decision.signer_name)}</strong> / ${date(decision.created_at)}${decision.comment?'<br>'+esc(decision.comment):''}</div>`:''}${proof.terms_acceptance?'<div class="mt">'+termsDetails(proof.terms_acceptance.terms,'Terms accepted with this artwork Â· '+proof.terms_acceptance.version)+'</div>':proof.status==='pending'&&terms?'<section class="approval-agreement mt"><h3>Terms for this artwork proof</h3><p class="field-hint">Verify all artwork and measurements. A site survey costs extra. Approved artwork is final; changes after printing require a new paid order.</p>'+termsDetails(terms)+'</section>':''}<details class="proof-history mt"><summary>Proof details & file fingerprint</summary><p class="tiny prewrap muted">SHA-256: ${esc(proof.sha256)}<br>Approval is linked to this exact version and file, not just the job name.</p><div class="table-wrap mt-sm"><table><thead><tr><th>Item</th><th>Dimensions</th><th>Qty</th></tr></thead><tbody>${proof.specs.map(s=>`<tr><td>${esc(s.description||s.name)}</td><td>${esc(s.width)}" x ${esc(s.height)}"</td><td>${s.quantity}</td></tr>`).join('')}</tbody></table></div></details>${customer&&proof.status==='pending'?'<div class="row mt wrap"><button class="btn primary" data-action="approve-proof">Review artwork & terms</button><button class="btn light" data-action="request-changes">Request changes</button></div>':''}`;
-}
-function proofHistory(proofs){return proofs.length>1?`<section class="panel mt"><h3>Previous versions</h3>${proofs.slice(1).map(p=>`<details class="proof-history"><summary>Version ${p.version} / ${esc(p.label)} / ${titleCase(p.status)} - read only</summary>${proofCard(p)}</details>`).join('')}</section>`:'';}
-function jobProofs(j){const pending=j.proofs[0]?.status==='pending'?j.proofs[0]:null,drafts=j.assets.filter(a=>a.kind==='layout'&&a.mime==='application/pdf'&&a.filename.includes('-usdot-proof-DRAFT.pdf'));return `<div class="job-columns"><div><section class="panel">${proofCard(j.proofs[0],false,j.job_terms)}${pending?`<button class="btn primary wide mt" data-action="send-proof" data-id="${pending.id}">${icon('mail','icon-sm')} Send proof for approval</button><p class="field-hint mt-sm">Sends or re-sends the private link to review this proof and accept the artwork, sizing and production terms together.</p>${owner()?`<button class="btn light wide mt-sm" data-action="email-proof-approval" data-id="${pending.id}">Record approval received by email</button>`:''}`:''}</section>${proofHistory(j.proofs)}</div><div class="stack">${drafts.length?`<section class="panel"><h3>Generated USDOT PDF drafts</h3><p class="field-hint mt-sm">Review the layout and every job item before publishing a complete customer proof. These drafts have not been sent for approval.</p>${assetList(drafts)}</section>`:''}<section class="panel"><h3>Design & proof tools</h3><p class="field-hint mt-sm">Upload a complete proof package or generate a dimensioned panel layout using the job measurements and uploaded images.</p><button class="btn primary wide mt" data-action="upload-proof">${icon('image','icon-sm')} Upload complete proof</button>${state.catalog?.entitlements?.product_generators===false?'<p class="field-hint mt-sm">Panel generators require Business.</p>':`<button class="btn light wide mt-sm" data-action="layout">${icon('grid','icon-sm')} Generate panel layout</button>`}<p class="field-hint mt-sm">Generated layouts can be published as approval-ready proofs. They remain visual previews, not RIP-ready files or automatic vehicle/photo mockups.</p></section><section class="panel"><div class="panel-header"><h3>Artwork & references</h3><button class="btn light small" data-action="upload-artwork">${icon('plus','icon-sm')} Add</button></div>${assetList(j.assets.filter(a=>a.kind!=='proof'&&!drafts.some(d=>d.id===a.id)))}</section></div></div>`;}
-function paymentTable(j,customer=false){return j.payments.length?`<div class="table-wrap"><table><thead><tr><th>Transaction reference</th><th>Date</th><th class="right">Amount</th><th>Status</th></tr></thead><tbody>${j.payments.map(p=>`<tr><td>${esc(p.reference)}${p.note&&!customer?'<div class="sub">'+esc(p.note)+'</div>':''}</td><td>${date(p.created_at)}</td><td class="right money">${money(p.amount_cents)}</td><td>${badge(p.disputed?'Under review':p.refunded_cents?'Refund '+money(p.refunded_cents):p.voided_at?'Voided':'Verified',p.disputed||p.voided_at?'red':'green')}${owner()&&!customer&&!p.voided_at&&p.source!=='stripe'?`<button class="btn ghost small" data-action="void-payment" data-id="${p.id}">Correct</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No payments have been verified yet.</div>';}
-function jobPayments(j){if(j.checkout)return `<div class="job-columns"><section class="panel"><h2 class="mb">Online payment</h2><div class="notice info mb">Stripe confirms these receipts automatically. Use the Stripe Dashboard for refunds; never also record the same receipt in QuickBooks mode here. Accounting synchronization is not connected.</div>${paymentTable(j)}<p class="field-hint mt">Payment status: ${esc(titleCase(j.checkout.status))}. ${esc(j.checkout.fulfillment)}.</p></section><section class="panel">${totalsSummary(j)}</section></div>`;return `<div class="job-columns"><section class="panel"><div class="panel-header"><div><div class="eyebrow">QUICKBOOKS LINK MODE</div><h2 class="mt-sm">Payments & verification</h2></div>${owner()?'<button class="btn primary small" data-action="verify-payment">Record verified payment</button>':''}</div><div class="notice info mb">QuickBooks handles payment collection. This custom-job mode does not create QuickBooks invoices or automatically sync their payment status. An admin must verify each transaction in QuickBooks and record its reference here.</div>${paymentTable(j)}<div class="divider"></div><div class="panel-header"><h3>Customer payment destination</h3>${owner()?'<button class="btn light small" data-action="payment-link">'+icon('link','icon-sm')+' '+(j.payment_url?'Replace link':'Add QuickBooks link')+'</button>':''}</div>${j.payment_url?`<div class="row between wrap"><div><strong style="font-size:12px">${esc(j.invoice_reference)}</strong><p class="muted tiny">${j.payment_kind==='invoice'?'Invoice-specific online payment page':'Standalone payment link'}</p></div><a class="btn light" href="${esc(j.payment_url)}" target="_blank" rel="noopener noreferrer">Open in QuickBooks ${icon('arrow','icon-sm')}</a></div>`:'<p class="muted tiny">No QuickBooks payment link has been attached.</p>'}<p class="field-hint mt">Prefer the online payment link for the actual invoice. Standalone QuickBooks payment links have different bookkeeping behavior and are not a substitute for an existing invoice payment.</p></section><section class="panel"><h3 class="mb">Job balance</h3>${totalsSummary(j)}${j.checkout?(j.totals.balance_cents?'<div class="notice mt">Payment remaining: '+money(j.totals.balance_cents)+'</div>':'<div class="notice good mt">Online payment verified / paid in full.</div>'):(j.totals.deposit_remaining_cents?'<div class="notice mt">Deposit outstanding: '+money(j.totals.deposit_remaining_cents)+'</div>':'<div class="notice good mt">Required deposit verified.</div>')}</section></div>`;}
-function eventSummary(e){
-  const d=e.details||{};
-  if(d.message||d.comment||d.note)return d.message||d.comment||d.note;
-  if(d.filename)return 'File: '+d.filename;
-  if(d.proof_version)return 'Proof version '+d.proof_version+' / decision saved to the exact file.';
-  if(d.version)return 'Version '+d.version+(d.total_cents!==undefined?' / '+money(d.total_cents):'');
-  if(d.workflow)return 'Workflow: '+d.workflow;
-  if(d.amount_cents!==undefined)return money(d.amount_cents)+(d.reference?' / Reference: '+d.reference:'');
-  if(d.reference)return 'Reference: '+d.reference+(d.verified===false?' / awaiting shop verification':'');
-  if(d.requested_date)return (d.kind?d.kind+' / ':'')+'Requested '+d.requested_date+(d.window?' / '+d.window:'');
-  if(d.due_date)return 'Due: '+d.due_date;
-  return 'Saved to the job record.';
-}
-function eventsView(events){return events.length?events.map(e=>`<div class="audit-event"><h4>${esc(titleCase(e.action.replaceAll('.',' ')))}</h4><p>${esc(e.actor)} / ${date(e.created_at)}</p><p class="prewrap mt-sm">${esc(eventSummary(e))}</p></div>`).join(''):'<p class="muted tiny">No activity yet.</p>';}
+[™KJOOœ][İT™]š\Ú[Û”›İÊ[™KJJKš›Ú[Š	ÉÊ_OÙ]]ˆÛ\ÜÏH™]šY\ˆÙ]Ï”][İK[]™[Ú\™Ù\ÏÚÏ]ˆÛ\ÜÏH™šY[È‰Ú[œ]
+	Ù^˜WÜšXÙIË	ÓYØXŞHY][Û˜[Ù\šXÙ\ÈY\İY[
+	
+IË‹™^˜WÜšXÙWØÙ[ËÌL	Û[X™\‰Ë	ÛZ[HŒˆİ\H‹ŒH‰Ê_IÚ[œ]
+	Ù^˜WØÛÜİ	Ë	ÓYØXŞHY][Û˜[ÛÜİY\İY[
+	
+IË‹™^˜WØÛÜİØÙ[ËÌL	Û[X™\‰Ë	ÛZ[HŒˆİ\H‹ŒH‰Ê_IÚ[œ]
+	ÜšXÙWÛİ™\œšYIË	ĞYÜ™YYY\˜Ú[™\ÙH
+ÈÙ\šXÙ\ÈšXÙHİ™\œšYH
+	
+IË‹œšXÙWÛİ™\œšYWØÙ[ÏOO[[ÉÉÎš‹œšXÙWÛİ™\œšYWØÙ[ËÌL	Û[X™\‰Ë	ÛZ[HŒˆİ\H‹ŒH‰Ê_IÚ[œ]
+	Ù\ÜÚ]Ü\˜Ù[	Ë	Ô™\]Z\™Y\ÜÚ]	IË‹™\ÜÚ]Ü\˜Ù[	Û[X™\‰Ë	ÛZ[HŒˆX^HŒLˆİ\H‹ŒH‰Ê_IÚ[œ]
+	ÜÚ\[™ÉË	Ğİ\İÛY\ˆ[]™\HÈÚ\[™ÈÚ\™ÙH
+	
+IË‹İ[ËœÚ\[™×ØÙ[ËÌL	Û[X™\‰Ë	ÛZ[HŒˆİ\H‹ŒH‰Ê_IÚ[œ]
+	İ^	Ë	Õ™\šYšYYØ[\È^[[İ[
+	
+IË‹İ[Ë^ØÙ[ËÌL	Û[X™\‰Ë	ÛZ[HŒˆİ\H‹ŒH‰Ê_OÙ]Û\ÜÏH™šY[Z[‘›Üˆ™]ÈÛÜšË\ÙHÙ\\˜]H][İH[™\ÈX›İ™H[œİXYÙˆHYØXŞHY\İY[šY[ËˆHYÜ™YY\šXÙHİ™\œšYH™\XÙ\ÈH›ÙXİÜÙ\šXÙHİXİ[]›İÚ\[™ÈÜˆ^ÜX™[Û\ÜÏH™šY[Ü[İ\İÛY\‹]š\ÚX›H][İH›İOÜÜ[^\™XH˜[YOH˜Y\İY[Û›İHˆX^[™İHŒŒ‰Ù\ØÊ‹˜Y\İY[Û›İJ_Oİ^\™XOÛX™[‰ØÚXÚØ›Ş
+	ØÚ\™Ù\×İ™\šYšYY	Ë	ÒHÚXÚÙYHØÛÜK›ÙXİÜÙ\šXÙHšXÙ\Ë\İ[X]YÛÜİË^™X]Y[[™[]™\HÚ\™Ù\È›Üˆ\È›Ø‹‰Ë‹˜Ú\™Ù\×İ™\šYšYY
+_IÙ›Ü›Q›Ûİ\Š	ÔØ]™H™]š\ÙY][İIÊ_OÙ›Ü›O˜YJNßB™[˜İ[ÛˆØÚY[S[Ù[
 
-function jobActivity(j){return `${owner()&&j.email_inquiries?.length?'<section class="panel mb"><h3>Email correspondence</h3>'+j.email_inquiries.map(i=>'<a class="btn light mt-sm" href="/staff#email-inquiry/'+i.id+'">INQ-'+i.id+' Â· '+esc(i.title)+'</a>').join('')+'</section>':''}<div class="job-columns"><section class="panel"><h2 class="mb">Job activity</h2>${eventsView(j.events)}</section><section class="panel"><h3 class="mb">Add an update</h3><form data-form="staff-message" class="stack"><label class="field"><span>Message / note</span><textarea name="message" required maxlength="3000"></textarea></label>${checkbox('public','Share this message in the customer portal')}<div class="form-error"></div><button class="btn primary">Save update</button></form><p class="field-hint mt-sm">Customer-visible updates are saved in the portal and emailed to the customer when email delivery is available.</p></section></div>`;}
-async function loadQueue(){
-  const response=await api('/api/staff/task-queue');state.tasks=response.tasks;
-  staffShell(`<div class="page-heading"><div><div class="eyebrow mb" style="margin-bottom:8px">SHOP FLOOR</div><h1>Your next task, clearly.</h1><p>Pick up available work, start the timer, and move the job forward.</p></div></div><div class="filter-row"><div class="segmented">${[['available','Available'],['mine','Assigned to me'],['all','All open tasks']].map(([id,label])=>`<button data-action="queue-filter" data-value="${id}" class="${state.queueFilter===id?'active':''}">${label}</button>`).join('')}</div><p class="muted tiny">First 300 open tasks across active jobs</p></div><section class="panel" id="task-list"></section>`,'tasks','Task queue');renderQueue();
-}
-function renderQueue(){const tasks=state.tasks.filter(t=>state.queueFilter==='mine'?t.assignee_id===state.user.id:state.queueFilter==='available'?!t.assignee_id&&!t.blocked_reason:true);$('#task-list').innerHTML=tasks.map(t=>taskHtml(t,true)).join('')||'<div class="empty">No tasks in this view. Check All open tasks for prerequisites or blocked work.</div>';}
-async function ensureAdminData(){if(!owner())throw new Error('Owner/admin access required.');const [p,w]=await Promise.all([api('/api/admin/products'),api('/api/staff/workflows')]);state.products=p.products;state.workflows=w.workflows;}
-function quoteEditRow(index,pid){const product=state.products.find(p=>p.id===pid)||state.products[0], cfg=product.config;return `<div class="quote-line-edit" data-quote-line><select data-line-product aria-label="Product">${state.products.filter(p=>p.active).map(p=>`<option value="${p.id}" ${p.id===product.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select><input data-line-description placeholder="Location / description" aria-label="Location"><input data-line-width type="number" min="${esc(cfg.min_width||0.1)}" max="10000" step=".01" value="${esc(cfg.default_width)}" placeholder="Width (in)" aria-label="Width inches" required><input data-line-height type="number" min="${esc(cfg.min_height||0.1)}" max="10000" step=".01" value="${esc(cfg.default_height)}" placeholder="Height (in)" aria-label="Height inches" required><input data-line-quantity type="number" min="1" step="1" value="1" aria-label="Quantity" required><button type="button" class="close-btn" data-action="remove-line" aria-label="Remove line">&times;</button></div>`;}
-async function newJobView(){await ensureAdminData();staffShell(`<div class="page-heading"><div><div class="eyebrow mb" style="margin-bottom:8px">NEW PROJECT</div><h1>Build a job in minutes.</h1><p>Server-side pricing and a production checklist are created together.</p></div></div><section class="panel"><form data-form="new-job" class="stack"><div class="fields">${input('title','Job name','','text','required maxlength="180"')}${input('customer_name','Customer name','','text','required maxlength="120"')}${input('customer_email','Customer email','','email','required')}${input('phone','Phone','','tel')}${select('workflow_id','Production workflow',state.workflows.map(w=>[w.id,w.name]),state.workflows[0]?.id)}${input('due_date','Requested due date','','date')}</div><label class="field"><span>Customer-visible scope notes</span><textarea name="notes" placeholder="Measurements, materials, finishing, vehicle details, site access and exclusions."></textarea></label><div class="divider"></div><div class="panel-header"><h3>Products & measurements</h3><button type="button" class="btn light small" data-action="add-line">${icon('plus','icon-sm')} Add product line</button></div><p class="field-hint">Columns: product, location, width in inches, height in inches, quantity. Each row is one design / panel type.</p><div id="quote-lines">${quoteEditRow(0)}</div><div class="notice info">A job's rates and dimensions are saved at creation. Final charges lets you add labor, removal, equipment and delivery or enter an agreed price. For mixed products, choose a workflow that covers every operation.</div><div class="form-error"></div><div class="row between"><a class="btn light" href="/staff#dashboard">Cancel</a><button class="btn primary">Create job & calculate quote ${icon('arrow')}</button></div></form></section>`,'dashboard','New job');}
+^ØÛÛœİ\İ]Kš›ØÜÚİÓ[Ù[
+	ÔØÚY[H	ˆ\ÜÚYÛˆ\È›Ø‰Ë›Ü›H]KY›Ü›OHœØÚY[HˆÛ\ÜÏHœİXÚÈ‰Ú[œ]
+	ÙYWÙ]IË	ÑYH]IË‹™YWÙ]_	ÉË	Ù]IÊ_IÜÙ[Xİ
+	Ø\ÜÚYÛ™YWÚY	Ë	Ò›ØˆİÛ™\‰ËÖÌ	Õ[˜\ÜÚYÛ™Y	×K‹‹œİ]K\Ù\œË™š[\ŠOOK˜Xİ]™JK›X\
+OO–İKšYK›˜[YWJWK‹˜\ÜÚYÛ™YWÚY
+_IÜÙ[Xİ
+	Üš[Üš]IË	Ôš[Üš]IËÖÉÛ›Ü›X[	Ë	Ó›Ü›X[	×KÉÜ\Ú	Ë	Ô\Ú	×WK‹œš[Üš]J_IÙ›Ü›Q›Ûİ\Š
+_OÙ›Ü›O˜
+NßB™[˜İ[Ûˆ›ÛÙ•\ØY[Ù[
 
-/* Owner-editable catalog, workflows and users */
-async function loadProducts(){await ensureAdminData();staffShell(`<div class="page-heading"><div><div class="eyebrow mb" style="margin-bottom:8px">YOUR PRICING ENGINE</div><h1>Products. Rates. Your rules.</h1><p>Change your costs and selling rates without editing code.</p></div><button class="btn primary" data-action="new-product">${icon('plus')} Add product</button></div>${pricingNotice()}<div class="product-list mt">${state.products.map(p=>`<section class="panel product-card"><div class="row between"><span class="product-symbol">${esc(p.name[0])}</span><div class="row">${!p.active?badge('Inactive','red'):badge(p.public?'Public':'Internal only')}${badge(p.config.instant?'Instant estimate':'Review required',p.config.instant?'green':'orange')}</div></div><h3>${esc(p.name)}</h3><p class="muted tiny">${esc(p.category)} / Version ${p.version}</p><div class="rates"><div><span class="eyebrow" style="font-size:9px">SELL / SQ FT</span><strong>${money(Number(p.config.sell_per_sqft)*100)}</strong></div><div class="right"><span class="eyebrow" style="font-size:9px">COST / SQ FT</span><strong>${money(Number(p.config.cost_per_sqft)*100)}</strong></div></div><div class="row between tiny muted"><span>Min line price ${money(Number(p.config.minimum_price)*100)}</span><span>Waste ${num(p.config.waste_percent)}%</span></div><button class="btn light wide mt" data-action="edit-product" data-id="${p.id}">${icon('edit','icon-sm')} Edit product & pricing</button></section>`).join('')}</div><p class="field-hint mt">Pricing uses net rectangular area, setup, graduated quantity bands and a cost-based margin floor. Waste affects internal material cost, not displayed square footage. Existing job snapshots do not reprice when this catalog changes.</p>`,'products','Products & rates');}
-async function loadWorkflows(){if(!owner())throw new Error('Owner access required.');const r=await api('/api/staff/workflows');state.workflows=r.workflows;staffShell(`<div class="page-heading"><div><div class="eyebrow mb" style="margin-bottom:8px">REPEATABLE PRODUCTION</div><h1>A process for every product.</h1><p>Customize departments, prerequisites and approval/payment checks.</p></div><button class="btn primary" data-action="new-workflow">${icon('plus')} New workflow</button></div><div class="notice info mb">Workflow edits apply to new jobs only. Existing job checklists keep their original tasks. Production-gated work requires quote + latest proof + deposit; delivery also requires the final balance.</div><div class="product-list">${state.workflows.map(w=>`<section class="panel"><div class="row between"><h3>${esc(w.name)}</h3>${badge('v'+w.version)}</div><div class="workflow-steps mt">${w.steps.map(s=>`<div class="workflow-step"><span>${esc(s.title)}</span>${badge(s.gate,s.gate==='production'?'blue':s.gate==='delivery'?'green':'')}</div>`).join('')}</div><button class="btn light wide mt" data-action="edit-workflow" data-id="${w.id}">Edit workflow</button></section>`).join('')}</div>`,'workflows','Production workflows');}
-async function loadTeam(){if(!owner())throw new Error('Owner access required.');const r=await api('/api/staff/users');state.users=r.users;staffShell(`<div class="page-heading"><div><div class="eyebrow mb" style="margin-bottom:8px">THE PEOPLE BEHIND THE PRINT</div><h1>Your shop team.</h1><p>Employees can claim work, upload proofs and run production tasks. Only admins change prices or verify payments.</p></div><button class="btn primary" data-action="new-user">${icon('plus')} Add teammate</button></div><section class="panel table-wrap"><table><thead><tr><th>Team member</th><th>Role</th><th>Status</th><th>Access</th></tr></thead><tbody>${state.users.map(u=>`<tr><td><div class="row"><span class="avatar">${esc(initials(u.name))}</span><div><strong>${esc(u.name)}</strong><div class="sub">${esc(u.email)}</div></div></div></td><td>${badge(u.role==='admin'?'Owner / Admin':'Employee',u.role==='admin'?'blue':'')}</td><td>${badge(u.active?'Active':'Disabled',u.active?'green':'red')}</td><td>${u.id===state.user.id?'<span class="tiny muted">Your account</span>':`<button class="btn light small" data-action="reset-user" data-id="${u.id}">Reset password</button> <button class="btn ${u.active?'danger':'light'} small" data-action="toggle-user" data-id="${u.id}" data-value="${u.active?'false':'true'}">${u.active?'Disable':'Enable'}</button>`}</td></tr>`).join('')}</tbody></table></section>`,'team','Team access');}
-async function loadSettings(){if(!owner())throw new Error('Owner access required.');const [s,emailState,wholesaleState]=await Promise.all([api('/api/admin/settings'),api('/api/admin/email-status'),api('/api/admin/wholesale')]);state.shopSettings=s;state.wholesaleAdmin=wholesaleState;staffShell(`<div class="page-heading"><div><div class="eyebrow mb" style="margin-bottom:8px">BUILT AROUND YOUR SHOP</div><h1>Set your defaults once.</h1><p>New quotes use these defaults. Existing jobs keep their saved assumptions.</p></div></div><form data-form="settings"><div class="settings-grid"><section class="panel stack"><h3>Shop identity</h3>${input('shop_name','Shop name',s.shop_name,'text','required')}${input('contact_email','Customer contact email',s.contact_email,'email')}${input('contact_phone','Customer contact phone',s.contact_phone)}<label class="field"><span>Customer calculator note</span><textarea name="quote_note">${esc(s.quote_note)}</textarea></label></section><section class="panel stack"><h3>Cost & pricing defaults</h3><div class="fields">${input('target_margin_percent','Target contribution margin %',s.target_margin_percent,'number','min="0" max="90" step=".1" required')}${input('overhead_percent','Cost buffer %',s.overhead_percent,'number','min="0" max="200" step=".1" required')}${input('labor_cost_per_hour','Labor cost / hour ($)',s.labor_cost_per_hour,'number','min="0" step=".01" required')}${input('labor_sell_per_hour','Labor selling rate / hour ($)',s.labor_sell_per_hour,'number','min="0" step=".01" required')}${input('minimum_order_price','Shop minimum order ($)',s.minimum_order_price??35,'number','min="0" step=".01" required')}${input('deposit_percent','Default required deposit %',s.deposit_percent,'number','min="0" max="100" step=".1" required')}</div><p class="field-hint">Labor rates apply to the minutes-per-unit allowance in each product. For job-level design, removal, installation, lifts or other services, add cost and selling amounts in Final charges. Do not double count bundled labor.</p>${checkbox('rates_live','I have reviewed my catalog and want to remove the demonstration-rate warning from the calculator.',s.rates_live)}<div class="notice info">Installed wraps can show an instant estimate but always require shop review. Ready-to-print products can use online checkout after payment setup below.</div></section></div><section class="panel stack mt"><div class="row between"><h3>Online checkout</h3>${badge(s.checkout_connection?.configured?(s.checkout_connection.test_mode?'Stripe test account':'Stripe live account'):'Payment account not connected',s.checkout_connection?.configured?'green':'orange')}</div><p class="field-hint">Server secrets configure Stripe hosted checkout. Never put secret keys in a browser field or a public repository. QuickBooks invoice links remain available for custom jobs.</p>${checkbox('checkout_enabled','Enable instant purchase for eligible products',s.checkout_enabled)}<div class="fields"><div class="stack">${checkbox('checkout_pickup_enabled','Allow local pickup',s.checkout_pickup_enabled)}${input('checkout_pickup_address','Actual pickup address',s.checkout_pickup_address)}${input('checkout_pickup_tax_percent','Verified pickup sales tax %',s.checkout_pickup_tax_percent,'number','min="0" max="30" step=".001"')}<p class="field-hint">No tax rate is assumed. Verify the correct rate for your pickup location.</p></div><div class="stack">${checkbox('checkout_shipping_enabled','Allow US flat-rate shipping',s.checkout_shipping_enabled)}${input('checkout_shipping_price','Shipping charge per order ($)',s.checkout_shipping_price,'number','min="0" step=".01"')}<p class="field-hint">Shipping uses Stripe Tax. Configure registrations and product tax settings in Stripe, then verify the shipping charge covers all eligible sizes before enabling.</p></div></div><label class="field"><span>Order confirmation terms</span><textarea name="checkout_terms" required>${esc(s.checkout_terms)}</textarea></label>${checkbox('checkout_tax_reviewed','I have verified tax, shipping, pickup details and checkout terms for my catalog.',s.checkout_tax_reviewed)}<p class="field-hint">Changing these defaults affects future orders only. Submitted online orders keep their price and checkout-policy snapshots.</p></section><div class="form-error"></div><div class="row mt" style="justify-content:flex-end"><button class="btn primary">Save shop settings</button></div></form><section class="panel mt"><h3>Payment integration mode</h3><p class="muted mt-sm" style="font-size:12px">Online standard orders: Stripe-hosted card checkout with signed payment confirmation. Custom jobs: QuickBooks invoice links with owner verification. Automatic QuickBooks invoice creation/sync is not connected. Payment is separate from proof approval.</p></section><section class="panel mt"><div class="row between"><h3>Email notifications</h3><div class="row">${badge(emailState.configured?'Connected':'Not configured',emailState.configured?'green':'red')}<button class="btn light small" data-action="email-test" ${emailState.configured?'':'disabled'}>Send test to me</button></div></div><p class="muted mt-sm" style="font-size:12px">Provider: ${esc(emailState.provider||'Not connected')} / Sent: ${emailState.counts.sent||0} / Failed: ${emailState.counts.failed||0}</p>${emailState.recent?.find(x=>x.status==='failed')?`<div class="notice mt">Latest failure: ${esc(emailState.recent.find(x=>x.status==='failed').error||'Unknown email error')}</div>`:''}<p class="field-hint mt-sm">Order received, proof approval, production and completion messages are logged here. Failed sends are retried when that event is sent again.</p></section><section class="panel mt"><div class="row between"><div><h3>Wholesale client pricing</h3><p class="field-hint mt-sm">Private negotiated pricing. Each client signs in with a username and password, and can stay signed in on their device for up to 30 days.</p></div><button class="btn primary small" data-action="new-wholesale">${icon('plus','icon-sm')} Add client</button></div>${wholesaleState.clients.length?`<div class="table-wrap mt"><table><thead><tr><th>Client</th><th>Username</th><th>Email</th><th>Default</th><th>Overrides</th><th>Status</th><th></th></tr></thead><tbody>${wholesaleState.clients.map(c=>`<tr><td><strong>${esc(c.name)}</strong></td><td>${esc(c.username)}</td><td>${esc(c.email)}</td><td>${esc(c.discount_percent)}% off</td><td>${c.product_discounts.length}</td><td>${badge(c.active?'Active':'Paused',c.active?'green':'orange')}</td><td class="right"><button class="btn light small" data-action="edit-wholesale" data-id="${c.id}">Edit</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty mt">No wholesale pricing profiles yet.</div>'}</section>`,'settings','Shop settings');}
-async function loadAudit(){if(!owner())throw new Error('Owner access required.');const r=await api('/api/admin/events');staffShell(`<div class="page-heading"><div><h1>Activity, with a paper trail.</h1><p>Latest 300 staff actions, proof decisions and verified payment records.</p></div></div><section class="panel">${eventsView(r.events)}</section>`,'audit','Activity log');}
+^ÜÚİÓ[Ù[
+	ÔX›\ÚHÛÛ\]H›ÛÙˆXÚØYÙIË›Ü›H]KY›Ü›OH\ØY\›ÛÙˆˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH’[˜ÛYH]™\H][H[ˆH›Ø‹ˆ›Üˆ][\H[™[Ë\ØYÛ™HÛÛXš[™Y[XYÙHÜˆH][K\YÙH‹ˆH™]È™\œÚ[Ûˆ™\XÙ\ÈHİ\œ™[›ÛÙˆ›Üˆ\›İ˜[]™\Ù\™\ÈX\›Y\ˆXÚ\Ú[ÛœËÙ]‰Ú[œ]
+	ÛX™[	Ë	Ô›ÛÙˆ]IË	ĞÛÛ\]H›Øˆ›ÛÙ‰Ë	İ^	Ë	Ü™\]Z\™YX^[™İHŒN‰Ê_OX™[Û\ÜÏH™šY[Ü[”‘Ë”QÈÜˆˆÈX^[][HLPÜÜ[[œ]\OH™š[Hˆ˜[YOH™š[HˆXØÙ\H‹œ™ËšœËšœYËœˆˆ™\]Z\™YÛX™[X™[Û\ÜÏH™šY[Ü[İ\İÛY\‹]š\ÚX›H›ÛÙˆ›İ\ÏÜÜ[^\™XH˜[YOH››İHˆX^[™İHŒÌİ^\™XOÛX™[‰ØÚXÚØ›Ş
+	ØÛİ™\œ×Ø[Ú][\ÉË	Õ\È›ÛÙˆXÚØYÙHÛİ™\œÈ[›ÙXİÈ[™[™[È[ˆH›Ø‹‰Ê_OÛ\ÜÏH™šY[Z[”œÈ\™HİÛ›ØY[Û›KˆÛY[È]\İ™]šY]È]™\HYÙH™Y›Ü™H\›İš[™ËÜ‰Ù›Ü›Q›Ûİ\Š	ÔX›\Ú›ÛÙˆ™\œÚ[Û‰Ê_OÙ›Ü›O˜
+NßB™[˜İ[Ûˆ\ÛÜšÓ[Ù[
+Ü[Y˜[ÙJ^ØÛÛœİ›Ø\Ü[Üİ]KœÜ[›Øœİ]Kš›ØÜÚİÓ[Ù[
+	Õ\ØY\ÛÜšÈÜˆH™Y™\™[˜ÙIË›Ü›H]KY›Ü›OH˜\ÛÜšÈˆ]KZ›Ø‹ZYH‰Ú›Ø‹šYHˆ]K\Ü[H‰ÜÜ[HˆÛ\ÜÏHœİXÚÈX™[Û\ÜÏH™šY[Ü[”‘Ë”QÈÜˆˆÈX^[][HLPÜÜ[[œ]\OH™š[Hˆ˜[YOH™š[HˆXØÙ\H‹œ™ËšœËšœYËœˆˆ™\]Z\™YÛX™[Û\ÜÏH™šY[Z[\ÛÜšÈ\ÈHÛİ\˜ÙKÜ™Y™\™[˜ÙHš[K›İ[ˆ\›İ™Y›ÛÙ‹ˆ[XYÙ\È\™H›Ü›X[^™YÈ‘È›ÜˆØY™H\Ü^KˆˆÜšYÚ[˜[È\™HİÜ™Y›ÜˆİÛ›ØYÜ‰Ù›Ü›Q›Ûİ\Š	Õ\ØYš[IÊ_OÙ›Ü›O˜
+NßB™[˜İ[Ûˆ^[İ][Ù[
 
-/* Customer portal: no internal costs, rates or staff notes */
-async function loadPortal(){
-  const hash=new URLSearchParams(location.hash.slice(1));const token=hash.get('token'),invoiceId=Number(hash.get('invoice'));
-  if(token){history.replaceState(null,'','/portal');const result=await api('/api/portal/exchange','POST',{token});state.csrf=result.csrf;}
-  try{const [job,rewards]=await Promise.all([api('/api/portal/job'),api('/api/portal/rewards')]);state.portalJob=job;state.portalRewards=rewards;if(invoiceId&&(job.invoices||[]).some(i=>i.id===invoiceId)){location.assign('/api/invoices/'+invoiceId);return;}renderPortal();}
-  catch(error){app.innerHTML=publicHeader()+`<main class="portal-page"><section class="panel" style="max-width:620px;margin:60px auto"><div class="eyebrow mb">PRIVATE CUSTOMER PORTAL</div><h1>Your project lives here.</h1><p class="muted mt">Open the private link supplied by your shop to view your quote, approve artwork and pay your invoice.</p><div class="notice mt">${esc(error.message)}</div><p class="field-hint mt">Links expire after 14 days or when the shop replaces them. This link grants access to one job; keep it private.</p><a href="/" class="btn light mt">Back to pricing</a></section></main>`;}
-}
-function selfApprovalBox(j,accepted){
-  const artwork=j.assets.filter(asset=>asset.kind==='artwork');
-  const eligible=accepted&&!j.proofs.length&&artwork.length&&!j.quote.review_required&&!j.site_survey?.status?.includes('requested');
-  if(!eligible)return '';
-  return '<div class="notice info mt"><strong>Your uploads can be your proof.</strong><p class="mt-sm">Review every file, printed side and finished size, then approve once. The same artwork will not need a second approval.</p><button class="btn primary small mt-sm" data-action="portal-approve-previews">Review uploads & accept terms</button></div>';
-}
-function portalUploadApproval(){
-  const j=state.portalJob,assets=j.assets.filter(asset=>asset.kind==='artwork');
-  showModal('Approve uploaded artwork & accept terms',`<form data-form="portal-upload-approval" class="stack"><p class="field-hint">Open each source file and review every printed side. Assign every approved file to the matching product. Your approval covers these exact files and ordered sizes.</p>${assets.map(asset=>{const mapped=suggestedLines(asset.filename,j.quote.lines);return `<article class="checkout-proof-file"><a class="checkout-file-preview" href="/api/assets/${asset.id}" target="_blank" rel="noopener">${asset.mime==='image/png'?`<img src="/api/assets/${asset.id}" alt="${esc(asset.filename)}">`:'<span>PDF Â· Open every page â†—</span>'}</a><div><strong class="file-name">${esc(asset.filename)}</strong><label class="check mt-sm"><input type="checkbox" data-portal-proof-file="${asset.id}" ${/photo-mockup|reference/i.test(asset.filename)?'':'checked'}><span>Include this file in my approved proof</span></label><fieldset class="proof-file-mapping"><legend>Print this file on:</legend>${j.quote.lines.map((line,index)=>line.artwork_upload_disabled?'':`<label class="check"><input type="checkbox" data-portal-proof-asset="${asset.id}" data-portal-proof-line="${index}" ${mapped.includes(index)?'checked':''}><span>Item ${index+1} Â· ${esc(line.name)} Â· ${esc(line.width)} Ã— ${esc(line.height)} in Â· Qty ${line.quantity}</span></label>`).join('')}</fieldset></div></article>`;}).join('')}${input('name','Your full name',j.customer_name,'text','required maxlength="120"')}${approvalAgreement(j.job_terms,j.approval_statement)}${formFooter('Approve artwork & accept terms')}</form>`,true);
-}
+^ØÛÛœİ\İ]Kš›Ø‹\Z‹˜\ÜÙ]Ë™š[\ŠOO˜K›Z[YOOOIÚ[XYÙKÜ™ÉÉ‰˜KšÚ[™OOIØ\ÛÜšÉÊKš[X›OZ‹œ][İK›[™\Ë›X\
 
-function projectCenterOverview(j,accepted){
-  const proof=j.proofs?.[0],balance=j.totals?.balance_cents||0;
-  let next='We are reviewing your project',detail='Your request is saved. We will publish the next step here as soon as it is ready.',action='';
-  if(j.published&&!accepted){
-    next='Review your quote';
-    detail='Confirm the project scope and price so we can move into artwork and proofing.';
-    action='<a class="btn primary" href="#portal-quote">Review quote</a>';
-  }else if(accepted&&proof?.status==='pending'){
-    next='Approve your proof';
-    detail='Review version '+proof.version+' carefully. Approve it or request changes before production.';
-    action='<a class="btn primary" href="#portal-proof">Review proof</a>';
-  }else if(accepted&&proof?.status==='changes_requested'){
-    next='We are revising your proof';
-    detail='Your requested changes are recorded. A new proof version will appear here when it is ready.';
-  }else if(accepted&&proof?.status==='approved'&&balance>0){
-    next='Complete payment';
-    detail='Your artwork is approved. Complete the required payment to keep production moving.';
-    action='<a class="btn primary" href="#portal-payment">View payment</a>';
-  }else if(j.stage==='production'){
-    next='Your project is in production';
-    detail='Your approved project is moving through production. We will update this page as it progresses.';
-  }else if(j.stage==='finished'){
-    next='Your project is complete';
-    detail='Keep this page for your records, reorders, files and final project details.';
-  }
-  const artworkCount=(j.assets||[]).filter(a=>a.kind==='artwork').length;
-  const proofState=proof?('Version '+proof.version+' Â· '+titleCase(proof.status)):(artworkCount?'Artwork received':'Waiting for artwork / proof');
-  const paymentState=balance?money(balance)+' due':(j.published?'No balance due':'Quote pending');
-  const scheduleState=j.due_date?('Requested '+j.due_date):(j.priority==='rush'?'Rush requested':'Not scheduled');
-  return `<section class="project-center-overview">
-    <article class="project-next-action"><div><span>NEXT STEP</span><h2>${esc(next)}</h2><p>${esc(detail)}</p></div>${action}</article>
-    <div class="project-status-strip">
-      <article><span>PROOF</span><strong>${esc(proofState)}</strong></article>
-      <article><span>PAYMENT</span><strong>${esc(paymentState)}</strong></article>
-      <article><span>SCHEDULE</span><strong>${esc(scheduleState)}</strong></article>
-    </div>
-  </section>`;
-}
-function renderPortal(){
-  const j=state.portalJob,accepted=j.accepted_version===j.quote_version,co=j.checkout,custom=j.custom_checkout;
-  const acceptsArtwork=j.quote.lines.some(line=>!line.artwork_upload_disabled);
-  const index=['received','production','finished'].indexOf(j.stage);
-  const returning=new URLSearchParams(location.search).get('payment');
-  let payment='';
-  if(co){
-    if(co.status==='paid')payment='<div class="notice good mt">Payment received. Thank you!</div>';
-    else if(['refunded','partly_refunded','payment_review'].includes(co.status))payment='<div class="notice mt">'+esc(titleCase(co.status))+'. Please contact us about this order.</div>';
-    else payment=`${co.test_mode?'<div class="notice mt">Test checkout / no live payments</div>':''}<button class="btn primary wide mt" data-action="online-pay" ${co.can_pay?'':'disabled'}>Continue to secure payment ${icon('arrow')}</button><p class="field-hint mt-sm">${co.can_pay?'Review the final total on the secure payment page. Approved upload previews count as your proof. If artwork is still pending, printing waits for approval.':!accepted?'Review and accept the updated quote to unlock payment.':'Online payment is not connected or is currently paused. Please contact us.'}</p>`;
-  }else if(j.totals.balance_cents===0)payment='<div class="notice good mt">Paid in full. Thank you!</div>';
-  else if(custom?.status==='payment_review')payment='<div class="notice mt">Payment needs shop review. Please contact us before trying another payment.</div>';
-  else if(custom?.available&&accepted)payment=`${custom.test_mode?'<div class="notice mt">Test checkout / no live payments</div>':''}<button class="btn primary wide mt" data-action="custom-pay">Approve & Pay ${icon('arrow')}</button><p class="field-hint mt-sm">Your quote is approved. Choose the required deposit or pay the full remaining balance securely by card.</p>`;
-  else if(j.payment_url&&accepted)payment=`<a href="${esc(j.payment_url)}" target="_blank" rel="noopener noreferrer" class="btn primary wide mt">Pay in QuickBooks ${icon('arrow')}</a><button class="btn light wide mt-sm" data-action="payment-notice">I have made a payment</button><p class="field-hint mt-sm">We verify QuickBooks payments before updating your balance.</p>`;
-  else payment='<div class="notice info mt">Approve the current quote to unlock payment options.</div>';
+JOOŠÛ_JJK™š[\ŠO›˜\ÛÜš×Ü™\]Z\™YOOY˜[ÙI‰ˆ^›˜\ÛÜš×İ\ØYÙ\ØX›Y	‰›ÚYOOIÉÉ‰›šZYÚOOIÉÊNÚYŠ\š[X›K›[™İ
+]›İÈ™]È\œ›ÜŠ	Õ\È][İH\È›È›ÙXİ[™\È]™\]Z\™H[ˆ\ÛÜšÈ^[İ]‰ÊNÜÚİÓ[Ù[
+	ÑÙ[™\˜]HH[Y[œÚ[Û™Y[™[^[İ]	Ë›Ü›H]KY›Ü›OH›^[İ]ˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH[™›È”Ù\šXÙK[Û›H][İH[™\È\™H^ÛYYˆXXÚš[X›H[™[\Ù\È]ÈØ]™YÚY[™ZYÚ]Û™H™[]]™HØØ[KÙ]‰Üš[X›K›X\
 
-  const projectDetails=`<details class="portal-more-details">
-    <summary><span><strong>More project details</strong><small>Updates, proof history, scheduling, QR status and messages</small></span><span class="details-chevron">âŒ„</span></summary>
-    <div class="portal-more-grid">
-      ${proofHistory(j.proofs)}
-      <section class="panel"><h3 class="mb">Order updates</h3>${eventsView(j.events.slice(0,12))}</section>
-      <section class="panel"><h3>Schedule the next step</h3><p class="field-hint mt-sm">Request a site survey, consultation, installation window, or pickup coordination.</p><button class="btn light mt" data-action="portal-appointment">Request a time</button></section>
-      <section class="panel"><h3>Shareable job-status QR</h3><p class="field-hint mt-sm">Creates a limited status link without quote, artwork, proof, payment, or customer details.</p><button class="btn light mt" data-action="portal-status-qr">Show status QR</button></section>
-      <section class="panel"><h3 class="mb">Message the shop</h3><form data-form="portal-message" class="stack"><label class="field"><span>Your message</span><textarea name="message" required maxlength="3000" placeholder="Question about this project..."></textarea></label><div class="form-error"></div><button class="btn light">Send message ${icon('mail','icon-sm')}</button></form></section>
-      <p class="tiny muted portal-private-note">Keep your private Project Center link secure. It includes quote and proof access.</p>
-    </div>
-  </details>`;
+Û_JOOœÙ[Xİ
+	Ø\ÉÊÚK
+™\ØÜš\[ÛŸ›˜[YJJÉÈÈ	ÊÛÚY
+ÉÈˆ	ÊÛšZYÚ
+ÉÈ‰ËÖÉÉË	Ğ›[šÈYX\İ\™[Y[[\]I×K‹‹˜\›X\
+OO–ØKšYK™š[[˜[YWJWK	ÉÊJKš›Ú[Š	ÉÊ_IÜÙ[Xİ
+	Ùš]	Ë	Ğ\ÛÜšÈš][™ÉËÖÉØÛÛZ[‰Ë	Ñš]ÚÛH\ÛÜšÈ
+X^HX]™HX\™Ú[œÊI×KÉØÛİ™\‰Ë	Ñš[[™[
+X^HÜ›Ü\ÛÜšÊI×WK	ØÛÛZ[‰Ê_IØÚXÚØ›Ş
+	ÜX›\ÚØ\×Ü›ÛÙ‰Ë	ÔX›\Ú\ÈHÛÛ\]H›ÛÙˆ›Üˆİ\İÛY\ˆ\›İ˜[
+\ÛÜšÈ]\İ™H\ÜÚYÛ™YÈ]™\Hš[X›H›ÙXİ
+K‰Ê_OÛ\ÜÏH™šY[Z[“X]™HH›Ş[˜ÚXÚÙYÈÜ™X]HH™Y™\™[˜ÙH^[İ]Û›Kˆ\ØY[XYÙH\ÛÜšÈš\œİÈ\ÜÚYÛˆ]Èš[X›H›ÙXİËÜ‰Ù›Ü›Q›Ûİ\Š	ÑÙ[™\˜]H^[İ]	Ê_OÙ›Ü›O˜
+NßB™[˜İ[Ûˆ^[Y[[šÓ[Ù[
 
-  app.innerHTML=publicHeader()+`<main class="portal-page">
-    <section class="portal-hero">
-      <div class="row between"><div><div class="eyebrow">PROJECT CENTER / ${esc(j.number)}</div><h1>${esc(j.title)}</h1><p class="muted mt-sm">${esc(j.customer_name)} Â· ${esc(customerStages[j.stage]||'Order received')}</p></div><button class="btn light small" data-action="portal-refresh">${icon('refresh','icon-sm')} Refresh</button></div>
-      <ol class="customer-progress" aria-label="Order progress">${[['received','Order received'],['production','In production'],['finished','Finished']].map(([key,label],i)=>`<li class="${i<=index?'active':''}" ${i===index?'aria-current="step"':''}><span>${i<index?icon('check','icon-sm'):i+1}</span><strong>${label}</strong></li>`).join('')}</ol>
-    </section>
-    ${projectCenterOverview(j,accepted)}${j.invoices?.length?`<section class="panel mb"><h3>Invoices</h3><div class="stack mt">${j.invoices.map(i=>`<a class="btn light" href="/api/invoices/${i.id}" target="_blank" rel="noopener">View invoice ${esc(i.number)} Â· Quote v${i.quote_version}</a>`).join('')}</div></section>`:''}${j.site_survey?.status==='requested'?'<div class="notice mb">Site survey requested. The shop will confirm the extra fee and appointment. Printing is on hold until measurements are verified.</div>':''}
-    ${returning==='received'&&co?.status==='awaiting_payment'?'<div class="notice info mb">We are confirming your payment. Please do not pay again while confirmation is pending.</div>':''}
-    ${returning==='cancelled'?'<div class="notice mb">Checkout was cancelled. Your project is saved; you can resume payment below.</div>':''}
-    <div class="portal-grid">
-      <div class="stack">
-        <section class="panel portal-primary-panel" id="portal-quote"><div class="panel-header"><div><div class="eyebrow">${co?'YOUR ORDER':'YOUR QUOTE'}</div><h2 class="mt-sm">${co?'Project details':j.published?'Review your quote':'We have your request'}</h2></div>${badge(accepted?'Confirmed':j.published?'Review quote':'Quote requested',accepted?'green':'orange')}</div>${!j.published?'<div class="notice info mb">Our team is reviewing your project and will publish your quote here.</div>':''}${quoteTable(j)}${j.adjustment_note?'<p class="tiny muted prewrap mt">'+esc(j.adjustment_note)+'</p>':''}${j.published&&!accepted?'<button class="btn primary mt" data-action="accept-quote">Review & accept quote</button>':''}</section>
-        <section class="panel portal-primary-panel" id="portal-proof"><div class="eyebrow mb">PROOF</div><h2 class="mb">Your project proof</h2><p class="muted tiny mb">Check artwork, spelling, dimensions and placement. Production follows your approval.</p>${proofCard(j.proofs[0],accepted,j.job_terms)}${(j.proofs[0]?.approved_files||[]).map(file=>`<a class="file-row" href="/api/assets/${file.asset_id}" target="_blank" rel="noopener">${esc(file.filename)} Â· Approved source â†—</a>`).join('')}${selfApprovalBox(j,accepted)}<a class="link tiny mt" href="/terms" target="_blank" rel="noopener">Artwork & sizing terms â†—</a></section>
-        ${acceptsArtwork?`<section class="panel"><div class="panel-header"><div><div class="eyebrow">FILES</div><h3>Your artwork</h3></div><button class="btn light small" data-action="portal-artwork">${icon('plus','icon-sm')} Upload artwork</button></div>${assetList(j.assets.filter(a=>a.kind==='artwork'))}</section>`:''}
-        ${projectDetails}
-      </div>
-      <aside class="stack">
-        <section class="panel portal-payment-card" id="portal-payment"><div class="eyebrow">${co?.tax_pending?'ORDER + DELIVERY, BEFORE TAX':'PAYMENT'}</div><div class="metric large mt-sm">${!j.published&&j.totals.total_cents===0?'Quote pending':money(j.totals.total_cents)}</div>${co?.tax_pending?'<p class="field-hint mt-sm">Tax is calculated for your shipping address at checkout.</p>':''}${customerTotals(j)}${co?'<p class="tiny muted mt">'+(co.fulfillment==='pickup'?'Local pickup: '+esc(co.pickup_address):'US shipping')+'</p>':''}${payment}</section>
-        ${rewardsUi.portalBox(state.portalRewards)}
-        ${j.payments.length?`<section class="panel"><h3 class="mb">Payments</h3>${paymentTable(j,true)}</section>`:''}
-        ${j.stage==='finished'?`<section class="panel"><h3>Rate your completed project</h3><p class="field-hint mt-sm">Your review will be marked as verified.</p><form data-form="portal-review" class="stack mt">${select('rating','Rating',[['5','5 â€” Excellent'],['4','4 â€” Very good'],['3','3 â€” Good'],['2','2 â€” Fair'],['1','1 â€” Poor']],'5')}<label class="field"><span>Review (optional)</span><textarea name="comment" maxlength="1200" placeholder="What should future customers know?"></textarea></label><div class="form-error"></div><button class="btn primary wide">Submit review</button></form></section>`:''}
-      </aside>
-    </div>
-  </main>`;
-}
-function customerTotals(j){const t=j.totals;return `<div class="mt"><div class="line-total"><span>Products & services</span><strong>${money(t.merchandise_cents+(t.rewards_discount_cents||0))}</strong></div>${t.rewards_discount_cents?'<div class="line-total"><span>Credits & points</span><strong>âˆ’'+money(t.rewards_discount_cents)+'</strong></div>':''}<div class="line-total"><span>Shipping</span><strong>${money(t.shipping_cents)}</strong></div><div class="line-total"><span>Tax</span><strong>${j.checkout?.tax_pending?'At checkout':money(t.tax_cents)}</strong></div><div class="line-total"><span>Payment received</span><strong>${money(t.paid_cents)}</strong></div><div class="line-total grand"><span>Balance</span><strong>${money(t.balance_cents)}${j.checkout?.tax_pending?' + tax':''}</strong></div></div>`;}
+^ØÛÛœİ\İ]Kš›ØÜÚİÓ[Ù[
+	Ğ]XÚH]ZXÚĞ›ÛÚÜÈ^[Y[\İ[˜][Û‰Ë›Ü›H]KY›Ü›OHœ^[Y[[[šÈˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH[™›ÈÜ™X]HH[›ÚXÙH[ˆ]ZXÚĞ›ÛÚÜË[ˆ\İH]Èİ\İÛY\‹Y˜XÚ[™ÈÛ›[™H^[Y[[šÈ\™KˆÛÛ™š\›H]H[›ÚXÙHİ\İÛY\ˆ[™[[İ[X]Ú\ÈXØÙ\Y][İKÙ]‰ÜÙ[Xİ
+	ÚÚ[™	Ë	Ó[šÈ\IËÖÉÚ[›ÚXÙIË	Ò[›ÚXÙK\ÜXÚYšXÈÛ›[™H^[Y[YÙH
+™XÛÛ[Y[™Y
+I×KÉÜ^[Y[Û[šÉË	Ôİ[™[Û™H]ZXÚĞ›ÛÚÜÈ^[Y[[šÉ×WK‹œ^[Y[ÚÚ[™
+_IÚ[œ]
+	Ú[›ÚXÙWÜ™Y™\™[˜ÙIË	Ô]ZXÚĞ›ÛÚÜÈ[›ÚXÙHÈ[šÈ™Y™\™[˜ÙIË‹š[›ÚXÙWÜ™Y™\™[˜ÙK	İ^	Ë	Ü™\]Z\™Y	Ê_IÚ[œ]
+	İ\›	Ë	Ğİ\İÛY\‹Y˜XÚ[™ÈÈ]ZXÚĞ›ÛÚÜÈÈ[Z][šÉË‹œ^[Y[İ\›	ÉË	İ\›	Ë	Ü™\]Z\™Y	Ê_OÛ\ÜÏH™šY[Z[Hİ[™[Û™H^[Y[[šÈ\È›İ\]Z]˜[[È^Z[™È[ˆ^\İ[™È[›ÚXÙKˆ\È\˜[Y]\ÈHT“Üİ]Ø[››İ™\šYH]È[›ÚXÙHÜˆ[[İ[Ú]İ][ˆTHÛÛ›™Xİ[Û‹Ü‰Ù›Ü›Q›Ûİ\Š	ÔØ]™H^[Y[[šÉÊ_OÙ›Ü›O˜
+NßB™[˜İ[Ûˆ™\šYT^[Y[[Ù[
 
-/* Dialog builders */
-function quoteRevisionRow(line={},sourceIndex=''){
-  const qty=line.quantity??1, unit=line.unit||'each', width=line.width??'', height=line.height??'';
-  const artwork=line.artwork_required!==undefined?!!line.artwork_required:(!line.artwork_upload_disabled&&width!==''&&height!=='');
-  return `<div class="quote-revision-line" data-quote-revision-line data-source-index="${sourceIndex}">
-    <div class="quote-revision-main">
-      <input data-revision-name value="${esc(line.name||'New service')}" placeholder="Product or service" aria-label="Product or service" required maxlength="120">
-      <input data-revision-description value="${esc(line.description||'')}" placeholder="Description / scope" aria-label="Description or scope" maxlength="${line.sticker_pack?8000:500}">
-      <input data-revision-quantity type="number" min=".01" step=".01" value="${esc(qty)}" aria-label="Quantity" required>
-      <input data-revision-unit value="${esc(unit)}" placeholder="Unit" aria-label="Unit" maxlength="40" required>
-      <input data-revision-width type="number" min=".01" step=".01" value="${esc(width)}" placeholder="W (in)" aria-label="Width inches">
-      <input data-revision-height type="number" min=".01" step=".01" value="${esc(height)}" placeholder="H (in)" aria-label="Height inches">
-      <input data-revision-price type="number" min="0" step=".01" value="${esc((line.sell_cents||0)/100)}" placeholder="Price $" aria-label="Customer line price" required>
-      <input data-revision-cost type="number" min="0" step=".01" value="${esc((line.cost_cents||0)/100)}" placeholder="Cost $" aria-label="Internal estimated cost" required>
-    </div>
-    <div class="row between wrap quote-revision-tools"><label class="check tiny"><input data-revision-artwork type="checkbox" ${artwork?'checked':''}> Artwork / proof required</label><div class="row"><button type="button" class="btn ghost small" data-action="quote-line-up" aria-label="Move line up">â†‘</button><button type="button" class="btn ghost small" data-action="quote-line-down" aria-label="Move line down">â†“</button><button type="button" class="btn danger small" data-action="remove-quote-line">Remove</button></div></div>
-  </div>`;
-}
-function onlinePriceCorrectionModal(){
-  const j=state.job;
-  showModal('Correct unpaid online price',`<form data-form="online-price-correction" class="stack"><div class="notice info">${esc(j.number)}: ${num(j.quote.lines[0].quantity)} Ã— ${esc(j.quote.lines[0].width)} Ã— ${esc(j.quote.lines[0].height)} ${esc(j.quote.lines[0].name)}. Current product price: ${money(j.quote.subtotal_cents)}. The old payment link will be closed. The customer will receive the lower quote and must accept it before paying.</div>${input('new_price','Corrected product price ($)','','number','min="35" step=".01" required')}<label class="field"><span>Reason shown on the customer quote</span><textarea name="reason" maxlength="1000" required placeholder="Corrected sticker pricing"></textarea></label>${checkbox('confirm','I reviewed the new price and want to email this corrected quote to the customer.')}${formFooter('Save correction and email customer')}</form>`,true);
-}
-function editQuoteModal(){const j=state.job;showModal('Edit quote lines & final charges',`<form data-form="edit-quote" class="stack"><div class="notice info">Edit existing products or add one-off services directly to this quote. Saving creates a new quote version, clears customer acceptance and removes the previous payment link.</div><div class="panel-header"><div><h3>Products & services</h3><p class="field-hint mt-sm">Line prices are customer totals for that line. Internal cost is used only for the margin estimate. Leave width and height blank for services such as design, installation, removal or permit handling.</p></div><button type="button" class="btn light small" data-action="add-quote-service">${icon('plus','icon-sm')} Add product / service</button></div><div id="quote-revision-lines">${j.quote.lines.map((line,i)=>quoteRevisionRow(line,i)).join('')}</div><div class="divider"></div><h3>Quote-level charges</h3><div class="fields">${input('extra_price','Legacy additional services adjustment ($)',j.extra_price_cents/100,'number','min="0" step=".01"')}${input('extra_cost','Legacy additional cost adjustment ($)',j.extra_cost_cents/100,'number','min="0" step=".01"')}${input('price_override','Agreed merchandise + services price override ($)',j.price_override_cents===null?'':j.price_override_cents/100,'number','min="0" step=".01"')}${input('deposit_percent','Required deposit %',j.deposit_percent,'number','min="0" max="100" step=".1"')}${input('shipping','Customer delivery / shipping charge ($)',j.totals.shipping_cents/100,'number','min="0" step=".01"')}${input('tax','Verified sales tax amount ($)',j.totals.tax_cents/100,'number','min="0" step=".01"')}</div><p class="field-hint">For new work, use separate quote lines above instead of the legacy adjustment fields. The agreed-price override replaces the product/service subtotal, but not shipping or tax.</p><label class="field"><span>Customer-visible quote note</span><textarea name="adjustment_note" maxlength="2000">${esc(j.adjustment_note)}</textarea></label>${checkbox('charges_verified','I checked the scope, product/service prices, estimated costs, tax treatment and delivery charges for this job.',j.charges_verified)}${formFooter('Save revised quote')}</form>`,true);}
-function scheduleModal(){const j=state.job;showModal('Schedule & assign this job',`<form data-form="schedule" class="stack">${input('due_date','Due date',j.due_date||'','date')}${select('assignee_id','Job owner',[[0,'Unassigned'],...state.users.filter(u=>u.active).map(u=>[u.id,u.name])],j.assignee_id||0)}${select('priority','Priority',[['normal','Normal'],['rush','Rush']],j.priority)}${formFooter()}</form>`);}
-function proofUploadModal(){showModal('Publish a complete proof package',`<form data-form="upload-proof" class="stack"><div class="notice">Include every item in the job. For multiple panels, upload one combined image or a multi-page PDF. A new version replaces the current proof for approval but preserves earlier decisions.</div>${input('label','Proof title','Complete job proof','text','required maxlength="180"')}<label class="field"><span>PNG, JPEG or PDF / maximum 50 MB</span><input type="file" name="file" accept=".png,.jpg,.jpeg,.pdf" required></label><label class="field"><span>Customer-visible proof notes</span><textarea name="note" maxlength="3000"></textarea></label>${checkbox('covers_all_items','This proof package covers all products and panels in the job.')}<p class="field-hint">PDFs are download-only. Clients must review every page before approving.</p>${formFooter('Publish proof version')}</form>`);}
-function artworkModal(portal=false){const job=portal?state.portalJob:state.job;showModal('Upload artwork or a reference',`<form data-form="artwork" data-job-id="${job.id}" data-portal="${portal}" class="stack"><label class="field"><span>PNG, JPEG or PDF / maximum 50 MB</span><input type="file" name="file" accept=".png,.jpg,.jpeg,.pdf" required></label><p class="field-hint">Artwork is a source/reference file, not an approved proof. Images are normalized to PNG for safe display. PDF originals are stored for download.</p>${formFooter('Upload file')}</form>`);}
-function layoutModal(){const j=state.job,art=j.assets.filter(a=>a.mime==='image/png'&&a.kind==='artwork'),printable=j.quote.lines.map((l,i)=>({l,i})).filter(x=>x.l.artwork_required!==false&&!x.l.artwork_upload_disabled&&x.l.width!==''&&x.l.height!=='');if(!printable.length)throw new Error('This quote has no product lines that require an artwork layout.');showModal('Generate a dimensioned panel layout',`<form data-form="layout" class="stack"><div class="notice info">Service-only quote lines are excluded. Each printable panel uses its saved width and height at one relative scale.</div>${printable.map(({l,i})=>select('art_'+i,(l.description||l.name)+' / '+l.width+'" x '+l.height+'"', [['','Blank measurement template'],...art.map(a=>[a.id,a.filename])],'')).join('')}${select('fit','Artwork fitting',[['contain','Fit whole artwork (may leave margins)'],['cover','Fill panel (may crop artwork)']],'contain')}${checkbox('publish_as_proof','Publish as a complete proof for customer approval (artwork must be assigned to every printable product).')}<p class="field-hint">Leave the box unchecked to create a reference layout only. Upload image artwork first to assign it to printable products.</p>${formFooter('Generate layout')}</form>`);}
-function paymentLinkModal(){const j=state.job;showModal('Attach a QuickBooks payment destination',`<form data-form="payment-link" class="stack"><div class="notice info">Create the invoice in QuickBooks, then paste its customer-facing online payment link here. Confirm that the invoice customer and amount match this accepted quote.</div>${select('kind','Link type',[['invoice','Invoice-specific online payment page (recommended)'],['payment_link','Standalone QuickBooks payment link']],j.payment_kind)}${input('invoice_reference','QuickBooks invoice / link reference',j.invoice_reference,'text','required')}${input('url','Customer-facing HTTPS QuickBooks / Intuit link',j.payment_url||'','url','required')}<p class="field-hint">A standalone payment link is not equivalent to paying an existing invoice. This app validates the URL host but cannot verify its invoice or amount without an API connection.</p>${formFooter('Save payment link')}</form>`);}
-function verifyPaymentModal(){const j=state.job;showModal('Record a payment verified in QuickBooks',`<form data-form="verify-payment" class="stack"><div class="notice">This records an already received payment. It does not charge a card, initiate a payment or create an entry in QuickBooks.</div><div class="fields">${input('amount','Amount received ($)',(j.totals.deposit_remaining_cents||j.totals.balance_cents)/100,'number',`min="0.01" max="${j.totals.balance_cents/100}" step=".01" required`)}${input('reference','Unique QuickBooks transaction reference','','text','required maxlength="200"')}</div><label class="field"><span>Internal verification note</span><textarea name="note" maxlength="1000"></textarea></label>${checkbox('verified_in_quickbooks','I verified the actual transaction and amount in QuickBooks. This reference has not already been recorded.')}${formFooter('Record verified payment')}</form>`);}
-function editProductModal(id=null){
-  const original=state.products.find(p=>p.id===id);
-  const p=original?structuredClone(original):{name:'New custom product',category:'Signs',workflow_id:3,active:1,public:1,config:structuredClone(state.products[0]?.config||{})};
-  state.editProduct=p;
-  const c=p.config;
-  showModal(original?'Edit '+p.name:'Add a product',`<form data-form="product" class="stack"><div class="fields">${input('name','Product name',p.name,'text','required maxlength="120"')}${input('category','Category',p.category,'text','required maxlength="60"')}${select('workflow_id','Default workflow',state.workflows.map(w=>[w.id,w.name]),p.workflow_id)}${select('unit','Customer quantity style',[['piece','Pieces / stickers / labels'],['sqft','Panels / square-foot products']],c.unit)}</div><label class="field"><span>Customer-facing description / included services</span><textarea name="description" maxlength="700">${esc(c.description)}</textarea></label><h3>Price and cost inputs</h3><div class="fields three">${input('sell_per_sqft','Selling rate / sq ft ($)',c.sell_per_sqft,'number','min="0" step=".01" required')}${input('cost_per_sqft','Material / bundled cost per sq ft ($)',c.cost_per_sqft,'number','min="0" step=".01" required')}${input('minimum_price','Product line minimum ($)',c.minimum_price,'number','min="0" step=".01" required')}${input('setup_price','Setup selling price ($)',c.setup_price,'number','min="0" step=".01" required')}${input('setup_cost','Setup cost ($)',c.setup_cost,'number','min="0" step=".01" required')}${input('waste_percent','Material waste %',c.waste_percent,'number','min="0" max="200" step=".1" required')}${input('labor_minutes_per_unit','Additional labor minutes per piece/panel',c.labor_minutes_per_unit,'number','min="0" step=".1" required')}</div><p class="field-hint">Do not add labor here if it is already bundled into the square-foot rate. Costs receive the shop's configured buffer. Customer selling price is protected by the target-margin floor.</p>${c.sticker_pack?`<h3>Sticker pack additions</h3><div class="fields three">${input('pack_header_4_price','Included cardstock header / pack ($)',c.pack_header_4_price??'1.50','number','min="0" step=".01" required')}${input('pack_design_price','Artwork creation / different sticker design ($)',c.pack_design_price??'25.00','number','min="0" step=".01" required')}${input('pack_packaging_price','Packaging & assembly / pack ($)',c.pack_packaging_price??'1.00','number','min="0" step=".01" required')}</div><p class="field-hint">Sticker designs use the current Die-cut stickers rates, sizes and quantity breaks. Every pack includes a cardstock header, bag and assembly. Custom artwork is optional; package size may vary.</p>`:''}<h3>Sizes and quantities</h3><div class="fields three">${input('min_width','Minimum width (in)',c.min_width||0.1,'number','min=".1" step=".01" required')}${input('min_height','Minimum height (in)',c.min_height||0.1,'number','min=".1" step=".01" required')}${input('default_width','Default width (in)',c.default_width,'number','min=".1" step=".01" required')}${input('default_height','Default height (in)',c.default_height,'number','min=".1" step=".01" required')}${input('max_width','Largest auto-quote width (in)',c.max_width,'number','min=".1" step=".01" required')}${input('max_height','Largest auto-quote height (in)',c.max_height,'number','min=".1" step=".01" required')}${input('max_quantity','Maximum quantity',c.max_quantity,'number','min="1" step="1" required')}</div><label class="field"><span>Graduated quantity bands / start: multiplier (one per line)</span><textarea name="tiers" required>${esc((c.tiers||[{from:1,multiplier:'1'}]).map(t=>t.from+':'+t.multiplier).join('\n'))}</textarea></label><p class="field-hint">Example: 1:1, then 100:0.9 on the next line. Units 1-99 use the full rate; units 100 onward get the lower rate. Earlier units are not repriced, so totals do not fall at a tier boundary.</p><div class="stack-sm">${checkbox('active','Product is active',!!p.active)}${checkbox('public','Show in the customer calculator',!!p.public)}${checkbox('instant','Allow online purchase within the size limits (no installation)',c.instant)}${checkbox('supports_multiple_dimensions','Allow multiple panel / window dimensions in the customer calculator',!!c.supports_multiple_dimensions)}${checkbox('self_approve_artwork','Customer may approve their uploaded print-ready artwork',!!c.self_approve_artwork)}${checkbox('requires_installation','Requires installation - always request a quote',c.requires_installation)}${checkbox('is_wrap','Wrap product - always request a quote',c.is_wrap)}</div>${formFooter(original?'Save product version':'Create product')}</form>`,true);
-}
-function workflowRow(step,index){return `<div class="workflow-edit-row" data-step><span class="tiny muted">${index+1}</span><input data-step-title value="${esc(step.title)}" aria-label="Task title" required><input data-step-department value="${esc(step.department)}" aria-label="Department" required><select data-step-gate aria-label="Gate">${['none','quote','deposit','production','delivery'].map(g=>`<option ${step.gate===g?'selected':''}>${g}</option>`).join('')}</select><input data-step-deps value="${esc(step.depends_on.join(','))}" aria-label="Prerequisite step numbers"><button type="button" class="close-btn" data-action="remove-step" aria-label="Remove step">&times;</button></div>`;}
-function workflowModal(id=null){const existing=state.workflows.find(w=>w.id===id);state.editWorkflow=existing?structuredClone(existing):{name:'New production workflow',steps:structuredClone(state.workflows[0].steps)};const w=state.editWorkflow;showModal(existing?'Edit workflow':'Create workflow',`<form data-form="workflow" class="stack">${input('name','Workflow name',w.name,'text','required maxlength="120"')}<div class="notice info">Prerequisites use earlier step numbers, separated by commas. A blank list allows parallel work. Include a production gate and end with a delivery gate. Adjust prerequisite numbers after removing steps.</div><div><div class="workflow-edit-row workflow-edit-head"><span>#</span><span>TASK</span><span>DEPARTMENT</span><span>GATE</span><span>NEEDS</span><span></span></div><div id="workflow-rows">${w.steps.map(workflowRow).join('')}</div></div><button type="button" class="btn light" data-action="add-step">${icon('plus','icon-sm')} Add step</button>${formFooter(existing?'Save new workflow version':'Create workflow')}</form>`,true);}
-function approvalModal(action){const j=state.portalJob;showModal(action==='approve'?'Approve artwork & accept terms':'Request a proof revision',`<form data-form="proof-decision" data-decision="${action}" class="stack"><div class="notice ${action==='approve'?'info':''}">${action==='approve'?'You are approving proof package version '+j.proofs[0].version+'. Review the exact file, every panel and all dimensions before continuing.':'The current proof will be marked Changes requested. The designer must publish a new version before it can be approved.'}</div>${input('name','Your full name','','text','required maxlength="120"')}<label class="field"><span>${action==='approve'?'Optional comments':'Describe the changes needed'}</span><textarea name="comment" maxlength="3000" ${action==='approve'?'':'required'}></textarea></label>${action==='approve'?approvalAgreement(j.job_terms,j.approval_statement):''}${formFooter(action==='approve'?'Approve artwork & accept terms':'Send change request')}</form>`);}
-async function refreshAfterTask(){if(location.hash.startsWith('#job/'))await loadJob(state.job.id);else await loadQueue();}
-function customDimensionRow(index){return `<div class="dimension-row" data-custom-dimension><div class="fields four">${input('custom_label_'+index,'Label / area','','text','maxlength="120" placeholder="Driver side, panel 1..."')}${input('custom_width_'+index,'Width (in)','','number','min=".1" max="10000" step=".01"')}${input('custom_height_'+index,'Height (in)','','number','min=".1" max="10000" step=".01"')}${input('custom_qty_'+index,'Qty',1,'number','min="1" max="100000" step="1"')}</div><button type="button" class="btn light small" data-action="remove-custom-dimension">Remove</button></div>`;}
+^ØÛÛœİ\İ]Kš›ØÜÚİÓ[Ù[
+	Ô™XÛÜ™H^[Y[™\šYšYY[ˆ]ZXÚĞ›ÛÚÜÉË›Ü›H]KY›Ü›OH™\šYK\^[Y[ˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH•\È™XÛÜ™È[ˆ[™XYH™XÙZ]™Y^[Y[ˆ]Ù\È›İÚ\™ÙHHØ\™[š]X]HH^[Y[ÜˆÜ™X]H[ˆ[H[ˆ]ZXÚĞ›ÛÚÜËÙ]]ˆÛ\ÜÏH™šY[È‰Ú[œ]
+	Ø[[İ[	Ë	Ğ[[İ[™XÙZ]™Y
+	
+IË
+‹İ[Ë™\ÜÚ]Ü™[XZ[š[™×ØÙ[ß‹İ[Ë˜˜[[˜ÙWØÙ[ÊKÌL	Û[X™\‰ËZ[HŒŒHˆX^H‰Ú‹İ[Ë˜˜[[˜ÙWØÙ[ËÌLHˆİ\H‹ŒHˆ™\]Z\™Y
+_IÚ[œ]
+	Ü™Y™\™[˜ÙIË	Õ[š\]YH]ZXÚĞ›ÛÚÜÈ˜[œØXİ[Ûˆ™Y™\™[˜ÙIË	ÉË	İ^	Ë	Ü™\]Z\™YX^[™İHŒŒ‰Ê_OÙ]X™[Û\ÜÏH™šY[Ü[’[\›˜[™\šYšXØ][Ûˆ›İOÜÜ[^\™XH˜[YOH››İHˆX^[™İHŒLİ^\™XOÛX™[‰ØÚXÚØ›Ş
+	İ™\šYšYYÚ[—Ü]ZXÚØ›ÛÚÜÉË	ÒH™\šYšYYHXİX[˜[œØXİ[Ûˆ[™[[İ[[ˆ]ZXÚĞ›ÛÚÜËˆ\È™Y™\™[˜ÙH\È›İ[™XYH™Y[ˆ™XÛÜ™Y‰Ê_IÙ›Ü›Q›Ûİ\Š	Ô™XÛÜ™™\šYšYY^[Y[	Ê_OÙ›Ü›O˜
+NßB™[˜İ[ÛˆY]›ÙXİ[Ù[
+Y[[
+^ÂˆÛÛœİÜšYÚ[˜[\İ]Kœ›ÙXİË™š[™
+OœšYOOZY
+NÂˆÛÛœİ[ÜšYÚ[˜[ÜİXİ\™YÛÛ™JÜšYÚ[˜[
+NÛ˜[YN‰Ó™]Èİ\İÛH›ÙXİ	ËØ]YÛÜN‰ÔÚYÛœÉËÛÜšÙ›İ×ÚYŒËXİ]™NŒKX›XÎŒKÛÛ™šYÎœİXİ\™YÛÛ™Jİ]Kœ›ÙXİÖÌOË˜ÛÛ™šYßßJ_NÂˆİ]K™Y]›ÙXİ\ÂˆÛÛœİÏ\˜ÛÛ™šYÎÂˆÚİÓ[Ù[
+ÜšYÚ[˜[ÉÑY]	ÊÜ›˜[YN‰ĞYH›ÙXİ	Ë›Ü›H]KY›Ü›OHœ›ÙXİˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH™šY[È‰Ú[œ]
+	Û˜[YIË	Ô›ÙXİ˜[YIË›˜[YK	İ^	Ë	Ü™\]Z\™YX^[™İHŒLŒ‰Ê_IÚ[œ]
+	ØØ]YÛÜIË	ĞØ]YÛÜIË˜Ø]YÛÜK	İ^	Ë	Ü™\]Z\™YX^[™İHŒ‰Ê_IÜÙ[Xİ
+	İÛÜšÙ›İ×ÚY	Ë	ÑY˜][ÛÜšÙ›İÉËİ]KÛÜšÙ›İÜË›X\
+ÏO–İËšYË›˜[YWJKÛÜšÙ›İ×ÚY
+_IÜÙ[Xİ
+	İ[š]	Ë	Ğİ\İÛY\ˆ]X[]Hİ[IËÖÉÜYXÙIË	ÔYXÙ\ÈÈİXÚÙ\œÈÈX™[É×KÉÜÜY	Ë	Ô[™[ÈÈÜ]X\™KY›Ûİ›ÙXİÉ×WKË[š]
+_OÙ]X™[Û\ÜÏH™šY[Ü[İ\İÛY\‹Y˜XÚ[™È\ØÜš\[ÛˆÈ[˜ÛYYÙ\šXÙ\ÏÜÜ[^\™XH˜[YOH™\ØÜš\[ÛˆˆX^[™İHÌ‰Ù\ØÊË™\ØÜš\[ÛŠ_Oİ^\™XOÛX™[Ï”šXÙH[™ÛÜİ[œ]ÏÚÏ]ˆÛ\ÜÏH™šY[È™YH‰Ú[œ]
+	ÜÙ[Ü\—ÜÜY	Ë	ÔÙ[[™È˜]HÈÜH
+	
+IËËœÙ[Ü\—ÜÜY	Û[X™\‰Ë	ÛZ[HŒˆİ\H‹ŒHˆ™\]Z\™Y	Ê_IÚ[œ]
+	ØÛÜİÜ\—ÜÜY	Ë	ÓX]\šX[È[™YÛÜİ\ˆÜH
+	
+IËË˜ÛÜİÜ\—ÜÜY	Û[X™\‰Ë	ÛZ[HŒˆİ\H‹ŒHˆ™\]Z\™Y	Ê_IÚ[œ]
+	ÛZ[š[][WÜšXÙIË	Ô›ÙXİ[™HZ[š[][H
+	
+IËË›Z[š[][WÜšXÙK	Û[X™\‰Ë	ÛZ[HŒˆİ\H‹ŒHˆ™\]Z\™Y	Ê_IÚ[œ]
+	ÜÙ]\ÜšXÙIË	ÔÙ]\Ù[[™ÈšXÙH
+	
+IËËœÙ]\ÜšXÙK	Û[X™\‰Ë	ÛZ[HŒˆİ\H‹ŒHˆ™\]Z\™Y	Ê_IÚ[œ]
+	ÜÙ]\ØÛÜİ	Ë	ÔÙ]\ÛÜİ
+	
+IËËœÙ]\ØÛÜİ	Û[X™\‰Ë	ÛZ[HŒˆİ\H‹ŒHˆ™\]Z\™Y	Ê_IÚ[œ]
+	İØ\İWÜ\˜Ù[	Ë	ÓX]\šX[Ø\İH	IËËØ\İWÜ\˜Ù[	Û[X™\‰Ë	ÛZ[HŒˆX^HŒŒˆİ\H‹ŒHˆ™\]Z\™Y	Ê_IÚ[œ]
+	ÛX›Ü—ÛZ[]\×Ü\—İ[š]	Ë	ĞY][Û˜[X›ÜˆZ[]\È\ˆYXÙKÜ[™[	ËË›X›Ü—ÛZ[]\×Ü\—İ[š]	Û[X™\‰Ë	ÛZ[HŒˆİ\H‹ŒHˆ™\]Z\™Y	Ê_OÙ]Û\ÜÏH™šY[Z[‘È›İYX›Üˆ\™HYˆ]\È[™XYH[™Y[ÈHÜ]X\™KY›Ûİ˜]KˆÛÜİÈ™XÙZ]™HHÚÜ	ÜÈÛÛ™šYİ\™YY™™\‹ˆİ\İÛY\ˆÙ[[™ÈšXÙH\È›İXİYHH\™Ù][X\™Ú[ˆ›ÛÜ‹Ü‰ØËœİXÚÙ\—ÜXÚÏØÏ”İXÚÙ\ˆXÚÈY][ÛœÏÚÏ]ˆÛ\ÜÏH™šY[È™YH‰Ú[œ]
+	ÜXÚ×ÚXY\—ÍÜšXÙIË	Ò[˜ÛYYØ\™İØÚÈXY\ˆÈXÚÈ
+	
+IËËœXÚ×ÚXY\—ÍÜšXÙOÏÉÌKL	Ë	Û[X™\‰Ë	ÛZ[HŒˆİ\H‹ŒHˆ™\]Z\™Y	Ê_IÚ[œ]
+	ÜXÚ×Ù\ÚYÛ—ÜšXÙIË	Ğ\ÛÜšÈÜ™X][ÛˆÈY™™\™[İXÚÙ\ˆ\ÚYÛˆ
+	
+IËËœXÚ×Ù\ÚYÛ—ÜšXÙOÏÉÌKŒ	Ë	Û[X™\‰Ë	ÛZ[HŒˆİ\H‹ŒHˆ™\]Z\™Y	Ê_IÚ[œ]
+	ÜXÚ×ÜXÚØYÚ[™×ÜšXÙIË	ÔXÚØYÚ[™È	ˆ\ÜÙ[X›HÈXÚÈ
+	
+IËËœXÚ×ÜXÚØYÚ[™×ÜšXÙOÏÉÌKŒ	Ë	Û[X™\‰Ë	ÛZ[HŒˆİ\H‹ŒHˆ™\]Z\™Y	Ê_OÙ]Û\ÜÏH™šY[Z[”İXÚÙ\ˆ\ÚYÛœÈ\ÙHHİ\œ™[YKXİ]İXÚÙ\œÈ˜]\ËÚ^™\È[™]X[]Hœ™XZÜËˆ]™\HXÚÈ[˜ÛY\ÈHØ\™İØÚÈXY\‹˜YÈ[™\ÜÙ[X›Kˆİ\İÛH\ÛÜšÈ\ÈÜ[Û˜[ÈXÚØYÙHÚ^™HX^H˜\KÜ˜‰ÉßOÏ”Ú^™\È[™]X[]Y\ÏÚÏ]ˆÛ\ÜÏH™šY[È™YH‰Ú[œ]
+	ÛZ[—İÚY	Ë	ÓZ[š[][HÚY
+[ŠIËË›Z[—İÚYŒK	Û[X™\‰Ë	ÛZ[H‹ŒHˆİ\H‹ŒHˆ™\]Z\™Y	Ê_IÚ[œ]
+	ÛZ[—ÚZYÚ	Ë	ÓZ[š[][HZYÚ
+[ŠIËË›Z[—ÚZYÚŒK	Û[X™\‰Ë	ÛZ[H‹ŒHˆİ\H‹ŒHˆ™\]Z\™Y	Ê_IÚ[œ]
+	ÙY˜][İÚY	Ë	ÑY˜][ÚY
+[ŠIËË™Y˜][İÚY	Û[X™\‰Ë	ÛZ[H‹ŒHˆİ\H‹ŒHˆ™\]Z\™Y	Ê_IÚ[œ]
+	ÙY˜][ÚZYÚ	Ë	ÑY˜][ZYÚ
+[ŠIËË™Y˜][ÚZYÚ	Û[X™\‰Ë	ÛZ[H‹ŒHˆİ\H‹ŒHˆ™\]Z\™Y	Ê_IÚ[œ]
+	ÛX^İÚY	Ë	Ó\™Ù\İ]]Ë\][İHÚY
+[ŠIËË›X^İÚY	Û[X™\‰Ë	ÛZ[H‹ŒHˆİ\H‹ŒHˆ™\]Z\™Y	Ê_IÚ[œ]
+	ÛX^ÚZYÚ	Ë	Ó\™Ù\İ]]Ë\][İHZYÚ
+[ŠIËË›X^ÚZYÚ	Û[X™\‰Ë	ÛZ[H‹ŒHˆİ\H‹ŒHˆ™\]Z\™Y	Ê_IÚ[œ]
+	ÛX^Ü]X[]IË	ÓX^[][H]X[]IËË›X^Ü]X[]K	Û[X™\‰Ë	ÛZ[HŒHˆİ\HŒHˆ™\]Z\™Y	Ê_OÙ]X™[Û\ÜÏH™šY[Ü[‘Ü˜YX]Y]X[]H˜[™ÈÈİ\ˆ][\Y\ˆ
+Û™H\ˆ[™JOÜÜ[^\™XH˜[YOHY\œÈˆ™\]Z\™Y‰Ù\ØÊ
+ËY\œßŞÙœ›ÛNŒK][\Y\‰ÌIßWJK›X\
+O™œ›ÛJÉÎ‰Êİ›][\Y\ŠKš›Ú[Š	×‰ÊJ_Oİ^\™XOÛX™[Û\ÜÏH™šY[Z[‘^[\NˆNŒK[ˆLŒHÛˆH™^[™Kˆ[š]ÈKNNH\ÙHH[˜]NÈ[š]ÈLÛØ\™Ù]HİÙ\ˆ˜]KˆX\›Y\ˆ[š]È\™H›İ™\šXÙYÛÈİ[ÈÈ›İ˜[]HY\ˆ›İ[™\KÜ]ˆÛ\ÜÏHœİXÚË\ÛH‰ØÚXÚØ›Ş
+	ØXİ]™IË	Ô›ÙXİ\ÈXİ]™IËH\˜Xİ]™J_IØÚXÚØ›Ş
+	ÜX›XÉË	ÔÚİÈ[ˆHİ\İÛY\ˆØ[İ[]Ü‰ËH\œX›XÊ_IØÚXÚØ›Ş
+	Ú[œİ[	Ë	Ğ[İÈÛ›[™H\˜Ú\ÙHÚ][ˆHÚ^™H[Z]È
+›È[œİ[][ÛŠIËËš[œİ[
+_IØÚXÚØ›Ş
+	Üİ\Ü×Û][\WÙ[Y[œÚ[ÛœÉË	Ğ[İÈ][\H[™[ÈÚ[™İÈ[Y[œÚ[ÛœÈ[ˆHİ\İÛY\ˆØ[İ[]Ü‰ËHXËœİ\Ü×Û][\WÙ[Y[œÚ[ÛœÊ_IØÚXÚØ›Ş
+	ÜÙ[—Ø\›İ™WØ\ÛÜšÉË	Ğİ\İÛY\ˆX^H\›İ™HZ\ˆ\ØYYš[\™XYH\ÛÜšÉËHXËœÙ[—Ø\›İ™WØ\ÛÜšÊ_IØÚXÚØ›Ş
+	Ü™\]Z\™\×Ú[œİ[][Û‰Ë	Ô™\]Z\™\È[œİ[][ÛˆH[Ø^\È™\]Y\İH][İIËËœ™\]Z\™\×Ú[œİ[][ÛŠ_IØÚXÚØ›Ş
+	Ú\×İÜ˜\	Ë	ÕÜ˜\›ÙXİH[Ø^\È™\]Y\İH][İIËËš\×İÜ˜\
+_OÙ]‰Ù›Ü›Q›Ûİ\ŠÜšYÚ[˜[ÉÔØ]™H›ÙXİ™\œÚ[Û‰Î‰ĞÜ™X]H›ÙXİ	Ê_OÙ›Ü›O˜YJNÂŸB™[˜İ[ÛˆÛÜšÙ›İÔ›İÊİ\[™^
+^Ü™]\›ˆ]ˆÛ\ÜÏHÛÜšÙ›İËYY]\›İÈˆ]K\İ\Ü[ˆÛ\ÜÏH[H]]Y‰Ú[™^
+Ì_OÜÜ[[œ]]K\İ\]]H˜[YOH‰Ù\ØÊİ\]J_Hˆ\šXK[X™[H•\ÚÈ]Hˆ™\]Z\™Y[œ]]K\İ\Y\\Y[˜[YOH‰Ù\ØÊİ\™\\Y[
+_Hˆ\šXK[X™[H‘\\Y[ˆ™\]Z\™YÙ[Xİ]K\İ\YØ]H\šXK[X™[H‘Ø]H‰ÖÉÛ›Û™IË	Ü][İIË	Ù\ÜÚ]	Ë	Ü›ÙXİ[Û‰Ë	Ù[]™\I×K›X\
+ÏO˜Ü[Ûˆ	Üİ\™Ø]OOOYÏÉÜÙ[XİY	Î‰ÉßO‰ÙßOÛÜ[Û˜
+Kš›Ú[Š	ÉÊ_OÜÙ[Xİ[œ]]K\İ\Y\È˜[YOH‰Ù\ØÊİ\™\[™×ÛÛ‹š›Ú[Š	Ë	ÊJ_Hˆ\šXK[X™[H”™\™\]Z\Ú]Hİ\[X™\œÈ]Ûˆ\OH˜]ÛˆˆÛ\ÜÏH˜ÛÜÙKXˆˆ]KXXİ[ÛHœ™[[İ™K\İ\ˆ\šXK[X™[H”™[[İ™Hİ\‰[Y\ÎÏØ]ÛÙ]˜ßB™[˜İ[ÛˆÛÜšÙ›İÓ[Ù[
+Y[[
+^ØÛÛœİ^\İ[™Ï\İ]KÛÜšÙ›İÜË™š[™
+ÏOËšYOOZY
+NÜİ]K™Y]ÛÜšÙ›İÏY^\İ[™ÏÜİXİ\™YÛÛ™J^\İ[™ÊNÛ˜[YN‰Ó™]È›ÙXİ[ÛˆÛÜšÙ›İÉËİ\ÎœİXİ\™YÛÛ™Jİ]KÛÜšÙ›İÜÖÌKœİ\Ê_NØÛÛœİÏ\İ]K™Y]ÛÜšÙ›İÎÜÚİÓ[Ù[
+^\İ[™ÏÉÑY]ÛÜšÙ›İÉÎ‰ĞÜ™X]HÛÜšÙ›İÉË›Ü›H]KY›Ü›OHÛÜšÙ›İÈˆÛ\ÜÏHœİXÚÈ‰Ú[œ]
+	Û˜[YIË	ÕÛÜšÙ›İÈ˜[YIËË›˜[YK	İ^	Ë	Ü™\]Z\™YX^[™İHŒLŒ‰Ê_O]ˆÛ\ÜÏH››İXÙH[™›È”™\™\]Z\Ú]\È\ÙHX\›Y\ˆİ\[X™\œËÙ\\˜]YHÛÛ[X\ËˆH›[šÈ\İ[İÜÈ\˜[[ÛÜšËˆ[˜ÛYHH›ÙXİ[ÛˆØ]H[™[™Ú]H[]™\HØ]KˆY\İ™\™\]Z\Ú]H[X™\œÈY\ˆ™[[İš[™Èİ\ËÙ]]]ˆÛ\ÜÏHÛÜšÙ›İËYY]\›İÈÛÜšÙ›İËYY]ZXYÜ[ˆÏÜÜ[Ü[•TÒÏÜÜ[Ü[‘TT•QS•ÜÜ[Ü[‘ĞUOÜÜ[Ü[“‘QQÏÜÜ[Ü[ÜÜ[Ù]]ˆYHÛÜšÙ›İË\›İÜÈ‰İËœİ\Ë›X\
+ÛÜšÙ›İÔ›İÊKš›Ú[Š	ÉÊ_OÙ]Ù]]Ûˆ\OH˜]ÛˆˆÛ\ÜÏH˜ˆYÚˆ]KXXİ[ÛH˜Y\İ\‰ÚXÛÛŠ	Ü\ÉË	ÚXÛÛ‹\ÛIÊ_HYİ\Ø]Û‰Ù›Ü›Q›Ûİ\Š^\İ[™ÏÉÔØ]™H™]ÈÛÜšÙ›İÈ™\œÚ[Û‰Î‰ĞÜ™X]HÛÜšÙ›İÉÊ_OÙ›Ü›O˜YJNßB™[˜İ[Ûˆ\›İ˜[[Ù[
+Xİ[ÛŠ^ØÛÛœİ\İ]KœÜ[›ØÜÚİÓ[Ù[
+Xİ[ÛOOIØ\›İ™IÏÉĞ\›İ™H\ÛÜšÈ	ˆXØÙ\\›\ÉÎ‰Ô™\]Y\İH›ÛÙˆ™]š\Ú[Û‰Ë›Ü›H]KY›Ü›OHœ›ÛÙ‹YXÚ\Ú[Ûˆˆ]KYXÚ\Ú[ÛH‰ØXİ[ÛŸHˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH	ØXİ[ÛOOIØ\›İ™IÏÉÚ[™›ÉÎ‰ÉßH‰ØXİ[ÛOOIØ\›İ™IÏÉÖ[İH\™H\›İš[™È›ÛÙˆXÚØYÙH™\œÚ[Ûˆ	ÊÚ‹œ›ÛÙœÖÌK™\œÚ[ÛŠÉËˆ™]šY]ÈH^Xİš[K]™\H[™[[™[[Y[œÚ[ÛœÈ™Y›Ü™HÛÛ[Z[™Ë‰Î‰ÕHİ\œ™[›ÛÙˆÚ[™HX\šÙYÚ[™Ù\È™\]Y\İYˆH\ÚYÛ™\ˆ]\İX›\ÚH™]È™\œÚ[Ûˆ™Y›Ü™H]Ø[ˆ™H\›İ™Y‰ßOÙ]‰Ú[œ]
+	Û˜[YIË	Ö[İ\ˆ[˜[YIË	ÉË	İ^	Ë	Ü™\]Z\™YX^[™İHŒLŒ‰Ê_OX™[Û\ÜÏH™šY[Ü[‰ØXİ[ÛOOIØ\›İ™IÏÉÓÜ[Û˜[ÛÛ[Y[ÉÎ‰Ñ\ØÜšX™HHÚ[™Ù\È™YYY	ßOÜÜ[^\™XH˜[YOH˜ÛÛ[Y[ˆX^[™İHŒÌˆ	ØXİ[ÛOOIØ\›İ™IÏÉÉÎ‰Ü™\]Z\™Y	ßOİ^\™XOÛX™[‰ØXİ[ÛOOIØ\›İ™IÏØ\›İ˜[YÜ™Y[Y[
+‹š›Ø—İ\›\Ë‹˜\›İ˜[Üİ][Y[
+N‰ÉßIÙ›Ü›Q›Ûİ\ŠXİ[ÛOOIØ\›İ™IÏÉĞ\›İ™H\ÛÜšÈ	ˆXØÙ\\›\ÉÎ‰ÔÙ[™Ú[™ÙH™\]Y\İ	Ê_OÙ›Ü›O˜
+NßB˜\Ş[˜È[˜İ[Ûˆ™Yœ™\ÚY\•\ÚÊ
+^ÚYŠØØ][Û‹š\Úœİ\ÕÚ]
+	ÈÚ›Ø‹ÉÊJX]ØZ]ØY›ØŠİ]Kš›Ø‹šY
+NÙ[ÙH]ØZ]ØY]Y]YJ
+NßB™[˜İ[Ûˆİ\İÛQ[Y[œÚ[Û”›İÊ[™^
+^Ü™]\›ˆ]ˆÛ\ÜÏH™[Y[œÚ[Û‹\›İÈˆ]KXİ\İÛKY[Y[œÚ[Û]ˆÛ\ÜÏH™šY[È›İ\ˆ‰Ú[œ]
+	Øİ\İÛWÛX™[ÉÊÚ[™^	ÓX™[È\™XIË	ÉË	İ^	Ë	ÛX^[™İHŒLŒˆXÙZÛ\H‘š]™\ˆÚYK[™[K‹‹ˆ‰Ê_IÚ[œ]
+	Øİ\İÛWİÚYÉÊÚ[™^	ÕÚY
+[ŠIË	ÉË	Û[X™\‰Ë	ÛZ[H‹ŒHˆX^HŒLˆİ\H‹ŒH‰Ê_IÚ[œ]
+	Øİ\İÛWÚZYÚÉÊÚ[™^	ÒZYÚ
+[ŠIË	ÉË	Û[X™\‰Ë	ÛZ[H‹ŒHˆX^HŒLˆİ\H‹ŒH‰Ê_IÚ[œ]
+	Øİ\İÛWÜ]WÉÊÚ[™^	Ô]IËK	Û[X™\‰Ë	ÛZ[HŒHˆX^HŒLˆİ\HŒH‰Ê_OÙ]]Ûˆ\OH˜]ÛˆˆÛ\ÜÏH˜ˆYÚÛX[ˆ]KXXİ[ÛHœ™[[İ™KXİ\İÛKY[Y[œÚ[Ûˆ”™[[İ™OØ]ÛÙ]˜ßB‚™[˜İ[ÛˆÚÛ\Ø[QY]ÜŠÛY[[[
+^ÂˆÛÛœİ›ÙXİÏ\İ]KÚÛ\Ø[PYZ[Ëœ›ÙXİß×Kİ™\œšY\Ï[™]ÈX\
 
-function wholesaleEditor(client=null){
-  const products=state.wholesaleAdmin?.products||[], overrides=new Map((client?.product_discounts||[]).map(x=>[String(x.product_id),x.discount_percent]));
-  state.editWholesale=client;
-  showModal(client?'Edit wholesale client':'Add wholesale client',`<form data-form="wholesale-client" class="stack">
-    <div class="notice info">Wholesale clients sign in with a saved username and password. Their negotiated pricing stays active on that device for up to 30 days. Product-specific discounts override the default discount.</div>
-    <div class="fields">${input('name','Client / company name',client?.name||'','text','required maxlength="120"')}${input('username','Username',client?.username||'','text','required minlength="3" maxlength="60" autocomplete="off"')}${input('email','Wholesale contact email',client?.email||'','email','required maxlength="254"')}${input('discount_percent','Default discount %',client?.discount_percent||0,'number','min="0" max="90" step=".1" required')}</div>
-    ${client?checkbox('active','Wholesale pricing active',!!client.active):''}
-    <div><h3>Product-specific discounts <span class="muted tiny">(optional)</span></h3><div class="stack-sm mt-sm">${products.map(p=>`<div class="row between"><span>${esc(p.name)}</span><input data-wholesale-product="${p.id}" type="number" min="0" max="90" step=".1" placeholder="Use default" value="${esc(overrides.get(String(p.id))||'')}" style="max-width:120px"></div>`).join('')}</div></div>
-    ${client?checkbox('reset_password','Generate a new wholesale password',false):''}
-    ${formFooter(client?'Save wholesale profile':'Create wholesale client')}</form>`,true);
-}
-function showWholesaleCredentials(username,password){
-  showModal('Save wholesale login',`<div class="stack"><div class="notice">The temporary password is displayed only once. Send the username and password securely to the approved wholesale client.</div>${input('saved_username','Username',username,'text','readonly')}${input('saved_password','Temporary password',password,'text','readonly')}<button class="btn primary" data-action="close">Saved securely</button></div>`);
-}
+ÛY[Ëœ›ÙXİÙ\ØÛİ[ß×JK›X\
+O–Ôİš[™Êœ›ÙXİÚY
+K™\ØÛİ[Ü\˜Ù[JJNÂˆİ]K™Y]ÚÛ\Ø[OXÛY[ÂˆÚİÓ[Ù[
+ÛY[ÉÑY]ÚÛ\Ø[HÛY[	Î‰ĞYÚÛ\Ø[HÛY[	Ë›Ü›H]KY›Ü›OHÚÛ\Ø[KXÛY[ˆÛ\ÜÏHœİXÚÈ‚ˆ]ˆÛ\ÜÏH››İXÙH[™›È•ÚÛ\Ø[HÛY[ÈÚYÛˆ[ˆÚ]HØ]™Y\Ù\›˜[YH[™\ÜİÛÜ™ˆZ\ˆ™YÛİX]YšXÚ[™Èİ^\ÈXİ]™HÛˆ]]šXÙH›Üˆ\ÈÌ^\Ëˆ›ÙXİ\ÜXÚYšXÈ\ØÛİ[Èİ™\œšYHHY˜][\ØÛİ[Ù]‚ˆ]ˆÛ\ÜÏH™šY[È‰Ú[œ]
+	Û˜[YIË	ĞÛY[ÈÛÛ\[H˜[YIËÛY[Ë›˜[Y_	ÉË	İ^	Ë	Ü™\]Z\™YX^[™İHŒLŒ‰Ê_IÚ[œ]
+	İ\Ù\›˜[YIË	Õ\Ù\›˜[YIËÛY[Ë\Ù\›˜[Y_	ÉË	İ^	Ë	Ü™\]Z\™YZ[›[™İHŒÈˆX^[™İHŒˆ]]ØÛÛ\]OH›Ù™ˆ‰Ê_IÚ[œ]
+	Ù[XZ[	Ë	ÕÚÛ\Ø[HÛÛXİ[XZ[	ËÛY[Ë™[XZ[	ÉË	Ù[XZ[	Ë	Ü™\]Z\™YX^[™İHŒM‰Ê_IÚ[œ]
+	Ù\ØÛİ[Ü\˜Ù[	Ë	ÑY˜][\ØÛİ[	IËÛY[Ë™\ØÛİ[Ü\˜Ù[	Û[X™\‰Ë	ÛZ[HŒˆX^HLˆİ\H‹ŒHˆ™\]Z\™Y	Ê_OÙ]‚ˆ	ØÛY[ØÚXÚØ›Ş
+	ØXİ]™IË	ÕÚÛ\Ø[HšXÚ[™ÈXİ]™IËHXÛY[˜Xİ]™JN‰ÉßBˆ]Ï”›ÙXİ\ÜXÚYšXÈ\ØÛİ[ÈÜ[ˆÛ\ÜÏH›]]Y[HŠÜ[Û˜[
+OÜÜ[ÚÏ]ˆÛ\ÜÏHœİXÚË\ÛH]\ÛH‰Ü›ÙXİË›X\
+O˜]ˆÛ\ÜÏHœ›İÈ™]ÙY[ˆÜ[‰Ù\ØÊ›˜[YJ_OÜÜ[[œ]]K]ÚÛ\Ø[K\›ÙXİH‰ÜšYHˆ\OH›[X™\ˆˆZ[HŒˆX^HLˆİ\H‹ŒHˆXÙZÛ\H•\ÙHY˜][ˆ˜[YOH‰Ù\ØÊİ™\œšY\Ë™Ù]
+İš[™ÊšY
+J_	ÉÊ_Hˆİ[OH›X^]ÚYŒLŒÙ]˜
+Kš›Ú[Š	ÉÊ_OÙ]Ù]‚ˆ	ØÛY[ØÚXÚØ›Ş
+	Ü™\Ù]Ü\ÜİÛÜ™	Ë	ÑÙ[™\˜]HH™]ÈÚÛ\Ø[H\ÜİÛÜ™	Ë˜[ÙJN‰ÉßBˆ	Ù›Ü›Q›Ûİ\ŠÛY[ÉÔØ]™HÚÛ\Ø[H›Ùš[IÎ‰ĞÜ™X]HÚÛ\Ø[HÛY[	Ê_OÙ›Ü›O˜YJNÂŸB™[˜İ[ÛˆÚİÕÚÛ\Ø[PÜ™Y[X[Ê\Ù\›˜[YK\ÜİÛÜ™
+^ÂˆÚİÓ[Ù[
+	ÔØ]™HÚÛ\Ø[HÙÚ[‰Ë]ˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH•H[\Ü˜\H\ÜİÛÜ™\È\Ü^YYÛ›HÛ˜ÙKˆÙ[™H\Ù\›˜[YH[™\ÜİÛÜ™ÙXİ\™[HÈH\›İ™YÚÛ\Ø[HÛY[Ù]‰Ú[œ]
+	ÜØ]™Yİ\Ù\›˜[YIË	Õ\Ù\›˜[YIË\Ù\›˜[YK	İ^	Ë	Ü™XYÛ›IÊ_IÚ[œ]
+	ÜØ]™YÜ\ÜİÛÜ™	Ë	Õ[\Ü˜\H\ÜİÛÜ™	Ë\ÜİÛÜ™	İ^	Ë	Ü™XYÛ›IÊ_O]ÛˆÛ\ÜÏH˜ˆš[X\Hˆ]KXXİ[ÛH˜ÛÜÙH”Ø]™YÙXİ\™[OØ]ÛÙ]˜
+NÂŸB‚‹Êˆ]™\H]]][™ÈXİ[ÛˆØ[ÈH˜XÚÙ[™ÈHÓH\È™]™\ˆHšXÙH]]Üš]Kˆ
+‹Â˜ÛÛœİXİ[ÛœÈHÂˆ	ÛİÛ™\‹\™[X\ÙK\™]Ø\™ÉÎ˜\Ş[˜Ê
+OOØ]ØZ]\JØ\KØYZ[‹Ü™]Ø\™ËÚ›ØœËÉÜİ]Kš›Ø‹šYKÜ™[X\ÙX	ÔÔÕ	ËØÛÛ™š\›NY_JNİØ\İ
+	Õ[\ÙY˜[[˜ÙH™]\›™YÈHÛY[‰ÊNØ]ØZ]ØY›ØŠİ]Kš›Ø‹šY
+NßKˆ	ÜÜ[X\›İ™K\™]šY]ÜÉÎŠ
+OOœÜ[\ØY\›İ˜[
 
-/* Every mutating action calls the backend; the DOM is never the price authority. */
-const actions = {
- 'owner-release-rewards':async()=>{await api(`/api/admin/rewards/jobs/${state.job.id}/release`,'POST',{confirm:true});toast('Unused balance returned to the client.');await loadJob(state.job.id);},
- 'portal-approve-previews':()=>portalUploadApproval(),
- 'complete-site-survey':completeSiteSurveyModal,
- 'usdot-reset-layout':()=>{resetUsdotPositions();recalculate();},
- 'usdot-font':b=>{
-   const form=$('#calculator'),font=usdotFont(b.dataset.font);if(!form)return;
-   form.elements.usdot_style.value=font.id;
-   const current=$('.usdot-font-current'),sample=$('.usdot-font-current-sample');
-   if(current){current.textContent=font.name;current.className='usdot-font-current usdot-font-'+font.id;}
-   if(sample){sample.className='usdot-font-current-sample usdot-font-'+font.id;}
-   b.closest('details')?.removeAttribute('open');updateUsdotPreview();recalculate();
- },
- 'online-pay':async()=>{const r=await api('/api/portal/checkout','POST',{});location.href=r.url;},
- 'custom-pay':()=>{const c=state.portalJob.custom_checkout,options=[];if(c?.can_pay_deposit&&c.deposit_cents<c.balance_cents)options.push(['deposit','Required deposit - '+money(c.deposit_cents)]);if(c?.can_pay_total)options.push(['total','Pay remaining balance - '+money(c.balance_cents)]);if(!options.length)throw new Error('No card payment is currently due.');showModal('Approve & Pay',`<form data-form="custom-payment" class="stack"><div class="notice info">Your current quote is approved. Choose how much you want to pay now. You will complete payment on Stripe's secure checkout page.</div>${select('payment_kind','Payment amount',options,options[0][0])}<p class="field-hint">A deposit reduces the remaining balance. Paying the total clears the current balance. Artwork approval remains a separate production step.</p>${formFooter('Continue to secure payment')}</form>`);},
- close:()=>closeModal(),
- refresh:()=>route(),
- 'email-test':async()=>{const r=await api('/api/admin/email-test','POST',{});toast('Test email sent to '+r.recipient+'.');await loadSettings();},
- 'wholesale-login':()=>showModal('Wholesale sign in',`<form data-form="wholesale-login" class="stack"><div class="notice info">Sign in once to use your negotiated wholesale pricing. This device can stay signed in for up to 30 days.</div>${input('username','Username','','text','required minlength="3" maxlength="60" autocomplete="username"')}${input('password','Password','','password','required minlength="12" maxlength="128" autocomplete="current-password"')}${formFooter('Sign in')}</form>`),
- 'wholesale-clear':async()=>{state.wholesaleToken='';state.wholesaleName='';state.wholesaleEmail='';localStorage.removeItem('wholesale_token');localStorage.removeItem('wholesale_name');localStorage.removeItem('wholesale_email');toast('Wholesale pricing signed out.');await calculatorView();},
- 'new-wholesale':()=>wholesaleEditor(),
- 'edit-wholesale':b=>wholesaleEditor((state.wholesaleAdmin?.clients||[]).find(x=>x.id===Number(b.dataset.id))),
- 'portal-refresh':()=>loadPortal(),
- 'portal-status-qr':async()=>{const r=await api('/api/portal/status-link','POST',{});showModal('Shareable job status',`<div class="status-qr-wrap"><img src="${esc(r.qr_url)}" alt="QR code for limited job status"><p class="field-hint">Anyone with this QR can see only the job number and coarse production status.</p><label class="field"><span>Status link</span><input value="${esc(r.status_url)}" readonly></label></div>`);},
- 'portal-appointment':()=>showModal('Request scheduling',`<form data-form="portal-appointment" class="stack"><div class="notice info">Choose a preferred date and time window. This is a request, not a confirmed appointment; the shop will follow up with availability. Site surveys have an extra fee, confirmed before scheduling, and hold printing until measurements are verified.</div>${select('kind','What do you need?',[['site_survey','Site survey / measurements'],['consultation','Project consultation'],['installation','Installation scheduling'],['pickup','Pickup coordination']],'site_survey')}<div class="fields">${input('requested_date','Preferred date','','date','required')}${select('window','Preferred time',[['Morning','Morning'],['Afternoon','Afternoon'],['Any time','Any time']],'Morning')}</div>${input('location','Location / address (if applicable)','','text','maxlength="500"')}<label class="field"><span>Scheduling notes</span><textarea name="note" maxlength="2000"></textarea></label><div class="form-error"></div>${formFooter('Send scheduling request')}</form>`),
- print:()=>window.print(),
- 'choose-category':async b=>{state.selectedCategory=b.dataset.category;sessionStorage.setItem('storefront_category',state.selectedCategory);state.selectedProduct=null;history.pushState(null,'','/');await calculatorView();},
- 'choose-product':async b=>{state.selectedProduct=Number(b.dataset.id);const product=state.catalog.products.find(p=>p.id===state.selectedProduct);history.pushState(null,'',productPath(product));await calculatorView();},
- quantity:async b=>{$('#calculator').elements.quantity.value=b.dataset.value;await recalculate();},
- 'request-order':()=>{const form=$('#calculator');if(form&&!form.reportValidity())return;orderModal();},
- 'design-quote':()=>showModal('Need design?',`<form data-form="design-quote" class="stack"><div class="notice info">Tell us what you need designed. Weâ€™ll review the scope and quote the design service before production.</div><div class="fields">${input('customer_name','Your name','','text','required maxlength="120"')}${input('customer_email','Email','','email','required maxlength="254"')}${input('phone','Phone (optional)','','tel')}${input('title','Project / product','','text','required maxlength="180"')}</div><label class="field"><span>Design brief</span><textarea name="notes" required maxlength="5000" placeholder="What are we designing? Include wording, colors, style, size, deadline, and where it will be used."></textarea></label><label class="field"><span>Logos, sketches or reference files (optional)</span><input name="artwork" type="file" accept=".png,.jpg,.jpeg,.pdf" multiple></label><p class="field-hint">Attach multiple reference files, up to 50 MB each.</p><label class="sr-only">Leave blank<input name="website" tabindex="-1" autocomplete="off"></label>${formFooter('Request design quote')}</form>`,true),
- 'add-wrap-dimension':b=>{const cfg=state.catalog.products.find(p=>p.id===state.selectedProduct).config,count=all('[data-wrap-dimension]').length;if(count>=20)throw new Error('Maximum 20 size rows.');$('#wrap-dimensions').insertAdjacentHTML('beforeend',wrapDimensionRow(cfg,count,'','',1));recalculate();},
- 'remove-wrap-dimension':b=>{if(all('[data-wrap-dimension]').length<=1)return;b.closest('[data-wrap-dimension]').remove();recalculate();},
- 'add-custom-dimension':()=>{const box=$('#custom-dimensions'),count=all('[data-custom-dimension]',box).length;if(count>=20)throw new Error('Maximum 20 optional dimension rows.');box.insertAdjacentHTML('beforeend',customDimensionRow(count));},
- 'remove-custom-dimension':b=>b.closest('[data-custom-dimension]').remove(),
- 'custom-quote':()=>showModal('Request a custom quote',`<form data-form="custom-quote" class="stack"><div class="notice info">Use this for specialty fabrication, CNC or laser-cut work, dimensional signs, fleet graphics, bulk orders, custom materials, or anything not listed in the standard products.</div><div class="fields">${input('customer_name','Your name','','text','required maxlength="120"')}${input('customer_email','Email','','email','required maxlength="254"')}${input('phone','Phone (optional)','','tel')}${select('project_type','Project type',[['Custom fabricated sign','Custom fabricated sign'],['CNC / routed sign','CNC / routed sign'],['Laser-cut acrylic','Laser-cut acrylic'],['Dimensional lettering','Dimensional lettering'],['Fleet / multiple vehicles','Fleet / multiple vehicles'],['Bulk order','Bulk order'],['Other custom project','Other custom project']],'Custom fabricated sign')}</div><div class="fields">${input('quantity','Quantity / approximate scope','','text','maxlength="120"')}${input('vehicle_count','Fleet vehicle count (if applicable)','','text','maxlength="120"')}</div><div><div class="row between mb"><div><h3>Dimensions <span class="muted tiny">(optional)</span></h3><p class="field-hint">Add as many individual panels, pieces, or vehicle areas as you know.</p></div><button type="button" class="btn light small" data-action="add-custom-dimension">${icon('plus','icon-sm')} Add dimensions</button></div><div id="custom-dimensions" class="stack-sm"></div></div><label class="field"><span>Tell us about the project</span><textarea name="notes" required maxlength="5000" placeholder="Material, finish, deadline, installation needs, vehicle types, or anything else that helps us quote it."></textarea></label><label class="field"><span>Reference files or artwork (optional)</span><input name="artwork" type="file" accept=".png,.jpg,.jpeg,.pdf" multiple></label><p class="field-hint">You can attach multiple files, up to 50 MB each.</p><label class="sr-only">Leave blank<input name="website" tabindex="-1" autocomplete="off"></label>${formFooter('Request custom quote')}</form>`,true),
- 'board-mode':b=>{state.boardMode=b.dataset.value;all('[data-action="board-mode"]').forEach(x=>x.classList.toggle('active',x===b));renderBoard();},
- 'queue-filter':b=>{state.queueFilter=b.dataset.value;all('[data-action="queue-filter"]').forEach(x=>x.classList.toggle('active',x===b));renderQueue();},
- 'report-trend-range':b=>{if(!reportTrendOptions[b.dataset.value]||!state.reportData)return;state.reportTrendRange=b.dataset.value;const panel=$('.report-trends');if(!panel)return;all('[data-action="report-trend-range"]',panel).forEach(button=>{const selected=button.dataset.value===state.reportTrendRange;button.classList.toggle('active',selected);button.setAttribute('aria-pressed',String(selected));});$('#report-trend-chart',panel).innerHTML=reportTrendContent(state.reportData);},
- 'job-tab':b=>{state.jobTab=b.dataset.value;renderJob();},
- 'return-platform':async()=>{const destination=state.user.support_return;await api('/api/auth/logout','POST');location.href=destination;},
- logout:async()=>{const r=await api('/api/auth/logout','POST');state.csrf=r.csrf;state.user=null;location.href='/staff';},
- password:()=>showModal('Change your password',`<form data-form="password" class="stack">${input('current_password','Current password','','password','required autocomplete="current-password"')}${input('new_password','New password (12-128 characters)','','password','required minlength="12" maxlength="128" autocomplete="new-password"')}${input('confirm_password','Repeat new password','','password','required minlength="12" autocomplete="new-password"')}${formFooter('Update password')}</form>`),
- 'claim-job':async()=>{await api(`/api/staff/jobs/${state.job.id}/claim`,'POST');toast('Job assigned to you.');await loadJob(state.job.id);},
- 'share-job':()=>showModal('Create or replace the client link',`<div class="stack"><p class="muted">This creates a private, 14-day link for this job. Anyone with the link can view the job and submit customer approvals.</p><div class="notice">Any earlier link and customer session for this job will stop working. Send the new link to your client.</div><button class="btn primary" data-action="confirm-share">Create private client link</button></div>`),
- 'confirm-share':async()=>{const j=state.job,r=await api(`/api/staff/jobs/${j.id}/share`,'POST');state.lastShare=r.portal_url;showModal('Your private client link',`<div class="stack"><p class="muted">Valid for 14 days. Share only with the customer authorized to approve this job.</p><input id="share-link" value="${esc(r.portal_url)}" readonly aria-label="Private client link"><div class="row wrap"><button class="btn primary" data-action="copy-share">Copy link</button><a class="btn light" href="${esc(r.portal_url)}" target="_blank" rel="noopener noreferrer">Preview customer portal ${icon('arrow','icon-sm')}</a><a class="btn light" href="mailto:${esc(j.customer_email)}?subject=${encodeURIComponent(j.number+' - your project quote and proof')}&body=${encodeURIComponent('Please use this private link to review your job, approve the current quote and proof, and access your payment link:\n\n'+r.portal_url+'\n\nThis link expires in 14 days. Please keep it private.')}">Open email draft</a></div><p class="field-hint">Copy/share and opening your email application are supported. The server does not send an email automatically.</p></div>`);},
- 'copy-share':async()=>{try{await navigator.clipboard.writeText(state.lastShare);toast('Private link copied.');}catch{$('#share-link').select();toast('Select and copy the highlighted link.');}},
- 'cancel-job':()=>showModal('Cancel this job?',`<form data-form="cancel-job" class="stack"><div class="notice">This removes the job from the active queue but preserves its quote, files, payments and audit history. It does not issue a refund.</div><label class="field"><span>Reason for cancellation</span><textarea name="reason" required maxlength="1000"></textarea></label>${formFooter('Cancel job')}</form>`),
- 'email-proof-approval':b=>{const p=state.job.proofs[0];if(!p||p.id!==Number(b.dataset.id))throw new Error('Reload the current proof.');showModal('Record approval received by email',`<form data-form="email-proof-approval" data-id="${p.id}" class="stack"><div class="notice info">Proof version ${p.version}: ${esc(p.label)}. Open the exact proof file and verify that the client's email approves this version and its full scope.</div><a class="btn light" href="/api/assets/${p.asset_id}" target="_blank" rel="noopener">Open proof file</a>${input('name','Customer name','','text','required maxlength="120"')}${input('approved_at','Approval email date and time','','datetime-local','required')}<label class="field"><span>Email reference (subject, sender or message ID)</span><textarea name="email_reference" required maxlength="1000"></textarea></label>${checkbox('confirm','I verified the customer approved this exact proof and order scope by email.')}<p class="field-hint">This records your verification; it does not claim the customer accepted terms in the portal.</p>${formFooter('Record email approval')}</form>`);},
- 'send-proof':async b=>{const r=await api(`/api/staff/jobs/${state.job.id}/proofs/${b.dataset.id}/send`,'POST',{});toast(r.email_sent?'Proof approval email sent.':'Proof link saved, but email delivery failed. Check Email status in Shop settings.',!r.email_sent);await loadJob(state.job.id);},
- 'self-approve-artwork':b=>showModal('Approve artwork & accept terms',`<form data-form="self-approve-artwork" data-id="${b.dataset.id}" class="stack"><div class="notice info">Use this only when your uploaded file is fully designed and ready to print as supplied. ${esc(shopName())} will use this exact file as the approved proof.</div>${input('name','Your full name','','text','required maxlength="120"')}${approvalAgreement(state.portalJob.job_terms,state.portalJob.approval_statement)}${formFooter('Approve artwork & accept terms')}</form>`),
- 'edit-quote':()=>editQuoteModal(),
- 'online-price-correction':()=>onlinePriceCorrectionModal(),
- 'publish-quote':()=>showModal('Publish this reviewed quote',`<form data-form="publish" class="stack"><div class="notice">The client will see version ${state.job.quote_version} for ${money(state.job.totals.total_cents)}. Publishing does not create a QuickBooks invoice.</div>${checkbox('reviewed','I reviewed the dimensions, included services, material costs, labor, taxes, delivery and final price. The quote is ready for the client.')}${formFooter('Publish customer quote')}</form>`),
- 'schedule-job':()=>scheduleModal(),
- task:async b=>{await api(`/api/staff/tasks/${b.dataset.id}/action`,'POST',{action:b.dataset.value});toast('Task updated.');await refreshAfterTask();},
- 'block-task':b=>showModal('Flag a blocked task',`<form data-form="block-task" data-id="${b.dataset.id}" class="stack"><label class="field"><span>What is preventing this task from moving?</span><textarea name="note" required maxlength="2000" placeholder="Waiting on material, missing artwork, machine issue..."></textarea></label>${formFooter('Mark blocked')}</form>`),
- 'add-task':()=>showModal('Add a job-specific task',`<form data-form="add-task" class="stack">${input('title','Task name','','text','required maxlength="120"')}${input('department','Department','Production','text','required maxlength="60"')}${select('gate','Approval / payment gate',[['none','None - intake work'],['quote','Accepted quote'],['deposit','Accepted quote + deposit'],['production','Quote + approved proof + deposit'],['delivery','Production checks + paid balance']],'production')}<label class="field"><span>Prerequisites (select any earlier tasks required)</span><select name="dependencies" multiple size="5">${state.job.tasks.map(t=>`<option value="${t.id}">${t.position}. ${esc(t.title)}</option>`).join('')}</select></label><p class="field-hint">This adds a task to this job only. Update workflow templates for future jobs. Customize checklists before production starts.</p>${formFooter('Add task')}</form>`),
- 'upload-artwork':()=>artworkModal(false),
- 'portal-artwork':()=>artworkModal(true),
- 'upload-proof':()=>proofUploadModal(),
- layout:()=>layoutModal(),
- 'payment-link':()=>paymentLinkModal(),
- 'verify-payment':()=>verifyPaymentModal(),
- 'void-payment':b=>showModal('Correct a payment record',`<form data-form="void-payment" data-id="${b.dataset.id}" class="stack"><div class="notice">This only reverses the local verification record. It does not refund money or change QuickBooks. Reconcile the accounting transaction separately.</div><label class="field"><span>Reason for correcting the record</span><textarea name="reason" required maxlength="1000"></textarea></label>${formFooter('Void local record')}</form>`),
- 'add-line':()=>{if(all('[data-quote-line]').length>=30)throw new Error('Maximum 30 product lines.');$('#quote-lines').insertAdjacentHTML('beforeend',quoteEditRow(all('[data-quote-line]').length));},
- 'remove-line':b=>{if(all('[data-quote-line]').length===1)throw new Error('Keep at least one product line.');b.closest('[data-quote-line]').remove();},
- 'add-quote-service':()=>{if(all('[data-quote-revision-line]').length>=30)throw new Error('Maximum 30 quote lines.');$('#quote-revision-lines').insertAdjacentHTML('beforeend',quoteRevisionRow({},''));},
- 'remove-quote-line':b=>{if(all('[data-quote-revision-line]').length===1)throw new Error('Keep at least one quote line.');b.closest('[data-quote-revision-line]').remove();},
- 'quote-line-up':b=>{const row=b.closest('[data-quote-revision-line]'),prev=row.previousElementSibling;if(prev)row.parentNode.insertBefore(row,prev);},
- 'quote-line-down':b=>{const row=b.closest('[data-quote-revision-line]'),next=row.nextElementSibling;if(next)row.parentNode.insertBefore(next,row);},
- 'edit-product':b=>editProductModal(Number(b.dataset.id)),
- 'new-product':()=>editProductModal(),
- 'edit-workflow':b=>workflowModal(Number(b.dataset.id)),
- 'new-workflow':()=>workflowModal(),
- 'add-step':()=>{const count=all('[data-step]').length;if(count>=40)throw new Error('Maximum 40 steps.');$('#workflow-rows').insertAdjacentHTML('beforeend',workflowRow({title:'New task',department:'Production',gate:'delivery',depends_on:count?[count]:[]},count));},
- 'remove-step':b=>{b.closest('[data-step]').remove();all('[data-step]').forEach((row,i)=>row.firstElementChild.textContent=i+1);},
- 'new-user':()=>showModal('Invite a teammate',`<form data-form="new-user" class="stack">${input('name','Full name','','text','required maxlength="120"')}${input('email','Email','','email','required')}${select('role','Access level',[['employee','Employee - jobs, design and production'],['admin','Owner/admin - pricing, people and payments']],'employee')}<p class="field-hint">A random password is displayed once after creation. Share it securely; this pilot does not send invitation emails.</p>${formFooter('Create teammate')}</form>`),
- 'reset-user':b=>showModal('Reset this teammate password?',`<div class="stack"><p class="muted">All existing sessions for this teammate will be signed out. A new random password will be shown once.</p><button class="btn primary" data-action="confirm-reset-user" data-id="${b.dataset.id}">Reset password</button></div>`),
- 'confirm-reset-user':async b=>{const r=await api(`/api/admin/users/${b.dataset.id}`,'PATCH',{reset_password:true});showCredentials(r.temporary_password);await loadTeam();},
- 'toggle-user':async b=>{await api(`/api/admin/users/${b.dataset.id}`,'PATCH',{active:b.dataset.value==='true'});toast('Account access updated.');await loadTeam();},
- 'accept-quote':()=>showModal('Accept your project quote',`<form data-form="accept-quote" class="stack"><div class="notice info">Quote version ${state.portalJob.quote_version} / Total ${money(state.portalJob.totals.total_cents)} / ${state.portalJob.checkout?'Payment required '+money(state.portalJob.totals.total_cents):'Required deposit '+money(state.portalJob.totals.deposit_cents)}.</div>${input('name','Your full name','','text','required maxlength="120"')}${checkbox('confirm','I verified the products, dimensions, supplied measurements, scope, charges and total. I accept this quote and the Artwork, Sizing & Production Terms.')+termsDetails(state.portalJob.job_terms)}<p class="field-hint">Artwork approval is a separate step. ${state.portalJob.checkout?'Production begins only after the required approvals and payment are verified.':'Production begins only after the required approvals and deposit are verified.'}</p>${formFooter('Accept quote')}</form>`),
- 'approve-proof':()=>approvalModal('approve'),
- 'request-changes':()=>approvalModal('request_changes'),
- 'payment-notice':()=>showModal('Let the shop know you paid',`<form data-form="payment-notice" class="stack"><div class="notice info">The shop will verify your transaction in QuickBooks. Reporting it here does not change your balance until it is verified.</div>${input('reference','Payment reference / receipt identifier','','text','required maxlength="200"')}${formFooter('Send payment notice')}</form>`),
-};
-function showCredentials(password){showModal('Save the new account password',`<div class="stack"><div class="notice">This password is displayed only once. Share it securely, then have the teammate change it after signing in.</div><input value="${esc(password)}" readonly aria-label="Temporary password"><p class="muted tiny">The server stores a password hash, not this readable password.</p><button class="btn primary" data-action="close">Saved securely</button></div>`);}
+Kˆ	ØÛÛ\]K\Ú]K\İ\™^IÎ˜ÛÛ\]TÚ]Tİ\™^S[Ù[ˆ	İ\Ùİ\™\Ù][^[İ]	ÎŠ
+OOÜ™\Ù]\ÙİÜÚ][ÛœÊ
+NÜ™XØ[İ[]J
+NßKˆ	İ\ÙİY›Û	Î˜OÂˆÛÛœİ›Ü›OI
+	ÈØØ[İ[]Ü‰ÊK›Û]\Ùİ›Û
+‹™]\Ù]™›Û
+NÚYŠY›Ü›J\™]\›Âˆ›Ü›K™[[Y[Ë\ÙİÜİ[K˜[YOY›ÛšYÂˆÛÛœİİ\œ™[I
+	Ë\ÙİY›ÛXİ\œ™[	ÊKØ[\OI
+	Ë\ÙİY›ÛXİ\œ™[\Ø[\IÊNÂˆYŠİ\œ™[
+^Øİ\œ™[^ÛÛ[Y›Û›˜[YNØİ\œ™[˜Û\ÜÓ˜[YOIİ\ÙİY›ÛXİ\œ™[\ÙİY›ÛIÊÙ›ÛšYßBˆYŠØ[\J^ÜØ[\K˜Û\ÜÓ˜[YOIİ\ÙİY›ÛXİ\œ™[\Ø[\H\ÙİY›ÛIÊÙ›ÛšYßBˆ‹˜ÛÜÙ\İ
+	Ù]Z[ÉÊOËœ™[[İ™P]šX]J	ÛÜ[‰ÊNİ\]U\Ùİ™]šY]Ê
+NÜ™XØ[İ[]J
+NÂˆKˆ	ÛÛ›[™K\^IÎ˜\Ş[˜Ê
+OOØÛÛœİX]ØZ]\J	ËØ\KÜÜ[ØÚXÚÛİ]	Ë	ÔÔÕ	ËßJNÛØØ][Û‹š™Y\‹\›ßKˆ	Øİ\İÛK\^IÎŠ
+OOØÛÛœİÏ\İ]KœÜ[›Ø‹˜İ\İÛWØÚXÚÛİ]Ü[ÛœÏV×NÚYŠÏË˜Ø[—Ü^WÙ\ÜÚ]	‰˜Ë™\ÜÚ]ØÙ[ÏË˜˜[[˜ÙWØÙ[Ê[Ü[ÛœËœ\Ú
+ÉÙ\ÜÚ]	Ë	Ô™\]Z\™Y\ÜÚ]H	ÊÛ[Û™^JË™\ÜÚ]ØÙ[ÊWJNÚYŠÏË˜Ø[—Ü^Wİİ[
+[Ü[ÛœËœ\Ú
+Éİİ[	Ë	Ô^H™[XZ[š[™È˜[[˜ÙHH	ÊÛ[Û™^JË˜˜[[˜ÙWØÙ[ÊWJNÚYŠ[Ü[ÛœË›[™İ
+]›İÈ™]È\œ›ÜŠ	Ó›ÈØ\™^[Y[\Èİ\œ™[HYK‰ÊNÜÚİÓ[Ù[
+	Ğ\›İ™H	ˆ^IË›Ü›H]KY›Ü›OH˜İ\İÛK\^[Y[ˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH[™›È–[İ\ˆİ\œ™[][İH\È\›İ™YˆÚÛÜÙHİÈ]XÚ[İHØ[È^H›İËˆ[İHÚ[ÛÛ\]H^[Y[Ûˆİš\IÜÈÙXİ\™HÚXÚÛİ]YÙKÙ]‰ÜÙ[Xİ
+	Ü^[Y[ÚÚ[™	Ë	Ô^[Y[[[İ[	ËÜ[ÛœËÜ[ÛœÖÌVÌJ_OÛ\ÜÏH™šY[Z[H\ÜÚ]™YXÙ\ÈH™[XZ[š[™È˜[[˜ÙKˆ^Z[™ÈHİ[ÛX\œÈHİ\œ™[˜[[˜ÙKˆ\ÛÜšÈ\›İ˜[™[XZ[œÈHÙ\\˜]H›ÙXİ[Ûˆİ\Ü‰Ù›Ü›Q›Ûİ\Š	ĞÛÛ[YHÈÙXİ\™H^[Y[	Ê_OÙ›Ü›O˜
+NßKˆÛÜÙNŠ
+OO˜ÛÜÙS[Ù[
 
-const forms = {
- 'complete-site-survey':async(f,d)=>{const jobId=Number(f.dataset.jobId);await api(`/api/staff/jobs/${jobId}/site-survey/complete`,'POST',{note:d.note,confirm:!!d.confirm,quote_version:Number(f.dataset.quoteVersion),reviewed_surveys:reviewedSurveys(f)});closeModal();toast('Site survey verified and completed.');await loadJob(jobId);},
- 'portal-upload-approval':async(f,d)=>{const selected=all('[data-portal-proof-file]:checked',f).map(input=>Number(input.dataset.portalProofFile));const files=selected.map(id=>{const asset=state.portalJob.assets.find(item=>item.id===id);return {asset_id:id,sha256:asset.sha256,line_indices:all(`[data-portal-proof-asset="${id}"]:checked`,f).map(input=>Number(input.dataset.portalProofLine))};});await api('/api/portal/artwork-preview/approve','POST',{name:d.name,confirm:!!d.confirm,terms_version:state.portalJob.job_terms.version,quote_version:state.portalJob.quote_version,files});closeModal();toast('Your upload previews are approved for print.');await loadPortal();},
- login:async(f,d)=>{const r=await api('/api/auth/login','POST',d);state.user=r.user;state.csrf=r.csrf;await route();},
- 'report-filter':async(f,d)=>loadReports({start:d.start,end:d.end}),
- calculator:async()=>{await recalculate();},
- 'wholesale-login':async(f,d)=>{const r=await api('/api/wholesale/activate','POST',{username:d.username,password:d.password});state.wholesaleToken=r.token;state.wholesaleName=r.client.name;state.wholesaleEmail=r.client.email;localStorage.setItem('wholesale_token',r.token);localStorage.setItem('wholesale_name',r.client.name);localStorage.setItem('wholesale_email',r.client.email);closeModal();toast('Wholesale pricing applied.');await calculatorView();},
- 'wholesale-client':async(f,d)=>{const product_discounts={};all('[data-wholesale-product]',f).forEach(x=>{if(x.value!=='')product_discounts[x.dataset.wholesaleProduct]=x.value;});const payload={name:d.name,username:d.username,email:d.email,discount_percent:d.discount_percent,product_discounts,active:state.editWholesale?!!d.active:true,reset_password:!!d.reset_password};const r=state.editWholesale?await api('/api/admin/wholesale/'+state.editWholesale.id,'PUT',payload):await api('/api/admin/wholesale','POST',payload);closeModal();await loadSettings();if(r.temporary_password)showWholesaleCredentials(r.username||d.username,r.temporary_password);else toast('Wholesale pricing updated.');},
- 'design-quote':async(f,d)=>{
-   const files=[...f.elements.artwork.files];delete d.artwork;
-   if(files.some(file=>file.size>50*1024*1024))throw new Error('Each reference file must be 50 MB or smaller.');
-   const r=await api('/api/custom-requests','POST',{customer_name:d.customer_name,customer_email:d.customer_email,phone:d.phone,project_type:'Design services â€” '+d.title,notes:d.notes,website:d.website||'',dimensions:[],referral_code:referralCode()});
-   const token=new URL(r.portal_url).hash.slice(7);const x=await api('/api/portal/exchange','POST',{token});state.csrf=x.csrf;
-   let uploadError='';
-   for(const file of files){try{const fd=new FormData();fd.append('file',file);await api(`/api/jobs/${r.job_id}/artwork`,'POST',fd);}catch(e){uploadError=e.message;break;}}
-   closeModal();history.pushState(null,'','/portal');await loadPortal();
-   showModal('Design request received',`<div class="stack"><h3>${esc(r.number)}</h3><p class="muted">Weâ€™ll review the design scope and prepare a quote.</p>${uploadError?'<div class="notice">Your request is saved, but a reference file did not upload: '+esc(uploadError)+'. You can upload it from the project page.</div>':''}<button class="btn primary wide" data-action="close">Open my request</button></div>`);
- },
- 'cancel-job':async(f,d)=>{await api(`/api/staff/jobs/${state.job.id}/cancel`,'POST',{reason:d.reason});closeModal();toast('Job cancelled and removed from the active queue.');location.hash='dashboard';},
- 'self-approve-artwork':async(f,d)=>{await api(`/api/portal/artwork/${f.dataset.id}/approve`,'POST',{name:d.name,confirm:!!d.confirm,terms_version:state.portalJob.job_terms.version});closeModal();toast('Artwork approved for print.');await loadPortal();},
- 'public-order':async(f,d)=>{
-   const buy=state.canBuy&&!d.site_survey_requested;
-   const review=checkoutProof.submission(f,buy),files=review.files;
-   delete d.artwork;
-   if(files.some(item=>item.file.size>50*1024*1024))throw new Error('Each artwork file must be 50 MB or smaller.');
-   const {order:r,problem,checkout,artworkApproved,paymentFailed}=await submitOrderCheckout({api,setCsrf:value=>{state.csrf=value;},buy,quote:state.quote,review,payload:{...d,confirm:!!d.confirm,terms_version:state.catalog.job_terms.version,site_survey_requested:!!d.site_survey_requested,rush_requested:!!d.rush_requested,request_id:state.orderRequestId,items:state.currentQuoteItems,fingerprint:state.quote.fingerprint,wholesale_token:state.wholesaleToken,referral_code:referralCode()}});
-   if(state.projectCheckout&&!problem)shop.clear();
-   checkoutProof.clear();closeModal();history.pushState(null,'','/portal');
-   if(checkout?.url){location.href=checkout.url;return;}
-   await loadPortal();
-   showModal('Your order is saved',`<div class="stack"><h3>${esc(r.number)}</h3><p class="muted">${artworkApproved?'Your artwork approval and accepted terms are saved with this order.':'Your project is saved. Check your private order page for the next step.'}</p><label class="field"><span>Private project link</span><input value="${esc(r.portal_url)}" readonly></label>${problem?'<div class="notice">'+esc(problem)+' Your files and project remain saved in this browser.</div>':''}${buy&&paymentFailed?'<button class="btn primary wide" data-action="online-pay">Retry secure payment '+icon('arrow')+'</button>':'<button class="btn primary wide" data-action="close">Open my order</button>'}</div>`);
- },
- 'custom-quote':async(f,d)=>{
-   const files=[...f.elements.artwork.files];delete d.artwork;
-   if(files.some(file=>file.size>50*1024*1024))throw new Error('Each artwork file must be 50 MB or smaller.');
-   const dimensions=all('[data-custom-dimension]',f).map(row=>{const fields=all('input',row);return {label:fields[0].value,width:fields[1].value,height:fields[2].value,quantity:fields[3].value};}).filter(x=>x.width||x.height);
-   const r=await api('/api/custom-requests','POST',{...d,dimensions,referral_code:referralCode()});
-   const token=new URL(r.portal_url).hash.slice(7);const x=await api('/api/portal/exchange','POST',{token});state.csrf=x.csrf;
-   let uploadError='';
-   for(const file of files){try{const fd=new FormData();fd.append('file',file);await api(`/api/jobs/${r.job_id}/artwork`,'POST',fd);}catch(e){uploadError=e.message;break;}}
-   closeModal();history.pushState(null,'','/portal');await loadPortal();
-   showModal('Custom quote request received',`<div class="stack"><h3>${esc(r.number)}</h3><p class="muted">We have your project details and will review them for a custom quote.</p>${uploadError?'<div class="notice">Your request is saved, but the file was not uploaded: '+esc(uploadError)+'. You can upload it from your order page.</div>':''}<button class="btn primary wide" data-action="close">Open my request</button></div>`);
- },
- 'new-job':async(f,d)=>{const items=all('[data-quote-line]',f).map(row=>({product_id:Number($('[data-line-product]',row).value),description:$('[data-line-description]',row).value,width:$('[data-line-width]',row).value,height:$('[data-line-height]',row).value,quantity:$('[data-line-quantity]',row).value}));const r=await api('/api/staff/jobs','POST',{...d,workflow_id:Number(d.workflow_id),items});toast('Job, quote and production checklist created.');location.hash='job/'+r.job_id;},
- 'online-price-correction':async(f,d)=>{const r=await api(`/api/staff/jobs/${state.job.id}/online-price-correction`,'POST',{version:state.job.quote_version,new_price:d.new_price,reason:d.reason,confirm:!!d.confirm});closeModal();toast(r.customer_notified?'Corrected quote emailed to customer.':'Price corrected. Email was not delivered; share the updated portal link with the customer.');await loadJob(state.job.id);},
- 'edit-quote':async(f,d)=>{const lines=all('[data-quote-revision-line]',f).map(row=>({source_index:row.dataset.sourceIndex===''?null:Number(row.dataset.sourceIndex),name:$('[data-revision-name]',row).value,description:$('[data-revision-description]',row).value,quantity:$('[data-revision-quantity]',row).value,unit:$('[data-revision-unit]',row).value,width:$('[data-revision-width]',row).value,height:$('[data-revision-height]',row).value,sell_total:$('[data-revision-price]',row).value,cost_total:$('[data-revision-cost]',row).value,artwork_required:$('[data-revision-artwork]',row).checked}));await api(`/api/staff/jobs/${state.job.id}/quote`,'POST',{...d,lines,version:state.job.quote_version,charges_verified:!!d.charges_verified});closeModal();toast('New quote version saved. Publish when reviewed.');await loadJob(state.job.id);},
- publish:async(f,d)=>{await api(`/api/staff/jobs/${state.job.id}/publish`,'POST',{reviewed:!!d.reviewed,version:state.job.quote_version});closeModal();toast('Quote published to the customer portal.');await loadJob(state.job.id);},
- schedule:async(f,d)=>{await api(`/api/staff/jobs/${state.job.id}/meta`,'PATCH',{...d,assignee_id:Number(d.assignee_id)||null});closeModal();toast('Schedule updated.');await loadJob(state.job.id);},
- 'block-task':async(f,d)=>{await api(`/api/staff/tasks/${f.dataset.id}/action`,'POST',{action:'block',note:d.note});closeModal();await refreshAfterTask();},
- 'add-task':async(f,d)=>{await api(`/api/staff/jobs/${state.job.id}/tasks`,'POST',{title:d.title,department:d.department,gate:d.gate,dependencies:[...f.elements.dependencies.selectedOptions].map(o=>Number(o.value))});closeModal();await loadJob(state.job.id);},
- artwork:async(f)=>{await api(`/api/jobs/${f.dataset.jobId}/artwork`,'POST',new FormData(f));closeModal();toast('Artwork uploaded.');if(f.dataset.portal==='true')await loadPortal();else await loadJob(state.job.id);},
- 'email-proof-approval':async(f,d)=>{await api(`/api/staff/jobs/${state.job.id}/proofs/${f.dataset.id}/email-approval`,'POST',{name:d.name,approved_at:d.approved_at,email_reference:d.email_reference,confirm:!!d.confirm});closeModal();toast('Email approval recorded.');await loadJob(state.job.id);},
- 'upload-proof':async(f)=>{await api(`/api/staff/jobs/${state.job.id}/proofs`,'POST',new FormData(f));closeModal();toast('New proof version is ready for review.');await loadJob(state.job.id);},
- layout:async(f,d)=>{const artwork={};Object.entries(d).filter(([k,v])=>k.startsWith('art_')&&v).forEach(([k,v])=>artwork[k.slice(4)]=Number(v));const r=await api(`/api/staff/jobs/${state.job.id}/layout`,'POST',{artwork,fit:d.fit,publish_as_proof:!!d.publish_as_proof});closeModal();await loadJob(state.job.id);showModal(d.publish_as_proof?'Complete proof generated':'Reference layout generated',`<div class="stack"><p class="muted">${d.publish_as_proof?'The new proof is now available in the customer portal for approval.':'This is a reference template, not an approval-eligible proof.'}</p><a class="btn primary" href="/api/assets/${r.asset_id}" target="_blank" rel="noopener">Open dimensioned layout ${icon('arrow')}</a><p class="field-hint">Preview only. No bleed, full-size print scale, ICC output or RIP/cut path is included.</p></div>`);},
- 'payment-link':async(f,d)=>{await api(`/api/staff/jobs/${state.job.id}/payment-link`,'POST',d);closeModal();toast('QuickBooks link attached.');await loadJob(state.job.id);},
- 'verify-payment':async(f,d)=>{await api(`/api/staff/jobs/${state.job.id}/payments`,'POST',{...d,verified_in_quickbooks:!!d.verified_in_quickbooks});closeModal();toast('Payment recorded and production checks updated.');await loadJob(state.job.id);},
- 'void-payment':async(f,d)=>{await api(`/api/staff/payments/${f.dataset.id}/void`,'POST',d);closeModal();toast('Local verification record voided. QuickBooks was not changed.');await loadJob(state.job.id);},
- 'staff-message':async(f,d)=>{await api(`/api/staff/jobs/${state.job.id}/message`,'POST',{message:d.message,public:!!d.public});toast('Job update saved.');await loadJob(state.job.id);},
- product:async(f,d)=>{const p=state.editProduct;const config={...p.config};for(const key of ['unit','description','sell_per_sqft','cost_per_sqft','minimum_price','setup_price','setup_cost','waste_percent','labor_minutes_per_unit','min_width','min_height','default_width','default_height','max_width','max_height','max_quantity'])config[key]=d[key];for(const key of ['pack_header_4_price','pack_packaging_price','pack_design_price'])if(d[key]!==undefined)config[key]=d[key];config.instant=!!d.instant;config.supports_multiple_dimensions=!!d.supports_multiple_dimensions;config.self_approve_artwork=!!d.self_approve_artwork;config.requires_installation=!!d.requires_installation;config.is_wrap=!!d.is_wrap;config.tiers=d.tiers.split('\n').map(x=>x.trim()).filter(Boolean).map(line=>{const [from,multiplier]=line.split(':');if(!from||!multiplier)throw new Error('Each quantity band must use start:multiplier.');return {from:Number(from),multiplier:multiplier.trim()};});const body={name:d.name,category:d.category,workflow_id:Number(d.workflow_id),active:!!d.active,public:!!d.public,config,version:p.version};await api('/api/admin/products'+(p.id?'/'+p.id:''),p.id?'PUT':'POST',body);state.catalog=await api('/api/catalog');closeModal();toast('Product saved. Existing jobs remain unchanged.');await loadProducts();},
- workflow:async(f,d)=>{const w=state.editWorkflow,steps=all('[data-step]',f).map(row=>({title:$('[data-step-title]',row).value,department:$('[data-step-department]',row).value,gate:$('[data-step-gate]',row).value,depends_on:$('[data-step-deps]',row).value.split(',').map(v=>v.trim()).filter(Boolean).map(Number)}));await api('/api/admin/workflows'+(w.id?'/'+w.id:''),w.id?'PUT':'POST',{name:d.name,steps,version:w.version});closeModal();toast('Workflow saved for new jobs.');await loadWorkflows();},
- settings:async(f,d)=>{await api('/api/admin/settings','PUT',{...d,rates_live:!!d.rates_live,checkout_enabled:!!d.checkout_enabled,checkout_tax_reviewed:!!d.checkout_tax_reviewed,checkout_pickup_enabled:!!d.checkout_pickup_enabled,checkout_shipping_enabled:!!d.checkout_shipping_enabled});state.catalog=await api('/api/catalog');toast('Shop defaults saved.');await loadSettings();},
- 'new-user':async(f,d)=>{const r=await api('/api/admin/users','POST',d);showCredentials(r.temporary_password);await loadTeam();},
- password:async(f,d)=>{if(d.new_password!==d.confirm_password)throw new Error('The new passwords do not match.');const r=await api('/api/auth/password','POST',{current_password:d.current_password,new_password:d.new_password});state.csrf=r.csrf;closeModal();toast('Password changed. Other sessions were signed out.');},
- 'accept-quote':async(f,d)=>{await api('/api/portal/accept-quote','POST',{name:d.name,confirm:!!d.confirm,terms_version:state.portalJob.job_terms.version,version:state.portalJob.quote_version});closeModal();toast('Quote accepted.');await loadPortal();},
- 'custom-payment':async(f,d)=>{const r=await api('/api/portal/custom-checkout','POST',{payment_kind:d.payment_kind});if(r.paid){closeModal();toast('Payment received.');await loadPortal();return;}location.href=r.url;},
- 'proof-decision':async(f,d)=>{await api(`/api/portal/proofs/${state.portalJob.proofs[0].id}/decision`,'POST',{action:f.dataset.decision,name:d.name,comment:d.comment,confirm:!!d.confirm,terms_version:state.portalJob.job_terms.version});closeModal();toast(f.dataset.decision==='approve'?'Proof approval recorded.':'Changes sent to the designer.');await loadPortal();},
- 'portal-message':async(f,d)=>{await api('/api/portal/message','POST',{message:d.message});toast('Message saved to your job.');await loadPortal();},
- 'portal-appointment':async(f,d)=>{await api('/api/portal/appointment-request','POST',d);closeModal();toast('Scheduling request sent. The shop will confirm availability.');await loadPortal();},
- 'portal-review':async(f,d)=>{await api('/api/portal/review','POST',d);toast('Thank you. Your verified review was saved.');await loadPortal();},
- 'payment-notice':async(f,d)=>{const r=await api('/api/portal/payment-notice','POST',d);closeModal();toast(r.message);await loadPortal();},
-};
+Kˆ™Yœ™\ÚŠ
+OOœ›İ]J
+Kˆ	Ù[XZ[]\İ	Î˜\Ş[˜Ê
+OOØÛÛœİX]ØZ]\J	ËØ\KØYZ[‹Ù[XZ[]\İ	Ë	ÔÔÕ	ËßJNİØ\İ
+	Õ\İ[XZ[Ù[È	ÊÜ‹œ™XÚ\Y[
+ÉË‰ÊNØ]ØZ]ØYÙ][™ÜÊ
+NßKˆ	İÚÛ\Ø[K[ÙÚ[‰ÎŠ
+OOœÚİÓ[Ù[
+	ÕÚÛ\Ø[HÚYÛˆ[‰Ë›Ü›H]KY›Ü›OHÚÛ\Ø[K[ÙÚ[ˆˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH[™›È”ÚYÛˆ[ˆÛ˜ÙHÈ\ÙH[İ\ˆ™YÛİX]YÚÛ\Ø[HšXÚ[™Ëˆ\È]šXÙHØ[ˆİ^HÚYÛ™Y[ˆ›Üˆ\ÈÌ^\ËÙ]‰Ú[œ]
+	İ\Ù\›˜[YIË	Õ\Ù\›˜[YIË	ÉË	İ^	Ë	Ü™\]Z\™YZ[›[™İHŒÈˆX^[™İHŒˆ]]ØÛÛ\]OH\Ù\›˜[YH‰Ê_IÚ[œ]
+	Ü\ÜİÛÜ™	Ë	Ô\ÜİÛÜ™	Ë	ÉË	Ü\ÜİÛÜ™	Ë	Ü™\]Z\™YZ[›[™İHŒLˆˆX^[™İHŒLˆ]]ØÛÛ\]OH˜İ\œ™[\\ÜİÛÜ™‰Ê_IÙ›Ü›Q›Ûİ\Š	ÔÚYÛˆ[‰Ê_OÙ›Ü›O˜
+Kˆ	İÚÛ\Ø[KXÛX\‰Î˜\Ş[˜Ê
+OOÜİ]KÚÛ\Ø[UÚÙ[IÉÎÜİ]KÚÛ\Ø[S˜[YOIÉÎÜİ]KÚÛ\Ø[Q[XZ[IÉÎÛØØ[İÜ˜YÙKœ™[[İ™R][J	İÚÛ\Ø[WİÚÙ[‰ÊNÛØØ[İÜ˜YÙKœ™[[İ™R][J	İÚÛ\Ø[WÛ˜[YIÊNÛØØ[İÜ˜YÙKœ™[[İ™R][J	İÚÛ\Ø[WÙ[XZ[	ÊNİØ\İ
+	ÕÚÛ\Ø[HšXÚ[™ÈÚYÛ™Yİ]‰ÊNØ]ØZ]Ø[İ[]Ü•šY]Ê
+NßKˆ	Û™]Ë]ÚÛ\Ø[IÎŠ
+OOÚÛ\Ø[QY]ÜŠ
+Kˆ	ÙY]]ÚÛ\Ø[IÎ˜OÚÛ\Ø[QY]ÜŠ
+İ]KÚÛ\Ø[PYZ[Ë˜ÛY[ß×JK™š[™
+OšYOOS[X™\Š‹™]\Ù]šY
+JJKˆ	ÜÜ[\™Yœ™\Ú	ÎŠ
+OO›ØYÜ[
 
-const marketingDashboard=createMarketingDashboard({api,staffShell,esc,money,forms,toast});
-const emailIntake=createEmailIntake({api,staffShell,esc,showModal,closeModal,forms,actions,toast});
-const crmDashboard=createCrmDashboard({api,staffShell,esc,money,showModal,closeModal,forms,actions,toast});
-const surveysDashboard=createSiteSurveys({api,state,esc,staffShell,showModal,actions,forms});
-checkoutProof=createCheckoutProof({state,esc,shop:()=>shop,toast});
-rewardsUi=createRewards({api,state,esc,money,date,showModal,closeModal,toast,staffShell,input,select,checkbox,formFooter,actions,forms,loadPortal});
-shop=createShop({rewardsAccountBox:wallet=>rewardsUi.accountBox(wallet),state,app,api,esc,money,input,select,formFooter,showModal,closeModal,toast,publicHeader,publicProductName,productPath,setPublicSeo,storefrontProductsFor,productIcon,productImage,realWorkGallery,calculatorView,recalculate,currentItems,orderModal,actions,forms});
+Kˆ	ÜÜ[\İ]\Ë\\‰Î˜\Ş[˜Ê
+OOØÛÛœİX]ØZ]\J	ËØ\KÜÜ[Üİ]\Ë[[šÉË	ÔÔÕ	ËßJNÜÚİÓ[Ù[
+	ÔÚ\™XX›H›Øˆİ]\ÉË]ˆÛ\ÜÏHœİ]\Ë\\‹]Ü˜\[YÈÜ˜ÏH‰Ù\ØÊ‹œ\—İ\›
+_Hˆ[H”TˆÛÙH›Üˆ[Z]Y›Øˆİ]\ÈÛ\ÜÏH™šY[Z[[[Û™HÚ]\ÈTˆØ[ˆÙYHÛ›HH›Øˆ[X™\ˆ[™ÛØ\œÙH›ÙXİ[Ûˆİ]\ËÜX™[Û\ÜÏH™šY[Ü[”İ]\È[šÏÜÜ[[œ]˜[YOH‰Ù\ØÊ‹œİ]\×İ\›
+_Hˆ™XYÛ›OÛX™[Ù]˜
+NßKˆ	ÜÜ[X\Ú[Y[	ÎŠ
+OOœÚİÓ[Ù[
+	Ô™\]Y\İØÚY[[™ÉË›Ü›H]KY›Ü›OHœÜ[X\Ú[Y[ˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH[™›ÈÚÛÜÙHH™Y™\œ™Y]H[™[YHÚ[™İËˆ\È\ÈH™\]Y\İ›İHÛÛ™š\›YY\Ú[Y[ÈHÚÜÚ[›ÛİÈ\Ú]]˜Z[Xš[]KˆÚ]Hİ\™^\È]™H[ˆ^˜H™YKÛÛ™š\›YY™Y›Ü™HØÚY[[™Ë[™Ûš[[™È[[YX\İ\™[Y[È\™H™\šYšYYÙ]‰ÜÙ[Xİ
+	ÚÚ[™	Ë	ÕÚ]È[İH™YYÉËÖÉÜÚ]WÜİ\™^IË	ÔÚ]Hİ\™^HÈYX\İ\™[Y[É×KÉØÛÛœİ[][Û‰Ë	Ô›Ú™XİÛÛœİ[][Û‰×KÉÚ[œİ[][Û‰Ë	Ò[œİ[][ÛˆØÚY[[™É×KÉÜXÚİ\	Ë	ÔXÚİ\ÛÛÜ™[˜][Û‰×WK	ÜÚ]WÜİ\™^IÊ_O]ˆÛ\ÜÏH™šY[È‰Ú[œ]
+	Ü™\]Y\İYÙ]IË	Ô™Y™\œ™Y]IË	ÉË	Ù]IË	Ü™\]Z\™Y	Ê_IÜÙ[Xİ
+	İÚ[™İÉË	Ô™Y™\œ™Y[YIËÖÉÓ[Ü›š[™ÉË	Ó[Ü›š[™É×KÉĞY\››ÛÛ‰Ë	ĞY\››ÛÛ‰×KÉĞ[H[YIË	Ğ[H[YI×WK	Ó[Ü›š[™ÉÊ_OÙ]‰Ú[œ]
+	ÛØØ][Û‰Ë	ÓØØ][ÛˆÈY™\ÜÈ
+Yˆ\XØX›JIË	ÉË	İ^	Ë	ÛX^[™İHL‰Ê_OX™[Û\ÜÏH™šY[Ü[”ØÚY[[™È›İ\ÏÜÜ[^\™XH˜[YOH››İHˆX^[™İHŒŒİ^\™XOÛX™[]ˆÛ\ÜÏH™›Ü›KY\œ›ÜˆÙ]‰Ù›Ü›Q›Ûİ\Š	ÔÙ[™ØÚY[[™È™\]Y\İ	Ê_OÙ›Ü›O˜
+Kˆš[Š
+OOÚ[™İËœš[
 
-document.addEventListener('click',async event=>{
-  const button=event.target.closest('[data-action]');if(!button||button.disabled)return;
-  const handler=actions[button.dataset.action];if(!handler)return;
-  event.preventDefault();button.disabled=true;
-  try{await handler(button);}catch(error){toast(error.message,true);}
-  finally{button.disabled=false;}
-});
-document.addEventListener('submit',async event=>{
-  const form=event.target.closest('form[data-form]');if(!form)return;
-  event.preventDefault();const handler=forms[form.dataset.form];if(!handler)return;
-  const button=$('button[type="submit"],button:not([type])',form),errorBox=$('.form-error',form);
-  if(errorBox)errorBox.textContent='';if(button)button.disabled=true;
-  try{await handler(form,Object.fromEntries(new FormData(form)));}
-  catch(error){if(errorBox)errorBox.textContent=error.message;else toast(error.message,true);}
-  finally{if(button)button.disabled=false;}
-});
-document.addEventListener('input',event=>{
-  if(event.target.closest('#calculator')){clearTimeout(state.calcTimer);if($('#continue-btn'))$('#continue-btn').disabled=true;state.calcTimer=setTimeout(()=>recalculate(),250);}
-  if(event.target.id==='job-search')renderBoard();
-  if(event.target.closest('.usdot-config'))updateUsdotPreview();
-  if(event.target.closest('#calculator')&&['width','height'].includes(event.target.name))updateUsdotPreview();
-});
-document.addEventListener('change',event=>{
-  if(event.target.id==='usdot-logo-file'){loadUsdotLogo(event.target.files?.[0]).then(()=>recalculate()).catch(e=>toast(e.message,true));return;}
-  if(event.target.name==='usdot_identity'){updateUsdotPreview();recalculate();}
-  if(event.target.name==='coverage_option'){all('.coverage-card').forEach(card=>card.classList.toggle('selected',card.contains(event.target)));updateCoverageVisuals();recalculate();}
-  if(event.target.name==='vehicle_type'&&event.target.closest('#calculator')){updateCoverageVisuals();recalculate();}
-  if(event.target.matches('[data-line-product]')){const row=event.target.closest('[data-quote-line]'),p=state.products.find(p=>p.id===Number(event.target.value));const w=$('[data-line-width]',row),h=$('[data-line-height]',row),q=$('[data-line-quantity]',row);w.value=p.config.default_width;w.min=p.config.min_width||0.1;h.value=p.config.default_height;h.min=p.config.min_height||0.1;q.value=1;q.min=1;}
-  if(event.target.name==='size_preset'&&event.target.closest('#calculator')){const form=$('#calculator');if(event.target.value!=='custom'){const parts=event.target.value.split('|');form.elements.width.value=parts[0];form.elements.height.value=parts[1];}form.elements.width.readOnly=event.target.value!=='custom';form.elements.height.readOnly=event.target.value!=='custom';updateUsdotPreview();recalculate();}
-  if(event.target.name==='placement'&&event.target.closest('#calculator')){const form=$('#calculator'),product=state.catalog.products.find(p=>p.id===state.selectedProduct),choice=(product?.config.placement_options||[]).find(x=>x.id===event.target.value);if(choice){form.elements.width.value=choice.width;form.elements.height.value=choice.height;}form.elements.width.readOnly=event.target.value!=='custom';form.elements.height.readOnly=event.target.value!=='custom';recalculate();}
-  if(event.target.name==='usdot_style'||event.target.name?.startsWith('usdot_')&&event.target.name.endsWith('_points'))updateUsdotPreview();
-});
-let usdotTransform=null;
-document.addEventListener('pointerdown',event=>{
-  const item=event.target.closest('[data-usdot-key]'),preview=item?.closest('#usdot-preview');if(!item||!preview||item.hidden)return;
-  const mode=event.target.closest('[data-usdot-transform]')?.dataset.usdotTransform||'move',key=item.dataset.usdotKey,form=$('#calculator'),p=usdotPosition(key);
-  usdotSelectedKey=key;updateUsdotPreview();event.preventDefault();item.setPointerCapture?.(event.pointerId);
-  const bounds=item.getBoundingClientRect(),centerX=bounds.left+bounds.width/2,centerY=bounds.top+bounds.height/2;
-  const fieldName=usdotSizeField(key),field=fieldName?form?.elements[fieldName]:null;
-  usdotTransform={
-    mode,key,item,preview,pointerId:event.pointerId,startClientX:event.clientX,startClientY:event.clientY,
-    startX:Number(p.x),startY:Number(p.y),startRotation:Number(p.rotation||0),centerX,centerY,
-    startAngle:Math.atan2(event.clientY-centerY,event.clientX-centerX)*180/Math.PI,
-    startDistance:Math.max(8,Math.hypot(event.clientX-centerX,event.clientY-centerY)),
-    field,startSize:Number(field?.value)||(key==='logo'?42:32)
-  };
-});
-document.addEventListener('pointermove',event=>{
-  if(!usdotTransform)return;
-  const t=usdotTransform,p=t.preview.getBoundingClientRect(),transform=usdotPosition(t.key);
-  if(t.mode==='move'){
-    transform.x=Math.max(0,Math.min(100,t.startX+(event.clientX-t.startClientX)/p.width*100));
-    transform.y=Math.max(0,Math.min(100,t.startY+(event.clientY-t.startClientY)/p.height*100));
-  }else if(t.mode==='resize'&&t.field){
-    const distance=Math.max(4,Math.hypot(event.clientX-t.centerX,event.clientY-t.centerY)),ratio=distance/t.startDistance;
-    const min=t.key==='logo'?10:8,max=t.key==='logo'?95:300;
-    t.field.value=Math.round(Math.max(min,Math.min(max,t.startSize*ratio)));
-  }else if(t.mode==='rotate'){
-    const angle=Math.atan2(event.clientY-t.centerY,event.clientX-t.centerX)*180/Math.PI;
-    let rotation=t.startRotation+(angle-t.startAngle);rotation=((rotation+180)%360+360)%360-180;
-    if(event.shiftKey)rotation=Math.round(rotation/15)*15;
-    transform.rotation=Number(rotation.toFixed(1));
-  }
-  updateUsdotPreview();
-});
-function finishUsdotTransform(){
-  if(!usdotTransform)return;usdotTransform.item.releasePointerCapture?.(usdotTransform.pointerId);usdotTransform=null;recalculate();
-}
-document.addEventListener('pointerup',finishUsdotTransform);
-document.addEventListener('pointercancel',finishUsdotTransform);
-window.addEventListener('hashchange',()=>route().catch(e=>toast(e.message,true)));
-window.addEventListener('popstate',()=>route().catch(e=>toast(e.message,true)));
-async function boot(){
-  try{let s=await api('/api/session');state.csrf=s.csrf;
-   if(location.pathname==='/staff'&&location.hash.startsWith('#support=')){
-    const token=new URLSearchParams(location.hash.slice(1)).get('support');history.replaceState(null,'','/staff');
-    const result=await api('/api/auth/platform-support','POST',{token});state.csrf=result.csrf;s=await api('/api/session');
-   }
-   state.user=s.user;if(s.user)window.TampaAnalytics?.excludeStaff();state.catalog=await api('/api/catalog');const customer=await api('/api/customer');state.customer=customer.customer;await route();}
-  catch(error){app.innerHTML=`<div class="initial-loading"><h1>Unable to open the workspace</h1><p class="muted">${esc(error.message)}</p><a class="btn primary" href="/">Try again</a></div>`;}
-}
-boot();
+Kˆ	ØÚÛÜÙKXØ]YÛÜIÎ˜\Ş[˜ÈOÜİ]KœÙ[XİYØ]YÛÜOX‹™]\Ù]˜Ø]YÛÜNÜÙ\ÜÚ[Û”İÜ˜YÙKœÙ]][J	ÜİÜ™Yœ›ÛØØ]YÛÜIËİ]KœÙ[XİYØ]YÛÜJNÜİ]KœÙ[XİY›ÙXİ[[Ú\İÜKœ\Úİ]J[	ÉË	ËÉÊNØ]ØZ]Ø[İ[]Ü•šY]Ê
+NßKˆ	ØÚÛÜÙK\›ÙXİ	Î˜\Ş[˜ÈOÜİ]KœÙ[XİY›ÙXİS[X™\Š‹™]\Ù]šY
+NØÛÛœİ›ÙXİ\İ]K˜Ø][ÙËœ›ÙXİË™š[™
+OœšYOO\İ]KœÙ[XİY›ÙXİ
+NÚ\İÜKœ\Úİ]J[	ÉË›ÙXİ]
+›ÙXİ
+JNØ]ØZ]Ø[İ[]Ü•šY]Ê
+NßKˆ]X[]N˜\Ş[˜ÈOÉ
+	ÈØØ[İ[]Ü‰ÊK™[[Y[Ëœ]X[]K˜[YOX‹™]\Ù]˜[YNØ]ØZ]™XØ[İ[]J
+NßKˆ	Ü™\]Y\İ[Ü™\‰ÎŠ
+OOØÛÛœİ›Ü›OI
+	ÈØØ[İ[]Ü‰ÊNÚYŠ›Ü›I‰ˆY›Ü›Kœ™\Ü˜[Y]J
+J\™]\›ÛÜ™\“[Ù[
+
+NßKˆ	Ù\ÚYÛ‹\][İIÎŠ
+OOœÚİÓ[Ù[
+	Ó™YY\ÚYÛÉË›Ü›H]KY›Ü›OH™\ÚYÛ‹\][İHˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH[™›È•[\ÈÚ][İH™YY\ÚYÛ™YˆÙx &[™]šY]ÈHØÛÜH[™][İHH\ÚYÛˆÙ\šXÙH™Y›Ü™H›ÙXİ[Û‹Ù]]ˆÛ\ÜÏH™šY[È‰Ú[œ]
+	Øİ\İÛY\—Û˜[YIË	Ö[İ\ˆ˜[YIË	ÉË	İ^	Ë	Ü™\]Z\™YX^[™İHŒLŒ‰Ê_IÚ[œ]
+	Øİ\İÛY\—Ù[XZ[	Ë	Ñ[XZ[	Ë	ÉË	Ù[XZ[	Ë	Ü™\]Z\™YX^[™İHŒM‰Ê_IÚ[œ]
+	ÜÛ™IË	ÔÛ™H
+Ü[Û˜[
+IË	ÉË	İ[	Ê_IÚ[œ]
+	İ]IË	Ô›Ú™XİÈ›ÙXİ	Ë	ÉË	İ^	Ë	Ü™\]Z\™YX^[™İHŒN‰Ê_OÙ]X™[Û\ÜÏH™šY[Ü[‘\ÚYÛˆœšYYÜÜ[^\™XH˜[YOH››İ\Èˆ™\]Z\™YX^[™İHLˆXÙZÛ\H•Ú]\™HÙH\ÚYÛš[™ÏÈ[˜ÛYHÛÜ™[™ËÛÛÜœËİ[KÚ^™KXY[™K[™Ú\™H]Ú[™H\ÙYˆİ^\™XOÛX™[X™[Û\ÜÏH™šY[Ü[“ÙÛÜËÚÙ]Ú\ÈÜˆ™Y™\™[˜ÙHš[\È
+Ü[Û˜[
+OÜÜ[[œ]˜[YOH˜\ÛÜšÈˆ\OH™š[HˆXØÙ\H‹œ™ËšœËšœYËœˆˆ][\OÛX™[Û\ÜÏH™šY[Z[]XÚ][\H™Y™\™[˜ÙHš[\Ë\ÈLPˆXXÚÜX™[Û\ÜÏHœÜ‹[Û›H“X]™H›[šÏ[œ]˜[YOHÙXœÚ]HˆXš[™^H‹LHˆ]]ØÛÛ\]OH›Ù™ˆÛX™[‰Ù›Ü›Q›Ûİ\Š	Ô™\]Y\İ\ÚYÛˆ][İIÊ_OÙ›Ü›O˜YJKˆ	ØY]Ü˜\Y[Y[œÚ[Û‰Î˜OØÛÛœİÙ™Ï\İ]K˜Ø][ÙËœ›ÙXİË™š[™
+OœšYOO\İ]KœÙ[XİY›ÙXİ
+K˜ÛÛ™šYËÛİ[X[
+	ÖÙ]K]Ü˜\Y[Y[œÚ[Û—IÊK›[™İÚYŠÛİ[LŒ
+]›İÈ™]È\œ›ÜŠ	ÓX^[][HŒÚ^™H›İÜË‰ÊNÉ
+	ÈİÜ˜\Y[Y[œÚ[ÛœÉÊKš[œÙ\Y˜XÙ[S
+	Ø™Y›Ü™Y[™	ËÜ˜\[Y[œÚ[Û”›İÊÙ™ËÛİ[	ÉË	ÉËJJNÜ™XØ[İ[]J
+NßKˆ	Ü™[[İ™K]Ü˜\Y[Y[œÚ[Û‰Î˜OÚYŠ[
+	ÖÙ]K]Ü˜\Y[Y[œÚ[Û—IÊK›[™İLJ\™]\›Ø‹˜ÛÜÙ\İ
+	ÖÙ]K]Ü˜\Y[Y[œÚ[Û—IÊKœ™[[İ™J
+NÜ™XØ[İ[]J
+NßKˆ	ØYXİ\İÛKY[Y[œÚ[Û‰ÎŠ
+OOØÛÛœİ›ŞI
+	ÈØİ\İÛKY[Y[œÚ[ÛœÉÊKÛİ[X[
+	ÖÙ]KXİ\İÛKY[Y[œÚ[Û—IË›Ş
+K›[™İÚYŠÛİ[LŒ
+]›İÈ™]È\œ›ÜŠ	ÓX^[][HŒÜ[Û˜[[Y[œÚ[Ûˆ›İÜË‰ÊNØ›Şš[œÙ\Y˜XÙ[S
+	Ø™Y›Ü™Y[™	Ëİ\İÛQ[Y[œÚ[Û”›İÊÛİ[
+JNßKˆ	Ü™[[İ™KXİ\İÛKY[Y[œÚ[Û‰Î˜O˜‹˜ÛÜÙ\İ
+	ÖÙ]KXİ\İÛKY[Y[œÚ[Û—IÊKœ™[[İ™J
+Kˆ	Øİ\İÛK\][İIÎŠ
+OOœÚİÓ[Ù[
+	Ô™\]Y\İHİ\İÛH][İIË›Ü›H]KY›Ü›OH˜İ\İÛK\][İHˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH[™›È•\ÙH\È›ÜˆÜXÚX[H˜XœšXØ][Û‹ÓÈÜˆ\Ù\‹Xİ]ÛÜšË[Y[œÚ[Û˜[ÚYÛœË›Y]Ü˜\XÜË[ÈÜ™\œËİ\İÛHX]\šX[ËÜˆ[][™È›İ\İY[ˆHİ[™\™›ÙXİËÙ]]ˆÛ\ÜÏH™šY[È‰Ú[œ]
+	Øİ\İÛY\—Û˜[YIË	Ö[İ\ˆ˜[YIË	ÉË	İ^	Ë	Ü™\]Z\™YX^[™İHŒLŒ‰Ê_IÚ[œ]
+	Øİ\İÛY\—Ù[XZ[	Ë	Ñ[XZ[	Ë	ÉË	Ù[XZ[	Ë	Ü™\]Z\™YX^[™İHŒM‰Ê_IÚ[œ]
+	ÜÛ™IË	ÔÛ™H
+Ü[Û˜[
+IË	ÉË	İ[	Ê_IÜÙ[Xİ
+	Ü›Ú™Xİİ\IË	Ô›Ú™Xİ\IËÖÉĞİ\İÛH˜XœšXØ]YÚYÛ‰Ë	Ğİ\İÛH˜XœšXØ]YÚYÛ‰×KÉĞÓÈÈ›İ]YÚYÛ‰Ë	ĞÓÈÈ›İ]YÚYÛ‰×KÉÓ\Ù\‹Xİ]XÜ[XÉË	Ó\Ù\‹Xİ]XÜ[XÉ×KÉÑ[Y[œÚ[Û˜[]\š[™ÉË	Ñ[Y[œÚ[Û˜[]\š[™É×KÉÑ›Y]È][\H™ZXÛ\ÉË	Ñ›Y]È][\H™ZXÛ\É×KÉĞ[ÈÜ™\‰Ë	Ğ[ÈÜ™\‰×KÉÓİ\ˆİ\İÛH›Ú™Xİ	Ë	Óİ\ˆİ\İÛH›Ú™Xİ	×WK	Ğİ\İÛH˜XœšXØ]YÚYÛ‰Ê_OÙ]]ˆÛ\ÜÏH™šY[È‰Ú[œ]
+	Ü]X[]IË	Ô]X[]HÈ\›Ş[X]HØÛÜIË	ÉË	İ^	Ë	ÛX^[™İHŒLŒ‰Ê_IÚ[œ]
+	İ™ZXÛWØÛİ[	Ë	Ñ›Y]™ZXÛHÛİ[
+Yˆ\XØX›JIË	ÉË	İ^	Ë	ÛX^[™İHŒLŒ‰Ê_OÙ]]]ˆÛ\ÜÏHœ›İÈ™]ÙY[ˆXˆ]Ï‘[Y[œÚ[ÛœÈÜ[ˆÛ\ÜÏH›]]Y[HŠÜ[Û˜[
+OÜÜ[ÚÏÛ\ÜÏH™šY[Z[Y\ÈX[H[™]šYX[[™[ËYXÙ\ËÜˆ™ZXÛH\™X\È\È[İHÛ›İËÜÙ]]Ûˆ\OH˜]ÛˆˆÛ\ÜÏH˜ˆYÚÛX[ˆ]KXXİ[ÛH˜YXİ\İÛKY[Y[œÚ[Ûˆ‰ÚXÛÛŠ	Ü\ÉË	ÚXÛÛ‹\ÛIÊ_HY[Y[œÚ[ÛœÏØ]ÛÙ]]ˆYH˜İ\İÛKY[Y[œÚ[ÛœÈˆÛ\ÜÏHœİXÚË\ÛHÙ]Ù]X™[Û\ÜÏH™šY[Ü[•[\ÈX›İ]H›Ú™XİÜÜ[^\™XH˜[YOH››İ\Èˆ™\]Z\™YX^[™İHLˆXÙZÛ\H“X]\šX[š[š\ÚXY[™K[œİ[][Ûˆ™YYË™ZXÛH\\ËÜˆ[][™È[ÙH][È\È][İH]ˆİ^\™XOÛX™[X™[Û\ÜÏH™šY[Ü[”™Y™\™[˜ÙHš[\ÈÜˆ\ÛÜšÈ
+Ü[Û˜[
+OÜÜ[[œ]˜[YOH˜\ÛÜšÈˆ\OH™š[HˆXØÙ\H‹œ™ËšœËšœYËœˆˆ][\OÛX™[Û\ÜÏH™šY[Z[–[İHØ[ˆ]XÚ][\Hš[\Ë\ÈLPˆXXÚÜX™[Û\ÜÏHœÜ‹[Û›H“X]™H›[šÏ[œ]˜[YOHÙXœÚ]HˆXš[™^H‹LHˆ]]ØÛÛ\]OH›Ù™ˆÛX™[‰Ù›Ü›Q›Ûİ\Š	Ô™\]Y\İİ\İÛH][İIÊ_OÙ›Ü›O˜YJKˆ	Ø›Ø\™[[ÙIÎ˜OÜİ]K˜›Ø\™[ÙOX‹™]\Ù]˜[YNØ[
+	ÖÙ]KXXİ[ÛH˜›Ø\™[[ÙH—IÊK™›Ü‘XXÚ
+O˜Û\ÜÓ\İÙÙÛJ	ØXİ]™IËOOXŠJNÜ™[™\›Ø\™
+
+NßKˆ	Ü]Y]YKYš[\‰Î˜OÜİ]Kœ]Y]YQš[\X‹™]\Ù]˜[YNØ[
+	ÖÙ]KXXİ[ÛHœ]Y]YKYš[\ˆ—IÊK™›Ü‘XXÚ
+O˜Û\ÜÓ\İÙÙÛJ	ØXİ]™IËOOXŠJNÜ™[™\”]Y]YJ
+NßKˆ	Ü™\Ü]™[™\˜[™ÙIÎ˜OÚYŠ\™\Ü™[™Ü[ÛœÖØ‹™]\Ù]˜[YW_\İ]Kœ™\Ü]J\™]\›Üİ]Kœ™\Ü™[™˜[™ÙOX‹™]\Ù]˜[YNØÛÛœİ[™[I
+	Ëœ™\Ü]™[™ÉÊNÚYŠ\[™[
+\™]\›Ø[
+	ÖÙ]KXXİ[ÛHœ™\Ü]™[™\˜[™ÙH—IË[™[
+K™›Ü‘XXÚ
+]ÛOØÛÛœİÙ[XİYX]Û‹™]\Ù]˜[YOOO\İ]Kœ™\Ü™[™˜[™ÙNØ]Û‹˜Û\ÜÓ\İÙÙÛJ	ØXİ]™IËÙ[XİY
+NØ]Û‹œÙ]]šX]J	Ø\šXK\™\ÜÙY	Ëİš[™ÊÙ[XİY
+JNßJNÉ
+	ÈÜ™\Ü]™[™XÚ\	Ë[™[
+Kš[›™\’S\™\Ü™[™ÛÛ[
+İ]Kœ™\Ü]JNßKˆ	Ú›Ø‹]X‰Î˜OÜİ]Kš›Ø•XX‹™]\Ù]˜[YNÜ™[™\’›ØŠ
+NßKˆ	Ü™]\›‹\]›Ü›IÎ˜\Ş[˜Ê
+OOØÛÛœİ\İ[˜][Û\İ]K\Ù\‹œİ\ÜÜ™]\›Ø]ØZ]\J	ËØ\KØ]]ÛÙÛİ]	Ë	ÔÔÕ	ÊNÛØØ][Û‹š™YY\İ[˜][ÛßKˆÙÛİ]˜\Ş[˜Ê
+OOØÛÛœİX]ØZ]\J	ËØ\KØ]]ÛÙÛİ]	Ë	ÔÔÕ	ÊNÜİ]K˜ÜÜ™\‹˜ÜÜ™Üİ]K\Ù\[[ÛØØ][Û‹š™YIËÜİY™‰ÎßKˆ\ÜİÛÜ™Š
+OOœÚİÓ[Ù[
+	ĞÚ[™ÙH[İ\ˆ\ÜİÛÜ™	Ë›Ü›H]KY›Ü›OHœ\ÜİÛÜ™ˆÛ\ÜÏHœİXÚÈ‰Ú[œ]
+	Øİ\œ™[Ü\ÜİÛÜ™	Ë	Ğİ\œ™[\ÜİÛÜ™	Ë	ÉË	Ü\ÜİÛÜ™	Ë	Ü™\]Z\™Y]]ØÛÛ\]OH˜İ\œ™[\\ÜİÛÜ™‰Ê_IÚ[œ]
+	Û™]×Ü\ÜİÛÜ™	Ë	Ó™]È\ÜİÛÜ™
+L‹LLÚ\˜Xİ\œÊIË	ÉË	Ü\ÜİÛÜ™	Ë	Ü™\]Z\™YZ[›[™İHŒLˆˆX^[™İHŒLˆ]]ØÛÛ\]OH›™]Ë\\ÜİÛÜ™‰Ê_IÚ[œ]
+	ØÛÛ™š\›WÜ\ÜİÛÜ™	Ë	Ô™\X]™]È\ÜİÛÜ™	Ë	ÉË	Ü\ÜİÛÜ™	Ë	Ü™\]Z\™YZ[›[™İHŒLˆˆ]]ØÛÛ\]OH›™]Ë\\ÜİÛÜ™‰Ê_IÙ›Ü›Q›Ûİ\Š	Õ\]H\ÜİÛÜ™	Ê_OÙ›Ü›O˜
+Kˆ	ØÛZ[KZ›Ø‰Î˜\Ş[˜Ê
+OOØ]ØZ]\JØ\KÜİY™‹Ú›ØœËÉÜİ]Kš›Ø‹šYKØÛZ[X	ÔÔÕ	ÊNİØ\İ
+	Ò›Øˆ\ÜÚYÛ™YÈ[İK‰ÊNØ]ØZ]ØY›ØŠİ]Kš›Ø‹šY
+NßKˆ	ÜÚ\™KZ›Ø‰ÎŠ
+OOœÚİÓ[Ù[
+	ĞÜ™X]HÜˆ™\XÙHHÛY[[šÉË]ˆÛ\ÜÏHœİXÚÈÛ\ÜÏH›]]Y•\ÈÜ™X]\ÈHš]˜]KMY^H[šÈ›Üˆ\È›Ø‹ˆ[[Û™HÚ]H[šÈØ[ˆšY]ÈH›Øˆ[™İX›Z]İ\İÛY\ˆ\›İ˜[ËÜ]ˆÛ\ÜÏH››İXÙH[HX\›Y\ˆ[šÈ[™İ\İÛY\ˆÙ\ÜÚ[Ûˆ›Üˆ\È›ØˆÚ[İÜÛÜšÚ[™ËˆÙ[™H™]È[šÈÈ[İ\ˆÛY[Ù]]ÛˆÛ\ÜÏH˜ˆš[X\Hˆ]KXXİ[ÛH˜ÛÛ™š\›K\Ú\™HÜ™X]Hš]˜]HÛY[[šÏØ]ÛÙ]˜
+Kˆ	ØÛÛ™š\›K\Ú\™IÎ˜\Ş[˜Ê
+OOØÛÛœİ\İ]Kš›Ø‹X]ØZ]\JØ\KÜİY™‹Ú›ØœËÉÚ‹šYKÜÚ\™X	ÔÔÕ	ÊNÜİ]K›\İÚ\™O\‹œÜ[İ\›ÜÚİÓ[Ù[
+	Ö[İ\ˆš]˜]HÛY[[šÉË]ˆÛ\ÜÏHœİXÚÈÛ\ÜÏH›]]Y•˜[Y›ÜˆM^\ËˆÚ\™HÛ›HÚ]Hİ\İÛY\ˆ]]Üš^™YÈ\›İ™H\È›Ø‹Ü[œ]YHœÚ\™K[[šÈˆ˜[YOH‰Ù\ØÊ‹œÜ[İ\›
+_Hˆ™XYÛ›H\šXK[X™[H”š]˜]HÛY[[šÈ]ˆÛ\ÜÏHœ›İÈÜ˜\]ÛˆÛ\ÜÏH˜ˆš[X\Hˆ]KXXİ[ÛH˜ÛÜK\Ú\™HÛÜH[šÏØ]ÛHÛ\ÜÏH˜ˆYÚˆ™YH‰Ù\ØÊ‹œÜ[İ\›
+_Hˆ\™Ù]H—Ø›[šÈˆ™[H››ÛÜ[™\ˆ›Ü™Y™\œ™\ˆ”™]šY]Èİ\İÛY\ˆÜ[	ÚXÛÛŠ	Ø\œ›İÉË	ÚXÛÛ‹\ÛIÊ_OØOHÛ\ÜÏH˜ˆYÚˆ™YH›XZ[Î‰Ù\ØÊ‹˜İ\İÛY\—Ù[XZ[
+_OÜİXš™XİIÙ[˜ÛÙUT’PÛÛ\Û™[
+‹›[X™\ŠÉÈH[İ\ˆ›Ú™Xİ][İH[™›ÛÙ‰Ê_I˜›ÙOIÙ[˜ÛÙUT’PÛÛ\Û™[
+	ÔX\ÙH\ÙH\Èš]˜]H[šÈÈ™]šY]È[İ\ˆ›Ø‹\›İ™HHİ\œ™[][İH[™›ÛÙ‹[™XØÙ\ÜÈ[İ\ˆ^[Y[[šÎ——‰ÊÜ‹œÜ[İ\›
+É×—•\È[šÈ^\™\È[ˆM^\ËˆX\ÙHÙY\]š]˜]K‰Ê_H“Ü[ˆ[XZ[˜YØOÙ]Û\ÜÏH™šY[Z[ÛÜKÜÚ\™H[™Ü[š[™È[İ\ˆ[XZ[\XØ][Ûˆ\™Hİ\ÜYˆHÙ\™\ˆÙ\È›İÙ[™[ˆ[XZ[]]ÛX]XØ[KÜÙ]˜
+NßKˆ	ØÛÜK\Ú\™IÎ˜\Ş[˜Ê
+OOİ^Ø]ØZ]˜]šYØ]Ü‹˜Û\›Ø\™Üš]U^
+İ]K›\İÚ\™JNİØ\İ
+	Ôš]˜]H[šÈÛÜYY‰ÊNßXØ]ÚÉ
+	ÈÜÚ\™K[[šÉÊKœÙ[Xİ
+
+NİØ\İ
+	ÔÙ[Xİ[™ÛÜHHYÚYÚY[šË‰ÊNß_Kˆ	ØØ[˜Ù[Z›Ø‰ÎŠ
+OOœÚİÓ[Ù[
+	ĞØ[˜Ù[\È›ØÉË›Ü›H]KY›Ü›OH˜Ø[˜Ù[Z›ØˆˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH•\È™[[İ™\ÈH›Øˆœ›ÛHHXİ]™H]Y]YH]™\Ù\™\È]È][İKš[\Ë^[Y[È[™]Y]\İÜKˆ]Ù\È›İ\ÜİYHH™Y[™Ù]X™[Û\ÜÏH™šY[Ü[”™X\ÛÛˆ›ÜˆØ[˜Ù[][ÛÜÜ[^\™XH˜[YOHœ™X\ÛÛˆˆ™\]Z\™YX^[™İHŒLİ^\™XOÛX™[‰Ù›Ü›Q›Ûİ\Š	ĞØ[˜Ù[›Ø‰Ê_OÙ›Ü›O˜
+Kˆ	Ù[XZ[\›ÛÙ‹X\›İ˜[	Î˜OØÛÛœİ\İ]Kš›Ø‹œ›ÛÙœÖÌNÚYŠ\šYOOS[X™\Š‹™]\Ù]šY
+J]›İÈ™]È\œ›ÜŠ	Ô™[ØYHİ\œ™[›ÛÙ‹‰ÊNÜÚİÓ[Ù[
+	Ô™XÛÜ™\›İ˜[™XÙZ]™YH[XZ[	Ë›Ü›H]KY›Ü›OH™[XZ[\›ÛÙ‹X\›İ˜[ˆ]KZYH‰ÜšYHˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH[™›È”›ÛÙˆ™\œÚ[Ûˆ	Ü™\œÚ[ÛŸNˆ	Ù\ØÊ›X™[
+_KˆÜ[ˆH^Xİ›ÛÙˆš[H[™™\šYH]HÛY[	ÜÈ[XZ[\›İ™\È\È™\œÚ[Ûˆ[™]È[ØÛÜKÙ]HÛ\ÜÏH˜ˆYÚˆ™YH‹Ø\KØ\ÜÙ]ËÉÜ˜\ÜÙ]ÚYHˆ\™Ù]H—Ø›[šÈˆ™[H››ÛÜ[™\ˆ“Ü[ˆ›ÛÙˆš[OØO‰Ú[œ]
+	Û˜[YIË	Ğİ\İÛY\ˆ˜[YIË	ÉË	İ^	Ë	Ü™\]Z\™YX^[™İHŒLŒ‰Ê_IÚ[œ]
+	Ø\›İ™YØ]	Ë	Ğ\›İ˜[[XZ[]H[™[YIË	ÉË	Ù]][YK[ØØ[	Ë	Ü™\]Z\™Y	Ê_OX™[Û\ÜÏH™šY[Ü[‘[XZ[™Y™\™[˜ÙH
+İXš™XİÙ[™\ˆÜˆY\ÜØYÙHQ
+OÜÜ[^\™XH˜[YOH™[XZ[Ü™Y™\™[˜ÙHˆ™\]Z\™YX^[™İHŒLİ^\™XOÛX™[‰ØÚXÚØ›Ş
+	ØÛÛ™š\›IË	ÒH™\šYšYYHİ\İÛY\ˆ\›İ™Y\È^Xİ›ÛÙˆ[™Ü™\ˆØÛÜHH[XZ[‰Ê_OÛ\ÜÏH™šY[Z[•\È™XÛÜ™È[İ\ˆ™\šYšXØ][ÛÈ]Ù\È›İÛZ[HHİ\İÛY\ˆXØÙ\Y\›\È[ˆHÜ[Ü‰Ù›Ü›Q›Ûİ\Š	Ô™XÛÜ™[XZ[\›İ˜[	Ê_OÙ›Ü›O˜
+NßKˆ	ÜÙ[™\›ÛÙ‰Î˜\Ş[˜ÈOØÛÛœİX]ØZ]\JØ\KÜİY™‹Ú›ØœËÉÜİ]Kš›Ø‹šYKÜ›ÛÙœËÉØ‹™]\Ù]šYKÜÙ[™	ÔÔÕ	ËßJNİØ\İ
+‹™[XZ[ÜÙ[ÉÔ›ÛÙˆ\›İ˜[[XZ[Ù[‰Î‰Ô›ÛÙˆ[šÈØ]™Y][XZ[[]™\H˜Z[YˆÚXÚÈ[XZ[İ]\È[ˆÚÜÙ][™ÜË‰Ë\‹™[XZ[ÜÙ[
+NØ]ØZ]ØY›ØŠİ]Kš›Ø‹šY
+NßKˆ	ÜÙ[‹X\›İ™KX\ÛÜšÉÎ˜OœÚİÓ[Ù[
+	Ğ\›İ™H\ÛÜšÈ	ˆXØÙ\\›\ÉË›Ü›H]KY›Ü›OHœÙ[‹X\›İ™KX\ÛÜšÈˆ]KZYH‰Ø‹™]\Ù]šYHˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH[™›È•\ÙH\ÈÛ›HÚ[ˆ[İ\ˆ\ØYYš[H\È[H\ÚYÛ™Y[™™XYHÈš[\Èİ\YYˆ	Ù\ØÊÚÜ˜[YJ
+J_HÚ[\ÙH\È^Xİš[H\ÈH\›İ™Y›ÛÙ‹Ù]‰Ú[œ]
+	Û˜[YIË	Ö[İ\ˆ[˜[YIË	ÉË	İ^	Ë	Ü™\]Z\™YX^[™İHŒLŒ‰Ê_IØ\›İ˜[YÜ™Y[Y[
+İ]KœÜ[›Ø‹š›Ø—İ\›\Ëİ]KœÜ[›Ø‹˜\›İ˜[Üİ][Y[
+_IÙ›Ü›Q›Ûİ\Š	Ğ\›İ™H\ÛÜšÈ	ˆXØÙ\\›\ÉÊ_OÙ›Ü›O˜
+Kˆ	ÙY]\][İIÎŠ
+OO™Y]][İS[Ù[
+
+Kˆ	ÛÛ›[™K\šXÙKXÛÜœ™Xİ[Û‰ÎŠ
+OO›Û›[™TšXÙPÛÜœ™Xİ[Û“[Ù[
+
+Kˆ	ÜX›\Ú\][İIÎŠ
+OOœÚİÓ[Ù[
+	ÔX›\Ú\È™]šY]ÙY][İIË›Ü›H]KY›Ü›OHœX›\ÚˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH•HÛY[Ú[ÙYH™\œÚ[Ûˆ	Üİ]Kš›Ø‹œ][İWİ™\œÚ[ÛŸH›Üˆ	Û[Û™^Jİ]Kš›Ø‹İ[Ëİ[ØÙ[Ê_KˆX›\Ú[™ÈÙ\È›İÜ™X]HH]ZXÚĞ›ÛÚÜÈ[›ÚXÙKÙ]‰ØÚXÚØ›Ş
+	Ü™]šY]ÙY	Ë	ÒH™]šY]ÙYH[Y[œÚ[ÛœË[˜ÛYYÙ\šXÙ\ËX]\šX[ÛÜİËX›Ü‹^\Ë[]™\H[™š[˜[šXÙKˆH][İH\È™XYH›ÜˆHÛY[‰Ê_IÙ›Ü›Q›Ûİ\Š	ÔX›\Úİ\İÛY\ˆ][İIÊ_OÙ›Ü›O˜
+Kˆ	ÜØÚY[KZ›Ø‰ÎŠ
+OOœØÚY[S[Ù[
+
+Kˆ\ÚÎ˜\Ş[˜ÈOØ]ØZ]\JØ\KÜİY™‹İ\ÚÜËÉØ‹™]\Ù]šYKØXİ[Û˜	ÔÔÕ	ËØXİ[Û˜‹™]\Ù]˜[Y_JNİØ\İ
+	Õ\ÚÈ\]Y‰ÊNØ]ØZ]™Yœ™\ÚY\•\ÚÊ
+NßKˆ	Ø›ØÚË]\ÚÉÎ˜OœÚİÓ[Ù[
+	Ñ›YÈH›ØÚÙY\ÚÉË›Ü›H]KY›Ü›OH˜›ØÚË]\ÚÈˆ]KZYH‰Ø‹™]\Ù]šYHˆÛ\ÜÏHœİXÚÈX™[Û\ÜÏH™šY[Ü[•Ú]\È™]™[[™È\È\ÚÈœ›ÛH[İš[™ÏÏÜÜ[^\™XH˜[YOH››İHˆ™\]Z\™YX^[™İHŒŒˆXÙZÛ\H•ØZ][™ÈÛˆX]\šX[Z\ÜÚ[™È\ÛÜšËXXÚ[™H\ÜİYK‹‹ˆİ^\™XOÛX™[‰Ù›Ü›Q›Ûİ\Š	ÓX\šÈ›ØÚÙY	Ê_OÙ›Ü›O˜
+Kˆ	ØY]\ÚÉÎŠ
+OOœÚİÓ[Ù[
+	ĞYH›Ø‹\ÜXÚYšXÈ\ÚÉË›Ü›H]KY›Ü›OH˜Y]\ÚÈˆÛ\ÜÏHœİXÚÈ‰Ú[œ]
+	İ]IË	Õ\ÚÈ˜[YIË	ÉË	İ^	Ë	Ü™\]Z\™YX^[™İHŒLŒ‰Ê_IÚ[œ]
+	Ù\\Y[	Ë	Ñ\\Y[	Ë	Ô›ÙXİ[Û‰Ë	İ^	Ë	Ü™\]Z\™YX^[™İHŒ‰Ê_IÜÙ[Xİ
+	ÙØ]IË	Ğ\›İ˜[È^[Y[Ø]IËÖÉÛ›Û™IË	Ó›Û™HH[ZÙHÛÜšÉ×KÉÜ][İIË	ĞXØÙ\Y][İI×KÉÙ\ÜÚ]	Ë	ĞXØÙ\Y][İH
+È\ÜÚ]	×KÉÜ›ÙXİ[Û‰Ë	Ô][İH
+È\›İ™Y›ÛÙˆ
+È\ÜÚ]	×KÉÙ[]™\IË	Ô›ÙXİ[ÛˆÚXÚÜÈ
+ÈZY˜[[˜ÙI×WK	Ü›ÙXİ[Û‰Ê_OX™[Û\ÜÏH™šY[Ü[”™\™\]Z\Ú]\È
+Ù[Xİ[HX\›Y\ˆ\ÚÜÈ™\]Z\™Y
+OÜÜ[Ù[Xİ˜[YOH™\[™[˜ÚY\Èˆ][\HÚ^™OHH‰Üİ]Kš›Ø‹\ÚÜË›X\
+O˜Ü[Ûˆ˜[YOH‰İšYH‰İœÜÚ][ÛŸKˆ	Ù\ØÊ]J_OÛÜ[Û˜
+Kš›Ú[Š	ÉÊ_OÜÙ[XİÛX™[Û\ÜÏH™šY[Z[•\ÈYÈH\ÚÈÈ\È›ØˆÛ›Kˆ\]HÛÜšÙ›İÈ[\]\È›Üˆ]\™H›ØœËˆİ\İÛZ^™HÚXÚÛ\İÈ™Y›Ü™H›ÙXİ[Ûˆİ\ËÜ‰Ù›Ü›Q›Ûİ\Š	ĞY\ÚÉÊ_OÙ›Ü›O˜
+Kˆ	İ\ØYX\ÛÜšÉÎŠ
+OO˜\ÛÜšÓ[Ù[
+˜[ÙJKˆ	ÜÜ[X\ÛÜšÉÎŠ
+OO˜\ÛÜšÓ[Ù[
+YJKˆ	İ\ØY\›ÛÙ‰ÎŠ
+OOœ›ÛÙ•\ØY[Ù[
+
+Kˆ^[İ]Š
+OO›^[İ][Ù[
+
+Kˆ	Ü^[Y[[[šÉÎŠ
+OOœ^[Y[[šÓ[Ù[
+
+Kˆ	İ™\šYK\^[Y[	ÎŠ
+OO™\šYT^[Y[[Ù[
+
+Kˆ	İ›ÚY\^[Y[	Î˜OœÚİÓ[Ù[
+	ĞÛÜœ™XİH^[Y[™XÛÜ™	Ë›Ü›H]KY›Ü›OH›ÚY\^[Y[ˆ]KZYH‰Ø‹™]\Ù]šYHˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH•\ÈÛ›H™]™\œÙ\ÈHØØ[™\šYšXØ][Ûˆ™XÛÜ™ˆ]Ù\È›İ™Y[™[Û™^HÜˆÚ[™ÙH]ZXÚĞ›ÛÚÜËˆ™XÛÛ˜Ú[HHXØÛİ[[™È˜[œØXİ[ÛˆÙ\\˜][KÙ]X™[Û\ÜÏH™šY[Ü[”™X\ÛÛˆ›ÜˆÛÜœ™Xİ[™ÈH™XÛÜ™ÜÜ[^\™XH˜[YOHœ™X\ÛÛˆˆ™\]Z\™YX^[™İHŒLİ^\™XOÛX™[‰Ù›Ü›Q›Ûİ\Š	Õ›ÚYØØ[™XÛÜ™	Ê_OÙ›Ü›O˜
+Kˆ	ØY[[™IÎŠ
+OOÚYŠ[
+	ÖÙ]K\][İK[[™WIÊK›[™İLÌ
+]›İÈ™]È\œ›ÜŠ	ÓX^[][HÌ›ÙXİ[™\Ë‰ÊNÉ
+	ÈÜ][İK[[™\ÉÊKš[œÙ\Y˜XÙ[S
+	Ø™Y›Ü™Y[™	Ë][İQY]›İÊ[
+	ÖÙ]K\][İK[[™WIÊK›[™İ
+JNßKˆ	Ü™[[İ™K[[™IÎ˜OÚYŠ[
+	ÖÙ]K\][İK[[™WIÊK›[™İOOLJ]›İÈ™]È\œ›ÜŠ	ÒÙY\]X\İÛ™H›ÙXİ[™K‰ÊNØ‹˜ÛÜÙ\İ
+	ÖÙ]K\][İK[[™WIÊKœ™[[İ™J
+NßKˆ	ØY\][İK\Ù\šXÙIÎŠ
+OOÚYŠ[
+	ÖÙ]K\][İK\™]š\Ú[Û‹[[™WIÊK›[™İLÌ
+]›İÈ™]È\œ›ÜŠ	ÓX^[][HÌ][İH[™\Ë‰ÊNÉ
+	ÈÜ][İK\™]š\Ú[Û‹[[™\ÉÊKš[œÙ\Y˜XÙ[S
+	Ø™Y›Ü™Y[™	Ë][İT™]š\Ú[Û”›İÊßK	ÉÊJNßKˆ	Ü™[[İ™K\][İK[[™IÎ˜OÚYŠ[
+	ÖÙ]K\][İK\™]š\Ú[Û‹[[™WIÊK›[™İOOLJ]›İÈ™]È\œ›ÜŠ	ÒÙY\]X\İÛ™H][İH[™K‰ÊNØ‹˜ÛÜÙ\İ
+	ÖÙ]K\][İK\™]š\Ú[Û‹[[™WIÊKœ™[[İ™J
+NßKˆ	Ü][İK[[™K]\	Î˜OØÛÛœİ›İÏX‹˜ÛÜÙ\İ
+	ÖÙ]K\][İK\™]š\Ú[Û‹[[™WIÊK™]\›İËœ™]š[İ\Ñ[[Y[ÚX›[™ÎÚYŠ™]Š\›İËœ\™[›ÙKš[œÙ\™Y›Ü™J›İË™]ŠNßKˆ	Ü][İK[[™KYİÛ‰Î˜OØÛÛœİ›İÏX‹˜ÛÜÙ\İ
+	ÖÙ]K\][İK\™]š\Ú[Û‹[[™WIÊK™^\›İË›™^[[Y[ÚX›[™ÎÚYŠ™^
+\›İËœ\™[›ÙKš[œÙ\™Y›Ü™J™^›İÊNßKˆ	ÙY]\›ÙXİ	Î˜O™Y]›ÙXİ[Ù[
+[X™\Š‹™]\Ù]šY
+JKˆ	Û™]Ë\›ÙXİ	ÎŠ
+OO™Y]›ÙXİ[Ù[
+
+Kˆ	ÙY]]ÛÜšÙ›İÉÎ˜OÛÜšÙ›İÓ[Ù[
+[X™\Š‹™]\Ù]šY
+JKˆ	Û™]Ë]ÛÜšÙ›İÉÎŠ
+OOÛÜšÙ›İÓ[Ù[
+
+Kˆ	ØY\İ\	ÎŠ
+OOØÛÛœİÛİ[X[
+	ÖÙ]K\İ\IÊK›[™İÚYŠÛİ[M
+]›İÈ™]È\œ›ÜŠ	ÓX^[][Hİ\Ë‰ÊNÉ
+	ÈİÛÜšÙ›İË\›İÜÉÊKš[œÙ\Y˜XÙ[S
+	Ø™Y›Ü™Y[™	ËÛÜšÙ›İÔ›İÊİ]N‰Ó™]È\ÚÉË\\Y[‰Ô›ÙXİ[Û‰ËØ]N‰Ù[]™\IË\[™×ÛÛ˜Ûİ[ÖØÛİ[N–×_KÛİ[
+JNßKˆ	Ü™[[İ™K\İ\	Î˜OØ‹˜ÛÜÙ\İ
+	ÖÙ]K\İ\IÊKœ™[[İ™J
+NØ[
+	ÖÙ]K\İ\IÊK™›Ü‘XXÚ
+
+›İËJOOœ›İË™š\œİ[[Y[Ú[^ÛÛ[ZJÌJNßKˆ	Û™]Ë]\Ù\‰ÎŠ
+OOœÚİÓ[Ù[
+	Ò[š]HHX[[X]IË›Ü›H]KY›Ü›OH›™]Ë]\Ù\ˆˆÛ\ÜÏHœİXÚÈ‰Ú[œ]
+	Û˜[YIË	Ñ[˜[YIË	ÉË	İ^	Ë	Ü™\]Z\™YX^[™İHŒLŒ‰Ê_IÚ[œ]
+	Ù[XZ[	Ë	Ñ[XZ[	Ë	ÉË	Ù[XZ[	Ë	Ü™\]Z\™Y	Ê_IÜÙ[Xİ
+	Ü›ÛIË	ĞXØÙ\ÜÈ]™[	ËÖÉÙ[\ŞYYIË	Ñ[\ŞYYHH›ØœË\ÚYÛˆ[™›ÙXİ[Û‰×KÉØYZ[‰Ë	ÓİÛ™\‹ØYZ[ˆHšXÚ[™Ë[ÜH[™^[Y[É×WK	Ù[\ŞYYIÊ_OÛ\ÜÏH™šY[Z[H˜[™ÛH\ÜİÛÜ™\È\Ü^YYÛ˜ÙHY\ˆÜ™X][Û‹ˆÚ\™H]ÙXİ\™[NÈ\È[İÙ\È›İÙ[™[š]][Ûˆ[XZ[ËÜ‰Ù›Ü›Q›Ûİ\Š	ĞÜ™X]HX[[X]IÊ_OÙ›Ü›O˜
+Kˆ	Ü™\Ù]]\Ù\‰Î˜OœÚİÓ[Ù[
+	Ô™\Ù]\ÈX[[X]H\ÜİÛÜ™ÉË]ˆÛ\ÜÏHœİXÚÈÛ\ÜÏH›]]Y[^\İ[™ÈÙ\ÜÚ[ÛœÈ›Üˆ\ÈX[[X]HÚ[™HÚYÛ™Yİ]ˆH™]È˜[™ÛH\ÜİÛÜ™Ú[™HÚİÛˆÛ˜ÙKÜ]ÛˆÛ\ÜÏH˜ˆš[X\Hˆ]KXXİ[ÛH˜ÛÛ™š\›K\™\Ù]]\Ù\ˆˆ]KZYH‰Ø‹™]\Ù]šYH”™\Ù]\ÜİÛÜ™Ø]ÛÙ]˜
+Kˆ	ØÛÛ™š\›K\™\Ù]]\Ù\‰Î˜\Ş[˜ÈOØÛÛœİX]ØZ]\JØ\KØYZ[‹İ\Ù\œËÉØ‹™]\Ù]šYX	ÔUÒ	ËÜ™\Ù]Ü\ÜİÛÜ™Y_JNÜÚİĞÜ™Y[X[Ê‹[\Ü˜\WÜ\ÜİÛÜ™
+NØ]ØZ]ØYX[J
+NßKˆ	İÙÙÛK]\Ù\‰Î˜\Ş[˜ÈOØ]ØZ]\JØ\KØYZ[‹İ\Ù\œËÉØ‹™]\Ù]šYX	ÔUÒ	ËØXİ]™N˜‹™]\Ù]˜[YOOOIİYIßJNİØ\İ
+	ĞXØÛİ[XØÙ\ÜÈ\]Y‰ÊNØ]ØZ]ØYX[J
+NßKˆ	ØXØÙ\\][İIÎŠ
+OOœÚİÓ[Ù[
+	ĞXØÙ\[İ\ˆ›Ú™Xİ][İIË›Ü›H]KY›Ü›OH˜XØÙ\\][İHˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH[™›È”][İH™\œÚ[Ûˆ	Üİ]KœÜ[›Ø‹œ][İWİ™\œÚ[ÛŸHÈİ[	Û[Û™^Jİ]KœÜ[›Ø‹İ[Ëİ[ØÙ[Ê_HÈ	Üİ]KœÜ[›Ø‹˜ÚXÚÛİ]ÉÔ^[Y[™\]Z\™Y	ÊÛ[Û™^Jİ]KœÜ[›Ø‹İ[Ëİ[ØÙ[ÊN‰Ô™\]Z\™Y\ÜÚ]	ÊÛ[Û™^Jİ]KœÜ[›Ø‹İ[Ë™\ÜÚ]ØÙ[Ê_KÙ]‰Ú[œ]
+	Û˜[YIË	Ö[İ\ˆ[˜[YIË	ÉË	İ^	Ë	Ü™\]Z\™YX^[™İHŒLŒ‰Ê_IØÚXÚØ›Ş
+	ØÛÛ™š\›IË	ÒH™\šYšYYH›ÙXİË[Y[œÚ[ÛœËİ\YYYX\İ\™[Y[ËØÛÜKÚ\™Ù\È[™İ[ˆHXØÙ\\È][İH[™H\ÛÜšËÚ^š[™È	ˆ›ÙXİ[Ûˆ\›\Ë‰ÊJİ\›\Ñ]Z[Êİ]KœÜ[›Ø‹š›Ø—İ\›\Ê_OÛ\ÜÏH™šY[Z[\ÛÜšÈ\›İ˜[\ÈHÙ\\˜]Hİ\ˆ	Üİ]KœÜ[›Ø‹˜ÚXÚÛİ]ÉÔ›ÙXİ[Ûˆ™YÚ[œÈÛ›HY\ˆH™\]Z\™Y\›İ˜[È[™^[Y[\™H™\šYšYY‰Î‰Ô›ÙXİ[Ûˆ™YÚ[œÈÛ›HY\ˆH™\]Z\™Y\›İ˜[È[™\ÜÚ]\™H™\šYšYY‰ßOÜ‰Ù›Ü›Q›Ûİ\Š	ĞXØÙ\][İIÊ_OÙ›Ü›O˜
+Kˆ	Ø\›İ™K\›ÛÙ‰ÎŠ
+OO˜\›İ˜[[Ù[
+	Ø\›İ™IÊKˆ	Ü™\]Y\İXÚ[™Ù\ÉÎŠ
+OO˜\›İ˜[[Ù[
+	Ü™\]Y\İØÚ[™Ù\ÉÊKˆ	Ü^[Y[[›İXÙIÎŠ
+OOœÚİÓ[Ù[
+	Ó]HÚÜÛ›İÈ[İHZY	Ë›Ü›H]KY›Ü›OHœ^[Y[[›İXÙHˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH[™›È•HÚÜÚ[™\šYH[İ\ˆ˜[œØXİ[Ûˆ[ˆ]ZXÚĞ›ÛÚÜËˆ™\Ü[™È]\™HÙ\È›İÚ[™ÙH[İ\ˆ˜[[˜ÙH[[]\È™\šYšYYÙ]‰Ú[œ]
+	Ü™Y™\™[˜ÙIË	Ô^[Y[™Y™\™[˜ÙHÈ™XÙZ\Y[YšY\‰Ë	ÉË	İ^	Ë	Ü™\]Z\™YX^[™İHŒŒ‰Ê_IÙ›Ü›Q›Ûİ\Š	ÔÙ[™^[Y[›İXÙIÊ_OÙ›Ü›O˜
+KŸNÂ™[˜İ[ÛˆÚİĞÜ™Y[X[Ê\ÜİÛÜ™
+^ÜÚİÓ[Ù[
+	ÔØ]™HH™]ÈXØÛİ[\ÜİÛÜ™	Ë]ˆÛ\ÜÏHœİXÚÈ]ˆÛ\ÜÏH››İXÙH•\È\ÜİÛÜ™\È\Ü^YYÛ›HÛ˜ÙKˆÚ\™H]ÙXİ\™[K[ˆ]™HHX[[X]HÚ[™ÙH]Y\ˆÚYÛš[™È[‹Ù][œ]˜[YOH‰Ù\ØÊ\ÜİÛÜ™
+_Hˆ™XYÛ›H\šXK[X™[H•[\Ü˜\H\ÜİÛÜ™Û\ÜÏH›]]Y[H•HÙ\™\ˆİÜ™\ÈH\ÜİÛÜ™\Ú›İ\È™XYX›H\ÜİÛÜ™Ü]ÛˆÛ\ÜÏH˜ˆš[X\Hˆ]KXXİ[ÛH˜ÛÜÙH”Ø]™YÙXİ\™[OØ]ÛÙ]˜
+NßB‚˜ÛÛœİ›Ü›\ÈHÂˆ	ØÛÛ\]K\Ú]K\İ\™^IÎ˜\Ş[˜Ê‹
+OOØÛÛœİ›Ø’YS[X™\Š‹™]\Ù]š›Ø’Y
+NØ]ØZ]\JØ\KÜİY™‹Ú›ØœËÉÚ›Ø’YKÜÚ]K\İ\™^KØÛÛ\]X	ÔÔÕ	ËÛ›İN™››İKÛÛ™š\›NˆHY˜ÛÛ™š\›K][İWİ™\œÚ[Û“[X™\Š‹™]\Ù]œ][İU™\œÚ[ÛŠK™]šY]ÙYÜİ\™^\Îœ™]šY]ÙYİ\™^\ÊŠ_JNØÛÜÙS[Ù[
+
+NİØ\İ
+	ÔÚ]Hİ\™^H™\šYšYY[™ÛÛ\]Y‰ÊNØ]ØZ]ØY›ØŠ›Ø’Y
+NßKˆ	ÜÜ[]\ØYX\›İ˜[	Î˜\Ş[˜Ê‹
+OOØÛÛœİÙ[XİYX[
+	ÖÙ]K\Ü[\›ÛÙ‹Yš[WN˜ÚXÚÙY	ËŠK›X\
+[œ]O“[X™\Š[œ]™]\Ù]œÜ[›ÛÙ‘š[JJNØÛÛœİš[\Ï\Ù[XİY›X\
+YOØÛÛœİ\ÜÙ]\İ]KœÜ[›Ø‹˜\ÜÙ]Ë™š[™
+][OOš][KšYOOZY
+NÜ™]\›ˆØ\ÜÙ]ÚYšYÚLM˜\ÜÙ]œÚLM‹[™WÚ[™XÙ\Î˜[
+Ù]K\Ü[\›ÛÙ‹X\ÜÙ]H‰ÚYH—N˜ÚXÚÙYŠK›X\
+[œ]O“[X™\Š[œ]™]\Ù]œÜ[›ÛÙ“[™JJ_NßJNØ]ØZ]\J	ËØ\KÜÜ[Ø\ÛÜšË\™]šY]ËØ\›İ™IË	ÔÔÕ	ËÛ˜[YN™›˜[YKÛÛ™š\›NˆHY˜ÛÛ™š\›K\›\×İ™\œÚ[Ûœİ]KœÜ[›Ø‹š›Ø—İ\›\Ë™\œÚ[Û‹][İWİ™\œÚ[Ûœİ]KœÜ[›Ø‹œ][İWİ™\œÚ[Û‹š[\ßJNØÛÜÙS[Ù[
+
+NİØ\İ
+	Ö[İ\ˆ\ØY™]šY]ÜÈ\™H\›İ™Y›Üˆš[‰ÊNØ]ØZ]ØYÜ[
+
+NßKˆÙÚ[˜\Ş[˜Ê‹
+OOØÛÛœİX]ØZ]\J	ËØ\KØ]]ÛÙÚ[‰Ë	ÔÔÕ	Ë
+NÜİ]K\Ù\\‹\Ù\Üİ]K˜ÜÜ™\‹˜ÜÜ™Ø]ØZ]›İ]J
+NßKˆ	Ü™\ÜYš[\‰Î˜\Ş[˜Ê‹
+OO›ØY™\ÜÊÜİ\™œİ\[™™™[™JKˆØ[İ[]Ü˜\Ş[˜Ê
+OOØ]ØZ]™XØ[İ[]J
+NßKˆ	İÚÛ\Ø[K[ÙÚ[‰Î˜\Ş[˜Ê‹
+OOØÛÛœİX]ØZ]\J	ËØ\KİÚÛ\Ø[KØXİ]˜]IË	ÔÔÕ	Ëİ\Ù\›˜[YN™\Ù\›˜[YK\ÜİÛÜ™™œ\ÜİÛÜ™JNÜİ]KÚÛ\Ø[UÚÙ[\‹ÚÙ[Üİ]KÚÛ\Ø[S˜[YO\‹˜ÛY[›˜[YNÜİ]KÚÛ\Ø[Q[XZ[\‹˜ÛY[™[XZ[ÛØØ[İÜ˜YÙKœÙ]][J	İÚÛ\Ø[WİÚÙ[‰Ë‹ÚÙ[ŠNÛØØ[İÜ˜YÙKœÙ]][J	İÚÛ\Ø[WÛ˜[YIË‹˜ÛY[›˜[YJNÛØØ[İÜ˜YÙKœÙ]][J	İÚÛ\Ø[WÙ[XZ[	Ë‹˜ÛY[™[XZ[
+NØÛÜÙS[Ù[
+
+NİØ\İ
+	ÕÚÛ\Ø[HšXÚ[™È\YY‰ÊNØ]ØZ]Ø[İ[]Ü•šY]Ê
+NßKˆ	İÚÛ\Ø[KXÛY[	Î˜\Ş[˜Ê‹
+OOØÛÛœİ›ÙXİÙ\ØÛİ[Ï^ßNØ[
+	ÖÙ]K]ÚÛ\Ø[K\›ÙXİIËŠK™›Ü‘XXÚ
+OÚYŠ˜[YHOOIÉÊ\›ÙXİÙ\ØÛİ[ÖŞ™]\Ù]ÚÛ\Ø[T›ÙXİO^˜[YNßJNØÛÛœİ^[ØY^Û˜[YN™›˜[YK\Ù\›˜[YN™\Ù\›˜[YK[XZ[™™[XZ[\ØÛİ[Ü\˜Ù[™™\ØÛİ[Ü\˜Ù[›ÙXİÙ\ØÛİ[ËXİ]™Nœİ]K™Y]ÚÛ\Ø[OÈHY˜Xİ]™NYK™\Ù]Ü\ÜİÛÜ™ˆHYœ™\Ù]Ü\ÜİÛÜ™NØÛÛœİ\İ]K™Y]ÚÛ\Ø[OØ]ØZ]\J	ËØ\KØYZ[‹İÚÛ\Ø[KÉÊÜİ]K™Y]ÚÛ\Ø[KšY	ÔU	Ë^[ØY
+N˜]ØZ]\J	ËØ\KØYZ[‹İÚÛ\Ø[IË	ÔÔÕ	Ë^[ØY
+NØÛÜÙS[Ù[
+
+NØ]ØZ]ØYÙ][™ÜÊ
+NÚYŠ‹[\Ü˜\WÜ\ÜİÛÜ™
+\ÚİÕÚÛ\Ø[PÜ™Y[X[Ê‹\Ù\›˜[Y_\Ù\›˜[YK‹[\Ü˜\WÜ\ÜİÛÜ™
+NÙ[ÙHØ\İ
+	ÕÚÛ\Ø[HšXÚ[™È\]Y‰ÊNßKˆ	Ù\ÚYÛ‹\][İIÎ˜\Ş[˜Ê‹
+OOÂˆÛÛœİš[\ÏVË‹‹™‹™[[Y[Ë˜\ÛÜšË™š[\×NÙ[]H˜\ÛÜšÎÂˆYŠš[\ËœÛÛYJš[OO™š[KœÚ^™OL
+ŒL
+ŒL
+J]›İÈ™]È\œ›ÜŠ	ÑXXÚ™Y™\™[˜ÙHš[H]\İ™HLPˆÜˆÛX[\‹‰ÊNÂˆÛÛœİX]ØZ]\J	ËØ\KØİ\İÛK\™\]Y\İÉË	ÔÔÕ	ËØİ\İÛY\—Û˜[YN™˜İ\İÛY\—Û˜[YKİ\İÛY\—Ù[XZ[™˜İ\İÛY\—Ù[XZ[Û™N™œÛ™K›Ú™Xİİ\N‰Ñ\ÚYÛˆÙ\šXÙ\È8 %	ÊÙ]K›İ\Î™››İ\ËÙXœÚ]N™ÙXœÚ]_	ÉË[Y[œÚ[ÛœÎ–×K™Y™\œ˜[ØÛÙNœ™Y™\œ˜[ÛÙJ
+_JNÂˆÛÛœİÚÙ[[™]ÈT“
+‹œÜ[İ\›
+Kš\ÚœÛXÙJÊNØÛÛœİX]ØZ]\J	ËØ\KÜÜ[Ù^Ú[™ÙIË	ÔÔÕ	ËİÚÙ[ŸJNÜİ]K˜ÜÜ™^˜ÜÜ™Âˆ]\ØY\œ›ÜIÉÎÂˆ›ÜŠÛÛœİš[HÙˆš[\Ê^İ^ØÛÛœİ™[™]È›Ü›Q]J
+NÙ™˜\[™
+	Ùš[IËš[JNØ]ØZ]\JØ\KÚ›ØœËÉÜ‹š›Ø—ÚYKØ\ÛÜšØ	ÔÔÕ	Ë™
+NßXØ]Ú
+J^İ\ØY\œ›ÜYK›Y\ÜØYÙNØœ™XZÎß_BˆÛÜÙS[Ù[
+
+NÚ\İÜKœ\Úİ]J[	ÉË	ËÜÜ[	ÊNØ]ØZ]ØYÜ[
+
+NÂˆÚİÓ[Ù[
+	Ñ\ÚYÛˆ™\]Y\İ™XÙZ]™Y	Ë]ˆÛ\ÜÏHœİXÚÈÏ‰Ù\ØÊ‹›[X™\Š_OÚÏÛ\ÜÏH›]]Y•Ùx &[™]šY]ÈH\ÚYÛˆØÛÜH[™™\\™HH][İKÜ‰İ\ØY\œ›ÜÉÏ]ˆÛ\ÜÏH››İXÙH–[İ\ˆ™\]Y\İ\ÈØ]™Y]H™Y™\™[˜ÙHš[HY›İ\ØYˆ	ÊÙ\ØÊ\ØY\œ›ÜŠJÉËˆ[İHØ[ˆ\ØY]œ›ÛHH›Ú™XİYÙKÙ]‰Î‰ÉßO]ÛˆÛ\ÜÏH˜ˆš[X\HÚYHˆ]KXXİ[ÛH˜ÛÜÙH“Ü[ˆ^H™\]Y\İØ]ÛÙ]˜
+NÂˆKˆ	ØØ[˜Ù[Z›Ø‰Î˜\Ş[˜Ê‹
+OOØ]ØZ]\JØ\KÜİY™‹Ú›ØœËÉÜİ]Kš›Ø‹šYKØØ[˜Ù[	ÔÔÕ	ËÜ™X\ÛÛ™œ™X\ÛÛŸJNØÛÜÙS[Ù[
+
+NİØ\İ
+	Ò›ØˆØ[˜Ù[Y[™™[[İ™Yœ›ÛHHXİ]™H]Y]YK‰ÊNÛØØ][Û‹š\ÚIÙ\Ú›Ø\™	ÎßKˆ	ÜÙ[‹X\›İ™KX\ÛÜšÉÎ˜\Ş[˜Ê‹
+OOØ]ØZ]\JØ\KÜÜ[Ø\ÛÜšËÉÙ‹™]\Ù]šYKØ\›İ™X	ÔÔÕ	ËÛ˜[YN™›˜[YKÛÛ™š\›NˆHY˜ÛÛ™š\›K\›\×İ™\œÚ[Ûœİ]KœÜ[›Ø‹š›Ø—İ\›\Ë™\œÚ[ÛŸJNØÛÜÙS[Ù[
+
+NİØ\İ
+	Ğ\ÛÜšÈ\›İ™Y›Üˆš[‰ÊNØ]ØZ]ØYÜ[
+
+NßKˆ	ÜX›XË[Ü™\‰Î˜\Ş[˜Ê‹
+OOÂˆÛÛœİ^O\İ]K˜Ø[^I‰ˆYœÚ]WÜİ\™^WÜ™\]Y\İYÂˆÛÛœİ™]šY]ÏXÚXÚÛİ]›ÛÙ‹œİX›Z\ÜÚ[ÛŠ‹^JKš[\Ï\™]šY]Ë™š[\ÎÂˆ[]H˜\ÛÜšÎÂˆYŠš[\ËœÛÛYJ][OOš][K™š[KœÚ^™OL
+ŒL
+ŒL
+J]›İÈ™]È\œ›ÜŠ	ÑXXÚ\ÛÜšÈš[H]\İ™HLPˆÜˆÛX[\‹‰ÊNÂˆÛÛœİÛÜ™\œ‹›Ø›[KÚXÚÛİ]\ÛÜšĞ\›İ™Y^[Y[˜Z[YOX]ØZ]İX›Z]Ü™\ÚXÚÛİ]
+Ø\KÙ]ÜÜ™˜[YOOÜİ]K˜ÜÜ™]˜[YNßK^K][İNœİ]Kœ][İK™]šY]Ë^[ØYË‹‹™ÛÛ™š\›NˆHY˜ÛÛ™š\›K\›\×İ™\œÚ[Ûœİ]K˜Ø][ÙËš›Ø—İ\›\Ë™\œÚ[Û‹Ú]WÜİ\™^WÜ™\]Y\İYˆHYœÚ]WÜİ\™^WÜ™\]Y\İY\ÚÜ™\]Y\İYˆHYœ\ÚÜ™\]Y\İY™\]Y\İÚYœİ]K›Ü™\”™\]Y\İY][\Îœİ]K˜İ\œ™[][İR][\Ëš[™Ù\œš[œİ]Kœ][İK™š[™Ù\œš[ÚÛ\Ø[WİÚÙ[œİ]KÚÛ\Ø[UÚÙ[‹™Y™\œ˜[ØÛÙNœ™Y™\œ˜[ÛÙJ
+__JNÂˆYŠİ]Kœ›Ú™XİÚXÚÛİ]	‰ˆ\›Ø›[J\ÚÜ˜ÛX\Š
+NÂˆÚXÚÛİ]›ÛÙ‹˜ÛX\Š
+NØÛÜÙS[Ù[
+
+NÚ\İÜKœ\Úİ]J[	ÉË	ËÜÜ[	ÊNÂˆYŠÚXÚÛİ]Ë\›
+^ÛØØ][Û‹š™YXÚXÚÛİ]\›Ü™]\›ßBˆ]ØZ]ØYÜ[
+
+NÂˆÚİÓ[Ù[
+	Ö[İ\ˆÜ™\ˆ\ÈØ]™Y	Ë]ˆÛ\ÜÏHœİXÚÈÏ‰Ù\ØÊ‹›[X™\Š_OÚÏÛ\ÜÏH›]]Y‰Ø\ÛÜšĞ\›İ™YÉÖ[İ\ˆ\ÛÜšÈ\›İ˜[[™XØÙ\Y\›\È\™HØ]™YÚ]\ÈÜ™\‹‰Î‰Ö[İ\ˆ›Ú™Xİ\ÈØ]™YˆÚXÚÈ[İ\ˆš]˜]HÜ™\ˆYÙH›ÜˆH™^İ\‰ßOÜX™[Û\ÜÏH™šY[Ü[”š]˜]H›Ú™Xİ[šÏÜÜ[[œ]˜[YOH‰Ù\ØÊ‹œÜ[İ\›
+_Hˆ™XYÛ›OÛX™[‰Ü›Ø›[OÉÏ]ˆÛ\ÜÏH››İXÙH‰ÊÙ\ØÊ›Ø›[JJÉÈ[İ\ˆš[\È[™›Ú™Xİ™[XZ[ˆØ]™Y[ˆ\Èœ›İÜÙ\‹Ù]‰Î‰ÉßIØ^I‰œ^[Y[˜Z[YÉÏ]ÛˆÛ\ÜÏH˜ˆš[X\HÚYHˆ]KXXİ[ÛH›Û›[™K\^H”™]HÙXİ\™H^[Y[	ÊÚXÛÛŠ	Ø\œ›İÉÊJÉÏØ]Û‰Î‰Ï]ÛˆÛ\ÜÏH˜ˆš[X\HÚYHˆ]KXXİ[ÛH˜ÛÜÙH“Ü[ˆ^HÜ™\Ø]Û‰ßOÙ]˜
+NÂˆKˆ	Øİ\İÛK\][İIÎ˜\Ş[˜Ê‹
+OOÂˆÛÛœİš[\ÏVË‹‹™‹™[[Y[Ë˜\ÛÜšË™š[\×NÙ[]H˜\ÛÜšÎÂˆYŠš[\ËœÛÛYJš[OO™š[KœÚ^™OL
+ŒL
+ŒL
+J]›İÈ™]È\œ›ÜŠ	ÑXXÚ\ÛÜšÈš[H]\İ™HLPˆÜˆÛX[\‹‰ÊNÂˆÛÛœİ[Y[œÚ[ÛœÏX[
+	ÖÙ]KXİ\İÛKY[Y[œÚ[Û—IËŠK›X\
+›İÏOØÛÛœİšY[ÏX[
+	Ú[œ]	Ë›İÊNÜ™]\›ˆÛX™[™šY[ÖÌK˜[YKÚY™šY[ÖÌWK˜[YKZYÚ™šY[ÖÌ—K˜[YK]X[]N™šY[ÖÌ×K˜[Y_NßJK™š[\ŠOÚYšZYÚ
+NÂˆÛÛœİX]ØZ]\J	ËØ\KØİ\İÛK\™\]Y\İÉË	ÔÔÕ	ËË‹‹™[Y[œÚ[ÛœË™Y™\œ˜[ØÛÙNœ™Y™\œ˜[ÛÙJ
+_JNÂˆÛÛœİÚÙ[[™]ÈT“
+‹œÜ[İ\›
+Kš\ÚœÛXÙJÊNØÛÛœİX]ØZ]\J	ËØ\KÜÜ[Ù^Ú[™ÙIË	ÔÔÕ	ËİÚÙ[ŸJNÜİ]K˜ÜÜ™^˜ÜÜ™Âˆ]\ØY\œ›ÜIÉÎÂˆ›ÜŠÛÛœİš[HÙˆš[\Ê^İ^ØÛÛœİ™[™]È›Ü›Q]J
+NÙ™˜\[™
+	Ùš[IËš[JNØ]ØZ]\JØ\KÚ›ØœËÉÜ‹š›Ø—ÚYKØ\ÛÜšØ	ÔÔÕ	Ë™
+NßXØ]Ú
+J^İ\ØY\œ›ÜYK›Y\ÜØYÙNØœ™XZÎß_BˆÛÜÙS[Ù[
+
+NÚ\İÜKœ\Úİ]J[	ÉË	ËÜÜ[	ÊNØ]ØZ]ØYÜ[
+
+NÂˆÚİÓ[Ù[
+	Ğİ\İÛH][İH™\]Y\İ™XÙZ]™Y	Ë]ˆÛ\ÜÏHœİXÚÈÏ‰Ù\ØÊ‹›[X™\Š_OÚÏÛ\ÜÏH›]]Y•ÙH]™H[İ\ˆ›Ú™Xİ]Z[È[™Ú[™]šY]È[H›ÜˆHİ\İÛH][İKÜ‰İ\ØY\œ›ÜÉÏ]ˆÛ\ÜÏH››İXÙH–[İ\ˆ™\]Y\İ\ÈØ]™Y]Hš[HØ\È›İ\ØYYˆ	ÊÙ\ØÊ\ØY\œ›ÜŠJÉËˆ[İHØ[ˆ\ØY]œ›ÛH[İ\ˆÜ™\ˆYÙKÙ]‰Î‰ÉßO]ÛˆÛ\ÜÏH˜ˆš[X\HÚYHˆ]KXXİ[ÛH˜ÛÜÙH“Ü[ˆ^H™\]Y\İØ]ÛÙ]˜
+NÂˆKˆ	Û™]ËZ›Ø‰Î˜\Ş[˜Ê‹
+OOØÛÛœİ][\ÏX[
+	ÖÙ]K\][İK[[™WIËŠK›X\
+›İÏOŠÜ›ÙXİÚY“[X™\Š	
+	ÖÙ]K[[™K\›ÙXİIË›İÊK˜[YJK\ØÜš\[Û‰
+	ÖÙ]K[[™KY\ØÜš\[Û—IË›İÊK˜[YKÚY‰
+	ÖÙ]K[[™K]ÚYIË›İÊK˜[YKZYÚ‰
+	ÖÙ]K[[™KZZYÚIË›İÊK˜[YK]X[]N‰
+	ÖÙ]K[[™K\]X[]WIË›İÊK˜[Y_JJNØÛÛœİX]ØZ]\J	ËØ\KÜİY™‹Ú›ØœÉË	ÔÔÕ	ËË‹‹™ÛÜšÙ›İ×ÚY“[X™\ŠÛÜšÙ›İ×ÚY
+K][\ßJNİØ\İ
+	Ò›Ø‹][İH[™›ÙXİ[ÛˆÚXÚÛ\İÜ™X]Y‰ÊNÛØØ][Û‹š\ÚIÚ›Ø‹ÉÊÜ‹š›Ø—ÚYßKˆ	ÛÛ›[™K\šXÙKXÛÜœ™Xİ[Û‰Î˜\Ş[˜Ê‹
+OOØÛÛœİX]ØZ]\JØ\KÜİY™‹Ú›ØœËÉÜİ]Kš›Ø‹šYKÛÛ›[™K\šXÙKXÛÜœ™Xİ[Û˜	ÔÔÕ	Ëİ™\œÚ[Ûœİ]Kš›Ø‹œ][İWİ™\œÚ[Û‹™]×ÜšXÙN™›™]×ÜšXÙK™X\ÛÛ™œ™X\ÛÛ‹ÛÛ™š\›NˆHY˜ÛÛ™š\›_JNØÛÜÙS[Ù[
+
+NİØ\İ
+‹˜İ\İÛY\—Û›İYšYYÉĞÛÜœ™XİY][İH[XZ[YÈİ\İÛY\‹‰Î‰ÔšXÙHÛÜœ™XİYˆ[XZ[Ø\È›İ[]™\™YÈÚ\™HH\]YÜ[[šÈÚ]Hİ\İÛY\‹‰ÊNØ]ØZ]ØY›ØŠİ]Kš›Ø‹šY
+NßKˆ	ÙY]\][İIÎ˜\Ş[˜Ê‹
+OOØÛÛœİ[™\ÏX[
+	ÖÙ]K\][İK\™]š\Ú[Û‹[[™WIËŠK›X\
+›İÏOŠÜÛİ\˜ÙWÚ[™^œ›İË™]\Ù]œÛİ\˜ÙR[™^OOIÉÏÛ[“[X™\Š›İË™]\Ù]œÛİ\˜ÙR[™^
+K˜[YN‰
+	ÖÙ]K\™]š\Ú[Û‹[˜[YWIË›İÊK˜[YK\ØÜš\[Û‰
+	ÖÙ]K\™]š\Ú[Û‹Y\ØÜš\[Û—IË›İÊK˜[YK]X[]N‰
+	ÖÙ]K\™]š\Ú[Û‹\]X[]WIË›İÊK˜[YK[š]‰
+	ÖÙ]K\™]š\Ú[Û‹][š]IË›İÊK˜[YKÚY‰
+	ÖÙ]K\™]š\Ú[Û‹]ÚYIË›İÊK˜[YKZYÚ‰
+	ÖÙ]K\™]š\Ú[Û‹ZZYÚIË›İÊK˜[YKÙ[İİ[‰
+	ÖÙ]K\™]š\Ú[Û‹\šXÙWIË›İÊK˜[YKÛÜİİİ[‰
+	ÖÙ]K\™]š\Ú[Û‹XÛÜİIË›İÊK˜[YK\ÛÜš×Ü™\]Z\™Y‰
+	ÖÙ]K\™]š\Ú[Û‹X\ÛÜš×IË›İÊK˜ÚXÚÙYJJNØ]ØZ]\JØ\KÜİY™‹Ú›ØœËÉÜİ]Kš›Ø‹šYKÜ][İX	ÔÔÕ	ËË‹‹™[™\Ë™\œÚ[Ûœİ]Kš›Ø‹œ][İWİ™\œÚ[Û‹Ú\™Ù\×İ™\šYšYYˆHY˜Ú\™Ù\×İ™\šYšYYJNØÛÜÙS[Ù[
+
+NİØ\İ
+	Ó™]È][İH™\œÚ[ÛˆØ]™YˆX›\ÚÚ[ˆ™]šY]ÙY‰ÊNØ]ØZ]ØY›ØŠİ]Kš›Ø‹šY
+NßKˆX›\Ú˜\Ş[˜Ê‹
+OOØ]ØZ]\JØ\KÜİY™‹Ú›ØœËÉÜİ]Kš›Ø‹šYKÜX›\Ú	ÔÔÕ	ËÜ™]šY]ÙYˆHYœ™]šY]ÙY™\œÚ[Ûœİ]Kš›Ø‹œ][İWİ™\œÚ[ÛŸJNØÛÜÙS[Ù[
+
+NİØ\İ
+	Ô][İHX›\ÚYÈHİ\İÛY\ˆÜ[‰ÊNØ]ØZ]ØY›ØŠİ]Kš›Ø‹šY
+NßKˆØÚY[N˜\Ş[˜Ê‹
+OOØ]ØZ]\JØ\KÜİY™‹Ú›ØœËÉÜİ]Kš›Ø‹šYKÛY]X	ÔUÒ	ËË‹‹™\ÜÚYÛ™YWÚY“[X™\Š˜\ÜÚYÛ™YWÚY
+_[JNØÛÜÙS[Ù[
+
+NİØ\İ
+	ÔØÚY[H\]Y‰ÊNØ]ØZ]ØY›ØŠİ]Kš›Ø‹šY
+NßKˆ	Ø›ØÚË]\ÚÉÎ˜\Ş[˜Ê‹
+OOØ]ØZ]\JØ\KÜİY™‹İ\ÚÜËÉÙ‹™]\Ù]šYKØXİ[Û˜	ÔÔÕ	ËØXİ[Û‰Ø›ØÚÉË›İN™››İ_JNØÛÜÙS[Ù[
+
+NØ]ØZ]™Yœ™\ÚY\•\ÚÊ
+NßKˆ	ØY]\ÚÉÎ˜\Ş[˜Ê‹
+OOØ]ØZ]\JØ\KÜİY™‹Ú›ØœËÉÜİ]Kš›Ø‹šYKİ\ÚÜØ	ÔÔÕ	Ëİ]N™]K\\Y[™™\\Y[Ø]N™™Ø]K\[™[˜ÚY\Î–Ë‹‹™‹™[[Y[Ë™\[™[˜ÚY\ËœÙ[XİYÜ[Ûœ×K›X\
+ÏO“[X™\ŠË˜[YJJ_JNØÛÜÙS[Ù[
+
+NØ]ØZ]ØY›ØŠİ]Kš›Ø‹šY
+NßKˆ\ÛÜšÎ˜\Ş[˜ÊŠOOØ]ØZ]\JØ\KÚ›ØœËÉÙ‹™]\Ù]š›Ø’YKØ\ÛÜšØ	ÔÔÕ	Ë™]È›Ü›Q]JŠJNØÛÜÙS[Ù[
+
+NİØ\İ
+	Ğ\ÛÜšÈ\ØYY‰ÊNÚYŠ‹™]\Ù]œÜ[OOIİYIÊX]ØZ]ØYÜ[
+
+NÙ[ÙH]ØZ]ØY›ØŠİ]Kš›Ø‹šY
+NßKˆ	Ù[XZ[\›ÛÙ‹X\›İ˜[	Î˜\Ş[˜Ê‹
+OOØ]ØZ]\JØ\KÜİY™‹Ú›ØœËÉÜİ]Kš›Ø‹šYKÜ›ÛÙœËÉÙ‹™]\Ù]šYKÙ[XZ[X\›İ˜[	ÔÔÕ	ËÛ˜[YN™›˜[YK\›İ™YØ]™˜\›İ™YØ][XZ[Ü™Y™\™[˜ÙN™™[XZ[Ü™Y™\™[˜ÙKÛÛ™š\›NˆHY˜ÛÛ™š\›_JNØÛÜÙS[Ù[
+
+NİØ\İ
+	Ñ[XZ[\›İ˜[™XÛÜ™Y‰ÊNØ]ØZ]ØY›ØŠİ]Kš›Ø‹šY
+NßKˆ	İ\ØY\›ÛÙ‰Î˜\Ş[˜ÊŠOOØ]ØZ]\JØ\KÜİY™‹Ú›ØœËÉÜİ]Kš›Ø‹šYKÜ›ÛÙœØ	ÔÔÕ	Ë™]È›Ü›Q]JŠJNØÛÜÙS[Ù[
+
+NİØ\İ
+	Ó™]È›ÛÙˆ™\œÚ[Ûˆ\È™XYH›Üˆ™]šY]Ë‰ÊNØ]ØZ]ØY›ØŠİ]Kš›Ø‹šY
+NßKˆ^[İ]˜\Ş[˜Ê‹
+OOØÛÛœİ\ÛÜšÏ^ßNÓØš™Xİ™[šY\Ê
+K™š[\Š
+ÚË—JOOšËœİ\ÕÚ]
+	Ø\ÉÊI‰ŠK™›Ü‘XXÚ
+
+ÚË—JOO˜\ÛÜšÖÚËœÛXÙJ
+WOS[X™\ŠŠJNØÛÛœİX]ØZ]\JØ\KÜİY™‹Ú›ØœËÉÜİ]Kš›Ø‹šYKÛ^[İ]	ÔÔÕ	ËØ\ÛÜšËš]™™š]X›\ÚØ\×Ü›ÛÙˆHYœX›\ÚØ\×Ü›ÛÙŸJNØÛÜÙS[Ù[
+
+NØ]ØZ]ØY›ØŠİ]Kš›Ø‹šY
+NÜÚİÓ[Ù[
+œX›\ÚØ\×Ü›ÛÙÉĞÛÛ\]H›ÛÙˆÙ[™\˜]Y	Î‰Ô™Y™\™[˜ÙH^[İ]Ù[™\˜]Y	Ë]ˆÛ\ÜÏHœİXÚÈÛ\ÜÏH›]]Y‰ÙœX›\ÚØ\×Ü›ÛÙÉÕH™]È›ÛÙˆ\È›İÈ]˜Z[X›H[ˆHİ\İÛY\ˆÜ[›Üˆ\›İ˜[‰Î‰Õ\È\ÈH™Y™\™[˜ÙH[\]K›İ[ˆ\›İ˜[Y[YÚX›H›ÛÙ‹‰ßOÜHÛ\ÜÏH˜ˆš[X\Hˆ™YH‹Ø\KØ\ÜÙ]ËÉÜ‹˜\ÜÙ]ÚYHˆ\™Ù]H—Ø›[šÈˆ™[H››ÛÜ[™\ˆ“Ü[ˆ[Y[œÚ[Û™Y^[İ]	ÚXÛÛŠ	Ø\œ›İÉÊ_OØOÛ\ÜÏH™šY[Z[”™]šY]ÈÛ›Kˆ›È›YY[\Ú^™Hš[ØØ[KPĞÈİ]]Üˆ’TØİ]]\È[˜ÛYYÜÙ]˜
+NßKˆ	Ü^[Y[[[šÉÎ˜\Ş[˜Ê‹
+OOØ]ØZ]\JØ\KÜİY™‹Ú›ØœËÉÜİ]Kš›Ø‹šYKÜ^[Y[[[šØ	ÔÔÕ	Ë
+NØÛÜÙS[Ù[
+
+NİØ\İ
+	Ô]ZXÚĞ›ÛÚÜÈ[šÈ]XÚY‰ÊNØ]ØZ]ØY›ØŠİ]Kš›Ø‹šY
+NßKˆ	İ™\šYK\^[Y[	Î˜\Ş[˜Ê‹
+OOØ]ØZ]\JØ\KÜİY™‹Ú›ØœËÉÜİ]Kš›Ø‹šYKÜ^[Y[Ø	ÔÔÕ	ËË‹‹™™\šYšYYÚ[—Ü]ZXÚØ›ÛÚÜÎˆHY™\šYšYYÚ[—Ü]ZXÚØ›ÛÚÜßJNØÛÜÙS[Ù[
+
+NİØ\İ
+	Ô^[Y[™XÛÜ™Y[™›ÙXİ[ÛˆÚXÚÜÈ\]Y‰ÊNØ]ØZ]ØY›ØŠİ]Kš›Ø‹šY
+NßKˆ	İ›ÚY\^[Y[	Î˜\Ş[˜Ê‹
+OOØ]ØZ]\JØ\KÜİY™‹Ü^[Y[ËÉÙ‹™]\Ù]šYKİ›ÚY	ÔÔÕ	Ë
+NØÛÜÙS[Ù[
+
+NİØ\İ
+	ÓØØ[™\šYšXØ][Ûˆ™XÛÜ™›ÚYYˆ]ZXÚĞ›ÛÚÜÈØ\È›İÚ[™ÙY‰ÊNØ]ØZ]ØY›ØŠİ]Kš›Ø‹šY
+NßKˆ	ÜİY™‹[Y\ÜØYÙIÎ˜\Ş[˜Ê‹
+OOØ]ØZ]\JØ\KÜİY™‹Ú›ØœËÉÜİ]Kš›Ø‹šYKÛY\ÜØYÙX	ÔÔÕ	ËÛY\ÜØYÙN™›Y\ÜØYÙKX›XÎˆHYœX›XßJNİØ\İ
+	Ò›Øˆ\]HØ]™Y‰ÊNØ]ØZ]ØY›ØŠİ]Kš›Ø‹šY
+NßKˆ›ÙXİ˜\Ş[˜Ê‹
+OOØÛÛœİ\İ]K™Y]›ÙXİØÛÛœİÛÛ™šYÏ^Ë‹‹œ˜ÛÛ™šYßNÙ›ÜŠÛÛœİÙ^HÙˆÉİ[š]	Ë	Ù\ØÜš\[Û‰Ë	ÜÙ[Ü\—ÜÜY	Ë	ØÛÜİÜ\—ÜÜY	Ë	ÛZ[š[][WÜšXÙIË	ÜÙ]\ÜšXÙIË	ÜÙ]\ØÛÜİ	Ë	İØ\İWÜ\˜Ù[	Ë	ÛX›Ü—ÛZ[]\×Ü\—İ[š]	Ë	ÛZ[—İÚY	Ë	ÛZ[—ÚZYÚ	Ë	ÙY˜][İÚY	Ë	ÙY˜][ÚZYÚ	Ë	ÛX^İÚY	Ë	ÛX^ÚZYÚ	Ë	ÛX^Ü]X[]I×JXÛÛ™šYÖÚÙ^WOYÚÙ^WNÙ›ÜŠÛÛœİÙ^HÙˆÉÜXÚ×ÚXY\—ÍÜšXÙIË	ÜXÚ×ÜXÚØYÚ[™×ÜšXÙIË	ÜXÚ×Ù\ÚYÛ—ÜšXÙI×JZYŠÚÙ^WHOO][™Yš[™Y
+XÛÛ™šYÖÚÙ^WOYÚÙ^WNØÛÛ™šYËš[œİ[HHYš[œİ[ØÛÛ™šYËœİ\Ü×Û][\WÙ[Y[œÚ[ÛœÏHHYœİ\Ü×Û][\WÙ[Y[œÚ[ÛœÎØÛÛ™šYËœÙ[—Ø\›İ™WØ\ÛÜšÏHHYœÙ[—Ø\›İ™WØ\ÛÜšÎØÛÛ™šYËœ™\]Z\™\×Ú[œİ[][ÛHHYœ™\]Z\™\×Ú[œİ[][ÛØÛÛ™šYËš\×İÜ˜\HHYš\×İÜ˜\ØÛÛ™šYËY\œÏYY\œËœÜ]
+	×‰ÊK›X\
+Oš[J
+JK™š[\Š›ÛÛX[ŠK›X\
+[™OOØÛÛœİÙœ›ÛK][\Y\—O[[™KœÜ]
+	Î‰ÊNÚYŠYœ›Û_[][\Y\Š]›İÈ™]È\œ›ÜŠ	ÑXXÚ]X[]H˜[™]\İ\ÙHİ\›][\Y\‹‰ÊNÜ™]\›ˆÙœ›ÛN“[X™\Šœ›ÛJK][\Y\›][\Y\‹š[J
+_NßJNØÛÛœİ›ÙO^Û˜[YN™›˜[YKØ]YÛÜN™˜Ø]YÛÜKÛÜšÙ›İ×ÚY“[X™\ŠÛÜšÙ›İ×ÚY
+KXİ]™NˆHY˜Xİ]™KX›XÎˆHYœX›XËÛÛ™šYË™\œÚ[Ûœ™\œÚ[ÛŸNØ]ØZ]\J	ËØ\KØYZ[‹Ü›ÙXİÉÊÊšYÉËÉÊÜšY‰ÉÊKšYÉÔU	Î‰ÔÔÕ	Ë›ÙJNÜİ]K˜Ø][ÙÏX]ØZ]\J	ËØ\KØØ][ÙÉÊNØÛÜÙS[Ù[
+
+NİØ\İ
+	Ô›ÙXİØ]™Yˆ^\İ[™È›ØœÈ™[XZ[ˆ[˜Ú[™ÙY‰ÊNØ]ØZ]ØY›ÙXİÊ
+NßKˆÛÜšÙ›İÎ˜\Ş[˜Ê‹
+OOØÛÛœİÏ\İ]K™Y]ÛÜšÙ›İËİ\ÏX[
+	ÖÙ]K\İ\IËŠK›X\
+›İÏOŠİ]N‰
+	ÖÙ]K\İ\]]WIË›İÊK˜[YK\\Y[‰
+	ÖÙ]K\İ\Y\\Y[IË›İÊK˜[YKØ]N‰
+	ÖÙ]K\İ\YØ]WIË›İÊK˜[YK\[™×ÛÛ‰
+	ÖÙ]K\İ\Y\×IË›İÊK˜[YKœÜ]
+	Ë	ÊK›X\
+O‹š[J
+JK™š[\Š›ÛÛX[ŠK›X\
+[X™\Š_JJNØ]ØZ]\J	ËØ\KØYZ[‹İÛÜšÙ›İÜÉÊÊËšYÉËÉÊİËšY‰ÉÊKËšYÉÔU	Î‰ÔÔÕ	ËÛ˜[YN™›˜[YKİ\Ë™\œÚ[ÛË™\œÚ[ÛŸJNØÛÜÙS[Ù[
+
+NİØ\İ
+	ÕÛÜšÙ›İÈØ]™Y›Üˆ™]È›ØœË‰ÊNØ]ØZ]ØYÛÜšÙ›İÜÊ
+NßKˆÙ][™ÜÎ˜\Ş[˜Ê‹
+OOØ]ØZ]\J	ËØ\KØYZ[‹ÜÙ][™ÜÉË	ÔU	ËË‹‹™˜]\×Û]™NˆHYœ˜]\×Û]™KÚXÚÛİ]Ù[˜X›YˆHY˜ÚXÚÛİ]Ù[˜X›YÚXÚÛİ]İ^Ü™]šY]ÙYˆHY˜ÚXÚÛİ]İ^Ü™]šY]ÙYÚXÚÛİ]ÜXÚİ\Ù[˜X›YˆHY˜ÚXÚÛİ]ÜXÚİ\Ù[˜X›YÚXÚÛİ]ÜÚ\[™×Ù[˜X›YˆHY˜ÚXÚÛİ]ÜÚ\[™×Ù[˜X›YJNÜİ]K˜Ø][ÙÏX]ØZ]\J	ËØ\KØØ][ÙÉÊNİØ\İ
+	ÔÚÜY˜][ÈØ]™Y‰ÊNØ]ØZ]ØYÙ][™ÜÊ
+NßKˆ	Û™]Ë]\Ù\‰Î˜\Ş[˜Ê‹
+OOØÛÛœİX]ØZ]\J	ËØ\KØYZ[‹İ\Ù\œÉË	ÔÔÕ	Ë
+NÜÚİĞÜ™Y[X[Ê‹[\Ü˜\WÜ\ÜİÛÜ™
+NØ]ØZ]ØYX[J
+NßKˆ\ÜİÛÜ™˜\Ş[˜Ê‹
+OOÚYŠ›™]×Ü\ÜİÛÜ™OOY˜ÛÛ™š\›WÜ\ÜİÛÜ™
+]›İÈ™]È\œ›ÜŠ	ÕH™]È\ÜİÛÜ™ÈÈ›İX]Ú‰ÊNØÛÛœİX]ØZ]\J	ËØ\KØ]]Ü\ÜİÛÜ™	Ë	ÔÔÕ	ËØİ\œ™[Ü\ÜİÛÜ™™˜İ\œ™[Ü\ÜİÛÜ™™]×Ü\ÜİÛÜ™™›™]×Ü\ÜİÛÜ™JNÜİ]K˜ÜÜ™\‹˜ÜÜ™ØÛÜÙS[Ù[
+
+NİØ\İ
+	Ô\ÜİÛÜ™Ú[™ÙYˆİ\ˆÙ\ÜÚ[ÛœÈÙ\™HÚYÛ™Yİ]‰ÊNßKˆ	ØXØÙ\\][İIÎ˜\Ş[˜Ê‹
+OOØ]ØZ]\J	ËØ\KÜÜ[ØXØÙ\\][İIË	ÔÔÕ	ËÛ˜[YN™›˜[YKÛÛ™š\›NˆHY˜ÛÛ™š\›K\›\×İ™\œÚ[Ûœİ]KœÜ[›Ø‹š›Ø—İ\›\Ë™\œÚ[Û‹™\œÚ[Ûœİ]KœÜ[›Ø‹œ][İWİ™\œÚ[ÛŸJNØÛÜÙS[Ù[
+
+NİØ\İ
+	Ô][İHXØÙ\Y‰ÊNØ]ØZ]ØYÜ[
+
+NßKˆ	Øİ\İÛK\^[Y[	Î˜\Ş[˜Ê‹
+OOØÛÛœİX]ØZ]\J	ËØ\KÜÜ[Øİ\İÛKXÚXÚÛİ]	Ë	ÔÔÕ	ËÜ^[Y[ÚÚ[™™œ^[Y[ÚÚ[™JNÚYŠ‹œZY
+^ØÛÜÙS[Ù[
+
+NİØ\İ
+	Ô^[Y[™XÙZ]™Y‰ÊNØ]ØZ]ØYÜ[
+
+NÜ™]\›ß[ØØ][Û‹š™Y\‹\›ßKˆ	Ü›ÛÙ‹YXÚ\Ú[Û‰Î˜\Ş[˜Ê‹
+OOØ]ØZ]\JØ\KÜÜ[Ü›ÛÙœËÉÜİ]KœÜ[›Ø‹œ›ÛÙœÖÌKšYKÙXÚ\Ú[Û˜	ÔÔÕ	ËØXİ[Û™‹™]\Ù]™XÚ\Ú[Û‹˜[YN™›˜[YKÛÛ[Y[™˜ÛÛ[Y[ÛÛ™š\›NˆHY˜ÛÛ™š\›K\›\×İ™\œÚ[Ûœİ]KœÜ[›Ø‹š›Ø—İ\›\Ë™\œÚ[ÛŸJNØÛÜÙS[Ù[
+
+NİØ\İ
+‹™]\Ù]™XÚ\Ú[ÛOOIØ\›İ™IÏÉÔ›ÛÙˆ\›İ˜[™XÛÜ™Y‰Î‰ĞÚ[™Ù\ÈÙ[ÈH\ÚYÛ™\‹‰ÊNØ]ØZ]ØYÜ[
+
+NßKˆ	ÜÜ[[Y\ÜØYÙIÎ˜\Ş[˜Ê‹
+OOØ]ØZ]\J	ËØ\KÜÜ[ÛY\ÜØYÙIË	ÔÔÕ	ËÛY\ÜØYÙN™›Y\ÜØYÙ_JNİØ\İ
+	ÓY\ÜØYÙHØ]™YÈ[İ\ˆ›Ø‹‰ÊNØ]ØZ]ØYÜ[
+
+NßKˆ	ÜÜ[X\Ú[Y[	Î˜\Ş[˜Ê‹
+OOØ]ØZ]\J	ËØ\KÜÜ[Ø\Ú[Y[\™\]Y\İ	Ë	ÔÔÕ	Ë
+NØÛÜÙS[Ù[
+
+NİØ\İ
+	ÔØÚY[[™È™\]Y\İÙ[ˆHÚÜÚ[ÛÛ™š\›H]˜Z[Xš[]K‰ÊNØ]ØZ]ØYÜ[
+
+NßKˆ	ÜÜ[\™]šY]ÉÎ˜\Ş[˜Ê‹
+OOØ]ØZ]\J	ËØ\KÜÜ[Ü™]šY]ÉË	ÔÔÕ	Ë
+NİØ\İ
+	Õ[šÈ[İKˆ[İ\ˆ™\šYšYY™]šY]ÈØ\ÈØ]™Y‰ÊNØ]ØZ]ØYÜ[
+
+NßKˆ	Ü^[Y[[›İXÙIÎ˜\Ş[˜Ê‹
+OOØÛÛœİX]ØZ]\J	ËØ\KÜÜ[Ü^[Y[[›İXÙIË	ÔÔÕ	Ë
+NØÛÜÙS[Ù[
+
+NİØ\İ
+‹›Y\ÜØYÙJNØ]ØZ]ØYÜ[
+
+NßKŸNÂ‚˜ÛÛœİX\šÙ][™Ñ\Ú›Ø\™XÜ™X]SX\šÙ][™Ñ\Ú›Ø\™
+Ø\KİY™”Ú[\ØË[Û™^K›Ü›\ËØ\İJNÂ˜ÛÛœİ[XZ[[ZÙOXÜ™X]Q[XZ[[ZÙJØ\KİY™”Ú[\ØËÚİÓ[Ù[ÛÜÙS[Ù[›Ü›\ËXİ[ÛœËØ\İJNÂ˜ÛÛœİÜ›Q\Ú›Ø\™XÜ™X]PÜ›Q\Ú›Ø\™
+Ø\KİY™”Ú[\ØË[Û™^KÚİÓ[Ù[ÛÜÙS[Ù[›Ü›\ËXİ[ÛœËØ\İJNÂ˜ÛÛœİİ\™^\Ñ\Ú›Ø\™XÜ™X]TÚ]Tİ\™^\ÊØ\Kİ]K\ØËİY™”Ú[ÚİÓ[Ù[Xİ[ÛœË›Ü›\ßJNÂ˜ÚXÚÛİ]›ÛÙXÜ™X]PÚXÚÛİ]›ÛÙŠÜİ]K\ØËÚÜŠ
+OOœÚÜØ\İJNÂœ™]Ø\™ÕZOXÜ™X]T™]Ø\™ÊØ\Kİ]K\ØË[Û™^K]KÚİÓ[Ù[ÛÜÙS[Ù[Ø\İİY™”Ú[[œ]Ù[XİÚXÚØ›Ş›Ü›Q›Ûİ\‹Xİ[ÛœË›Ü›\ËØYÜ[JNÂœÚÜXÜ™X]TÚÜ
+Ü™]Ø\™ĞXØÛİ[›ŞØ[]Oœ™]Ø\™ÕZK˜XØÛİ[›Ş
+Ø[]
+Kİ]K\\K\ØË[Û™^K[œ]Ù[Xİ›Ü›Q›Ûİ\‹ÚİÓ[Ù[ÛÜÙS[Ù[Ø\İX›XÒXY\‹X›XÔ›ÙXİ˜[YK›ÙXİ]Ù]X›XÔÙ[ËİÜ™Yœ›Û›ÙXİÑ›Ü‹›ÙXİXÛÛ‹›ÙXİ[XYÙK™X[ÛÜšÑØ[\KØ[İ[]Ü•šY]Ë™XØ[İ[]Kİ\œ™[][\ËÜ™\“[Ù[Xİ[ÛœË›Ü›\ßJNÂ‚™Øİ[Y[˜Y]™[\İ[™\Š	ØÛXÚÉË\Ş[˜È]™[OÂˆÛÛœİ]ÛY]™[\™Ù]˜ÛÜÙ\İ
+	ÖÙ]KXXİ[Û—IÊNÚYŠX]ÛŸ]Û‹™\ØX›Y
+\™]\›ÂˆÛÛœİ[™\XXİ[ÛœÖØ]Û‹™]\Ù]˜Xİ[Û—NÚYŠZ[™\Š\™]\›Âˆ]™[œ™]™[Y˜][
+
+NØ]Û‹™\ØX›Y]YNÂˆ^Ø]ØZ][™\Š]ÛŠNßXØ]Ú
+\œ›ÜŠ^İØ\İ
+\œ›Ü‹›Y\ÜØYÙKYJNßBˆš[˜[^Ø]Û‹™\ØX›YY˜[ÙNßBŸJNÂ™Øİ[Y[˜Y]™[\İ[™\Š	ÜİX›Z]	Ë\Ş[˜È]™[OÂˆÛÛœİ›Ü›OY]™[\™Ù]˜ÛÜÙ\İ
+	Ù›Ü›VÙ]KY›Ü›WIÊNÚYŠY›Ü›J\™]\›Âˆ]™[œ™]™[Y˜][
+
+NØÛÛœİ[™\Y›Ü›\ÖÙ›Ü›K™]\Ù]™›Ü›WNÚYŠZ[™\Š\™]\›ÂˆÛÛœİ]ÛI
+	Ø]Û–İ\OHœİX›Z]—K]Û››İ
+İ\WJIË›Ü›JK\œ›Ü›ŞI
+	Ë™›Ü›KY\œ›Ü‰Ë›Ü›JNÂˆYŠ\œ›Ü›Ş
+Y\œ›Ü›Ş^ÛÛ[IÉÎÚYŠ]ÛŠX]Û‹™\ØX›Y]YNÂˆ^Ø]ØZ][™\Š›Ü›KØš™Xİ™œ›ÛQ[šY\Ê™]È›Ü›Q]J›Ü›JJJNßBˆØ]Ú
+\œ›ÜŠ^ÚYŠ\œ›Ü›Ş
+Y\œ›Ü›Ş^ÛÛ[Y\œ›Ü‹›Y\ÜØYÙNÙ[ÙHØ\İ
+\œ›Ü‹›Y\ÜØYÙKYJNßBˆš[˜[^ÚYŠ]ÛŠX]Û‹™\ØX›YY˜[ÙNßBŸJNÂ™Øİ[Y[˜Y]™[\İ[™\Š	Ú[œ]	Ë]™[OÂˆYŠ]™[\™Ù]˜ÛÜÙ\İ
+	ÈØØ[İ[]Ü‰ÊJ^ØÛX\•[Y[İ]
+İ]K˜Ø[Õ[Y\ŠNÚYŠ	
+	ÈØÛÛ[YKX‰ÊJI
+	ÈØÛÛ[YKX‰ÊK™\ØX›Y]YNÜİ]K˜Ø[Õ[Y\\Ù][Y[İ]
+
+
+OOœ™XØ[İ[]J
+KL
+NßBˆYŠ]™[\™Ù]šYOOIÚ›Ø‹\ÙX\˜Ú	Ê\™[™\›Ø\™
+
+NÂˆYŠ]™[\™Ù]˜ÛÜÙ\İ
+	Ë\ÙİXÛÛ™šYÉÊJ]\]U\Ùİ™]šY]Ê
+NÂˆYŠ]™[\™Ù]˜ÛÜÙ\İ
+	ÈØØ[İ[]Ü‰ÊI‰–ÉİÚY	Ë	ÚZYÚ	×Kš[˜ÛY\Ê]™[\™Ù]›˜[YJJ]\]U\Ùİ™]šY]Ê
+NÂŸJNÂ™Øİ[Y[˜Y]™[\İ[™\Š	ØÚ[™ÙIË]™[OÂˆYŠ]™[\™Ù]šYOOIİ\Ùİ[ÙÛËYš[IÊ^ÛØY\ÙİÙÛÊ]™[\™Ù]™š[\ÏË–ÌJK[Š
+
+OOœ™XØ[İ[]J
+JK˜Ø]Ú
+OOØ\İ
+K›Y\ÜØYÙKYJJNÜ™]\›ßBˆYŠ]™[\™Ù]›˜[YOOOIİ\ÙİÚY[]IÊ^İ\]U\Ùİ™]šY]Ê
+NÜ™XØ[İ[]J
+NßBˆYŠ]™[\™Ù]›˜[YOOOIØÛİ™\˜YÙWÛÜ[Û‰Ê^Ø[
+	Ë˜Ûİ™\˜YÙKXØ\™	ÊK™›Ü‘XXÚ
+Ø\™O˜Ø\™˜Û\ÜÓ\İÙÙÛJ	ÜÙ[XİY	ËØ\™˜ÛÛZ[œÊ]™[\™Ù]
+JJNİ\]PÛİ™\˜YÙUš\İX[Ê
+NÜ™XØ[İ[]J
+NßBˆYŠ]™[\™Ù]›˜[YOOOIİ™ZXÛWİ\IÉ‰™]™[\™Ù]˜ÛÜÙ\İ
+	ÈØØ[İ[]Ü‰ÊJ^İ\]PÛİ™\˜YÙUš\İX[Ê
+NÜ™XØ[İ[]J
+NßBˆYŠ]™[\™Ù]›X]Ú\Ê	ÖÙ]K[[™K\›ÙXİIÊJ^ØÛÛœİ›İÏY]™[\™Ù]˜ÛÜÙ\İ
+	ÖÙ]K\][İK[[™WIÊK\İ]Kœ›ÙXİË™š[™
+OœšYOOS[X™\Š]™[\™Ù]˜[YJJNØÛÛœİÏI
+	ÖÙ]K[[™K]ÚYIË›İÊKI
+	ÖÙ]K[[™KZZYÚIË›İÊKOI
+	ÖÙ]K[[™K\]X[]WIË›İÊNİË˜[YO\˜ÛÛ™šYË™Y˜][İÚYİË›Z[\˜ÛÛ™šYË›Z[—İÚYŒNÚ˜[YO\˜ÛÛ™šYË™Y˜][ÚZYÚÚ›Z[\˜ÛÛ™šYË›Z[—ÚZYÚŒNÜK˜[YOLNÜK›Z[LNßBˆYŠ]™[\™Ù]›˜[YOOOIÜÚ^™WÜ™\Ù]	É‰™]™[\™Ù]˜ÛÜÙ\İ
+	ÈØØ[İ[]Ü‰ÊJ^ØÛÛœİ›Ü›OI
+	ÈØØ[İ[]Ü‰ÊNÚYŠ]™[\™Ù]˜[YHOOIØİ\İÛIÊ^ØÛÛœİ\ÏY]™[\™Ù]˜[YKœÜ]
+	ß	ÊNÙ›Ü›K™[[Y[ËÚY˜[YO\\ÖÌNÙ›Ü›K™[[Y[ËšZYÚ˜[YO\\ÖÌWNßY›Ü›K™[[Y[ËÚYœ™XYÛ›OY]™[\™Ù]˜[YHOOIØİ\İÛIÎÙ›Ü›K™[[Y[ËšZYÚœ™XYÛ›OY]™[\™Ù]˜[YHOOIØİ\İÛIÎİ\]U\Ùİ™]šY]Ê
+NÜ™XØ[İ[]J
+NßBˆYŠ]™[\™Ù]›˜[YOOOIÜXÙ[Y[	É‰™]™[\™Ù]˜ÛÜÙ\İ
+	ÈØØ[İ[]Ü‰ÊJ^ØÛÛœİ›Ü›OI
+	ÈØØ[İ[]Ü‰ÊK›ÙXİ\İ]K˜Ø][ÙËœ›ÙXİË™š[™
+OœšYOO\İ]KœÙ[XİY›ÙXİ
+KÚÚXÙOJ›ÙXİË˜ÛÛ™šYËœXÙ[Y[ÛÜ[Ûœß×JK™š[™
+OšYOOY]™[\™Ù]˜[YJNÚYŠÚÚXÙJ^Ù›Ü›K™[[Y[ËÚY˜[YOXÚÚXÙKÚYÙ›Ü›K™[[Y[ËšZYÚ˜[YOXÚÚXÙKšZYÚßY›Ü›K™[[Y[ËÚYœ™XYÛ›OY]™[\™Ù]˜[YHOOIØİ\İÛIÎÙ›Ü›K™[[Y[ËšZYÚœ™XYÛ›OY]™[\™Ù]˜[YHOOIØİ\İÛIÎÜ™XØ[İ[]J
+NßBˆYŠ]™[\™Ù]›˜[YOOOIİ\ÙİÜİ[Iß]™[\™Ù]›˜[YOËœİ\ÕÚ]
+	İ\ÙİÉÊI‰™]™[\™Ù]›˜[YK™[™ÕÚ]
+	×ÜÚ[ÉÊJ]\]U\Ùİ™]šY]Ê
+NÂŸJNÂ›]\Ùİ˜[œÙ›Ü›O[[Â™Øİ[Y[˜Y]™[\İ[™\Š	ÜÚ[\™İÛ‰Ë]™[OÂˆÛÛœİ][OY]™[\™Ù]˜ÛÜÙ\İ
+	ÖÙ]K]\ÙİZÙ^WIÊK™]šY]ÏZ][OË˜ÛÜÙ\İ
+	Èİ\Ùİ\™]šY]ÉÊNÚYŠZ][_\™]šY]ß][KšY[Š\™]\›ÂˆÛÛœİ[ÙOY]™[\™Ù]˜ÛÜÙ\İ
+	ÖÙ]K]\Ùİ]˜[œÙ›Ü›WIÊOË™]\Ù]\Ùİ˜[œÙ›Ü›_	Û[İ™IËÙ^OZ][K™]\Ù]\ÙİÙ^K›Ü›OI
+	ÈØØ[İ[]Ü‰ÊK]\ÙİÜÚ][ÛŠÙ^JNÂˆ\ÙİÙ[XİYÙ^OZÙ^Nİ\]U\Ùİ™]šY]Ê
+NÙ]™[œ™]™[Y˜][
+
+NÚ][KœÙ]Ú[\Ø\\™OËŠ]™[œÚ[\’Y
+NÂˆÛÛœİ›İ[™ÏZ][K™Ù]›İ[™[™ĞÛY[™Xİ
+
+KÙ[\–X›İ[™Ë›Y
+Ø›İ[™ËÚYÌ‹Ù[\–OX›İ[™ËÜ
+Ø›İ[™ËšZYÚÌÂˆÛÛœİšY[˜[YO]\ÙİÚ^™QšY[
+Ù^JKšY[YšY[˜[YOÙ›Ü›OË™[[Y[ÖÙšY[˜[YWN›[Âˆ\Ùİ˜[œÙ›Ü›O^Âˆ[ÙKÙ^K][K™]šY]ËÚ[\’Y™]™[œÚ[\’Yİ\ÛY[™]™[˜ÛY[İ\ÛY[N™]™[˜ÛY[Kˆİ\“[X™\Š
+Kİ\N“[X™\ŠJKİ\›İ][Û“[X™\Šœ›İ][ÛŸ
+KÙ[\–Ù[\–Kˆİ\[™ÛN“X]˜][ŒŠ]™[˜ÛY[KXÙ[\–K]™[˜ÛY[XÙ[\–
+JŒNÓX]”Kˆİ\\İ[˜ÙN“X]›X^
+X]š\İ
+]™[˜ÛY[XÙ[\–]™[˜ÛY[KXÙ[\–JJKˆšY[İ\Ú^™N“[X™\ŠšY[Ë˜[YJ_
+Ù^OOOIÛÙÛÉÏÍŒÌŠBˆNÂŸJNÂ™Øİ[Y[˜Y]™[\İ[™\Š	ÜÚ[\›[İ™IË]™[OÂˆYŠ]\Ùİ˜[œÙ›Ü›J\™]\›ÂˆÛÛœİ]\Ùİ˜[œÙ›Ü›K]œ™]šY]Ë™Ù]›İ[™[™ĞÛY[™Xİ
+
+K˜[œÙ›Ü›O]\ÙİÜÚ][ÛŠšÙ^JNÂˆYŠ›[ÙOOOIÛ[İ™IÊ^Âˆ˜[œÙ›Ü›KSX]›X^
+X]›Z[ŠLœİ\
+Ê]™[˜ÛY[]œİ\ÛY[
+KÜÚY
+ŒL
+JNÂˆ˜[œÙ›Ü›KOSX]›X^
+X]›Z[ŠLœİ\JÊ]™[˜ÛY[K]œİ\ÛY[JKÜšZYÚ
+ŒL
+JNÂˆY[ÙHYŠ›[ÙOOOIÜ™\Ú^™IÉ‰™šY[
+^ÂˆÛÛœİ\İ[˜ÙOSX]›X^
+X]š\İ
+]™[˜ÛY[]˜Ù[\–]™[˜ÛY[K]˜Ù[\–JJK˜][ÏY\İ[˜ÙKİœİ\\İ[˜ÙNÂˆÛÛœİZ[]šÙ^OOOIÛÙÛÉÏÌLX^]šÙ^OOOIÛÙÛÉÏÎMNŒÌÂˆ™šY[˜[YOSX]œ›İ[™
+X]›X^
+Z[‹X]›Z[ŠX^œİ\Ú^™Jœ˜][ÊJJNÂˆY[ÙHYŠ›[ÙOOOIÜ›İ]IÊ^ÂˆÛÛœİ[™ÛOSX]˜][ŒŠ]™[˜ÛY[K]˜Ù[\–K]™[˜ÛY[]˜Ù[\–
+JŒNÓX]”NÂˆ]›İ][Û]œİ\›İ][ÛŠÊ[™ÛK]œİ\[™ÛJNÜ›İ][ÛJ
+›İ][ÛŠÌN
+ILÍŒ
+ÌÍŒ
+ILÍŒLNÂˆYŠ]™[œÚYÙ^J\›İ][ÛSX]œ›İ[™
+›İ][Û‹ÌMJJŒMNÂˆ˜[œÙ›Ü›Kœ›İ][ÛS[X™\Š›İ][Û‹Ñš^Y
+JJNÂˆBˆ\]U\Ùİ™]šY]Ê
+NÂŸJNÂ™[˜İ[Ûˆš[š\Ú\Ùİ˜[œÙ›Ü›J
+^ÂˆYŠ]\Ùİ˜[œÙ›Ü›J\™]\›İ\Ùİ˜[œÙ›Ü›Kš][Kœ™[X\ÙTÚ[\Ø\\™OËŠ\Ùİ˜[œÙ›Ü›KœÚ[\’Y
+Nİ\Ùİ˜[œÙ›Ü›O[[Ü™XØ[İ[]J
+NÂŸB™Øİ[Y[˜Y]™[\İ[™\Š	ÜÚ[\\	Ëš[š\Ú\Ùİ˜[œÙ›Ü›JNÂ™Øİ[Y[˜Y]™[\İ[™\Š	ÜÚ[\˜Ø[˜Ù[	Ëš[š\Ú\Ùİ˜[œÙ›Ü›JNÂÚ[™İË˜Y]™[\İ[™\Š	Ú\ÚÚ[™ÙIË
+
+OOœ›İ]J
+K˜Ø]Ú
+OOØ\İ
+K›Y\ÜØYÙKYJJJNÂÚ[™İË˜Y]™[\İ[™\Š	ÜÜİ]IË
+
+OOœ›İ]J
+K˜Ø]Ú
+OOØ\İ
+K›Y\ÜØYÙKYJJJNÂ˜\Ş[˜È[˜İ[Ûˆ›Ûİ
+
+^Âˆ^Û]ÏX]ØZ]\J	ËØ\KÜÙ\ÜÚ[Û‰ÊNÜİ]K˜ÜÜ™\Ë˜ÜÜ™ÂˆYŠØØ][Û‹œ]˜[YOOOIËÜİY™‰É‰›ØØ][Û‹š\Úœİ\ÕÚ]
+	ÈÜİ\ÜIÊJ^ÂˆÛÛœİÚÙ[[™]ÈT“ÙX\˜Ú\˜[\ÊØØ][Û‹š\ÚœÛXÙJJJK™Ù]
+	Üİ\Ü	ÊNÚ\İÜKœ™\XÙTİ]J[	ÉË	ËÜİY™‰ÊNÂˆÛÛœİ™\İ[X]ØZ]\J	ËØ\KØ]]Ü]›Ü›K\İ\Ü	Ë	ÔÔÕ	ËİÚÙ[ŸJNÜİ]K˜ÜÜ™\™\İ[˜ÜÜ™ÜÏX]ØZ]\J	ËØ\KÜÙ\ÜÚ[Û‰ÊNÂˆBˆİ]K\Ù\\Ë\Ù\ÚYŠË\Ù\Š]Ú[™İË•[\P[˜[]XÜÏË™^ÛYTİY™Š
+NÜİ]K˜Ø][ÙÏX]ØZ]\J	ËØ\KØØ][ÙÉÊNØÛÛœİİ\İÛY\X]ØZ]\J	ËØ\KØİ\İÛY\‰ÊNÜİ]K˜İ\İÛY\Xİ\İÛY\‹˜İ\İÛY\Ø]ØZ]›İ]J
+NßBˆØ]Ú
+\œ›ÜŠ^Ø\š[›™\’SX]ˆÛ\ÜÏHš[š]X[[ØY[™ÈO•[˜X›HÈÜ[ˆHÛÜšÜÜXÙOÚOÛ\ÜÏH›]]Y‰Ù\ØÊ\œ›Ü‹›Y\ÜØYÙJ_OÜHÛ\ÜÏH˜ˆš[X\Hˆ™YH‹È•HYØZ[ØOÙ]˜ßBŸB˜›Ûİ
+
+NÂ
