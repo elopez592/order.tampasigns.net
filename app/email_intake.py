@@ -329,7 +329,7 @@ def _followup_draft(db, inquiry_id):
             body += ''.join(f"• {item}\n" for item in missing)
         else:
             body += "• Finished sizes and quantities for each item\n• Material, finish, and color preferences\n"
-        body += "\nA good starting point for shop signs is 3 mm ACM for a rigid outdoor sign, or vinyl graphics applied to an existing smooth surface. For die-cut stickers, please include the finished size, quantity, contour or shape cut, and whether you prefer gloss or matte laminate. If you need installation, please include that as well.\n\nOnce we have those details and the logo/artwork, we’ll send the quote and include our normal turnaround time. A deadline is not required unless you have a specific date you need us to meet.\n\nThank you,\nTampa Signs and Stickers"
+        body += "\nOnce we have those details and any needed logo or artwork, we’ll send the quote with our normal turnaround time.\n\nThank you,\nTampa Signs and Stickers"
         stamp = now()
         conn.execute('''INSERT INTO email_drafts(inquiry_id,recipient,subject,body,status,created_at,updated_at)
             VALUES(?,?,?,?,?,?,?) ON CONFLICT(inquiry_id) DO UPDATE SET recipient=excluded.recipient,
