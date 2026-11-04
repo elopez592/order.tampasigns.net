@@ -403,7 +403,7 @@ def _followup_draft(db, inquiry_id):
             recommendations.append("For stickers or labels, please let us know the finished size, quantity, cut shape, and whether you prefer gloss or matte laminate.")
         if recommendations:
             body += "\n" + "\n".join(recommendations) + "\n"
-        body += "\nOnce we have those details and any needed logo or artwork, we’ll send the quote with our normal turnaround time.\n\nThank you,\nTampa Signs and Stickers"
+        body += "\nOnce we have those details and any needed logo or artwork, we’ll send the quote.\n\nThank you,\nTampa Signs and Stickers"
         stamp = now()
         conn.execute('''INSERT INTO email_drafts(inquiry_id,recipient,subject,body,status,created_at,updated_at)
             VALUES(?,?,?,?,?,?,?) ON CONFLICT(inquiry_id) DO UPDATE SET recipient=excluded.recipient,
