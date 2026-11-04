@@ -278,6 +278,23 @@ def _price_inquiry(db, inquiry_id, job_id):
         items = []
         review_items = list(decision.review_items)
         catalog = {int(row['id']): row['name'] for row in conn.execute('SELECT id,name FROM products WHERE active=1')}
+        # Die-cut stickers can be priced from finished size and quantity alone.
+        # Artwork, cut-style confirmation and finish choices remain production details.
+        remaining_reviews = []
+        for review in review_items:
+            label = (review.requested_label or catalog.get(review.product_id or -1, '')).lower()
+            product_id = review.product_id
+            if not product_id:
+                product_id = next((pid for pid, name in catalog.items() if 'die-cut sticker' in name.lower() and 'die-cut sticker' in label), None)
+            if 'die-cut sticker' in label and product_id and review.width is not None and review.height is not None:
+                items.append({'product_id': product_id, 'width': review.width, 'height': review.height,
+                              'quantity': review.quantity, 'description': review.requested_label or 'Die-cut stickers',
+                              'installation_requested': False, 'design_requested': False,
+                              'include_roof_wrap': False, 'material': '', 'lamination': '',
+                              'coverage_option': '', 'vehicle_type': ''})
+            else:
+                remaining_reviews.append(review)
+        review_items = remaining_reviews
         for line in decision.lines:
             if line.width is None or line.height is None:
                 review_items.append(ReviewItem(product_id=line.product_id, requested_label=catalog.get(line.product_id, line.description or 'Requested product'),
