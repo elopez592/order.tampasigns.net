@@ -317,6 +317,53 @@ def _price_inquiry(db, inquiry_id, job_id):
     return {'priced': True, 'job_id': job_id, 'subtotal_cents': quote['subtotal_cents'], 'line_count': len(quote['lines']), 'review_count': len(placeholders)}
 
 
+
+def _auto_convert_inquiry(db, inquiry_id):
+    """Create an unpublished quote-stage job for a confident new inquiry."""
+    with transaction(db, True) as conn:
+        inquiry = conn.execute('''SELECT i.*,c.name,c.email,c.phone FROM email_inquiries i
+            JOIN crm_contacts c ON c.id=i.contact_id WHERE i.id=?''', (inquiry_id,)).fetchone()
+        if not inquiry or inquiry['job_id'] or not inquiry['email']:
+            return None
+        workflow = conn.execute("SELECT w.* FROM workflows w JOIN products p ON p.workflow_id=w.id WHERE p.category='Custom' ORDER BY p.id LIMIT 1").fetchone()
+        if not workflow:
+            workflow = conn.execute('SELECT * FROM workflows ORDER BY id LIMIT 1').fetchone()
+        if not workflow:
+            return None
+        details = json.loads(inquiry['details'] or '{}')
+        shop = settings(conn)
+        snapshot = {'lines': [], 'subtotal_cents': 0, 'cost_cents': 0, 'review_required': True,
+                    'wholesale': None, 'minimum_order_adjustment_cents': 0, 'minimum_order_cents': 0,
+                    'meets_minimum_order': True, 'currency': 'USD',
+                    'pricing_basis': 'Automatically created from a confident email inquiry. Review and price before publishing.',
+                    'settings_snapshot': {k: shop[k] for k in ('target_margin_percent', 'overhead_percent',
+                        'labor_cost_per_hour', 'labor_sell_per_hour', 'minimum_order_price')}}
+        notes = (inquiry['summary'] + '\\n' + details.get('specifications', '') +
+                 ('\\nMissing: ' + ', '.join(details.get('missing', [])) if details.get('missing') else ''))[:5000]
+        jid = conn.execute('''INSERT INTO jobs(title,customer_name,customer_email,phone,notes,source,created_at,
+            quote_snapshot,deposit_percent,workflow_id) VALUES(?,?,?,?,?,'email',?,?,?,?)''',
+            (inquiry['title'], inquiry['name'], inquiry['email'], inquiry['phone'], notes, now(),
+             json.dumps(snapshot), str(shop['deposit_percent']), workflow['id'])).lastrowid
+        conn.execute('UPDATE jobs SET number=? WHERE id=?', (f'JOB-{jid:04d}', jid))
+        task_ids = []
+        for position, step in enumerate(json.loads(workflow['steps']), 1):
+            dependencies = [task_ids[d-1] for d in step['depends_on']]
+            tid = conn.execute('INSERT INTO tasks(job_id,position,title,department,gate,dependencies) VALUES(?,?,?,?,?,?)',
+                               (jid, position, step['title'], step['department'], step['gate'], json.dumps(dependencies))).lastrowid
+            task_ids.append(tid)
+        from .images import sanitize, save_asset
+        for attachment in conn.execute('''SELECT a.* FROM email_attachments a JOIN email_messages m
+            ON m.id=a.message_id WHERE m.inquiry_id=?''', (inquiry_id,)):
+            try:
+                raw, name, mime, suffix = sanitize((db.parent/'email-attachments'/attachment['stored_name']).read_bytes(), attachment['filename'])
+            except HTTPException:
+                continue
+            save_asset(conn, db.parent/'uploads', jid, raw, name, mime, suffix, 'artwork', 'Automatic email intake')
+        conn.execute('INSERT OR IGNORE INTO crm_contact_jobs VALUES(?,?)', (inquiry['contact_id'], jid))
+        conn.execute('UPDATE email_inquiries SET job_id=?,status='linked',updated_at=? WHERE id=?', (jid, now(), inquiry_id))
+        audit(conn, jid, 'Automatic email intake', 'email.inquiry_auto_converted', {'inquiry_id': inquiry_id})
+        return jid
+
 def _followup_draft(db, inquiry_id):
     with transaction(db, True) as conn:
         inquiry = conn.execute('''SELECT i.*,c.name,c.email FROM email_inquiries i
@@ -529,6 +576,9 @@ def check_mail(db, mailbox_factory=GmailMailbox, reviewer=review):
                             context['gmail_history'] = mailbox.history(message['thread_id'])
                             decision = reviewer(message, context, config['api_key'])
                         saved = record_message(db, message, decision)
+                        if (saved.get('inquiry_id') and saved.get('decision') == 'new_inquiry'
+                                and decision.confidence >= .75):
+                            _auto_convert_inquiry(db, saved['inquiry_id'])
                         result['reviewed'] += 1
                         result['inquiries' if saved.get('inquiry_id') else 'ignored'] += 1
                     # Move the cursor only after the message and attachments have committed.
