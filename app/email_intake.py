@@ -25,6 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .db import transaction, now, audit, settings
 from .security import email, text
+from .pricing import calculate
 
 SCHEMA = '''
 CREATE TABLE IF NOT EXISTS email_accounts (
@@ -73,6 +74,30 @@ class Decision(BaseModel):
     missing: list[str] = Field(max_length=15)
     target_inquiry_id: int | None
     target_job_id: int | None
+
+
+class PriceLine(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    product_id: int
+    width: float | None = None
+    height: float | None = None
+    quantity: int = Field(default=1, ge=1, le=100000)
+    description: str = Field(default='', max_length=800)
+    installation_requested: bool = False
+    design_requested: bool = False
+    include_roof_wrap: bool = False
+    material: str = ''
+    lamination: str = ''
+    coverage_option: str = ''
+    vehicle_type: str = ''
+
+
+class PriceDecision(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    lines: list[PriceLine] = Field(default_factory=list, max_length=12)
+    confidence: float = Field(ge=0, le=1)
+    reason: str = Field(default='', max_length=800)
+    missing: list[str] = Field(default_factory=list, max_length=15)
 
 
 PROMPT = '''You handle incoming email for a sign/print shop selling signs, stickers, wraps,
@@ -162,6 +187,89 @@ def review(message, context, api_key):
                      if item.get('type') == 'message' for p in item.get('content', [])
                      if p.get('type') == 'output_text')
     return Decision.model_validate_json(output)
+
+
+PRICE_PROMPT = '''Extract only confidently identifiable catalog-priced products from this customer inquiry.
+The catalog is authoritative for product IDs and option IDs; never invent a product ID, size, quantity,
+material, finish, vehicle type or installation choice. Use null width/height when the customer did not
+provide dimensions. Do not price custom work, wraps without a clearly supported vehicle/coverage choice,
+installation, artwork cleanup or anything requiring an owner quote. It is acceptable to return no lines.
+The result is a draft for an owner to review, never a customer-facing promise.'''
+
+
+def _catalog_for_pricing(conn):
+    rows = conn.execute('SELECT id,name,category,config FROM products WHERE active=1 ORDER BY id').fetchall()
+    catalog = []
+    for row in rows:
+        try:
+            cfg = json.loads(row['config'])
+        except (TypeError, ValueError):
+            cfg = {}
+        def options(key):
+            return [{'id': str(x.get('id', '')), 'label': str(x.get('label', ''))}
+                    for x in cfg.get(key, []) if isinstance(x, dict)]
+        catalog.append({'product_id': row['id'], 'name': row['name'], 'category': row['category'],
+                        'unit': cfg.get('unit', 'piece'), 'instant': bool(cfg.get('instant', False)),
+                        'quote_only': bool(cfg.get('quote_only', False)),
+                        'material_options': options('material_options'),
+                        'lamination_options': options('lamination_options'),
+                        'coverage_options': options('coverage_options'),
+                        'vehicle_type_options': options('vehicle_type_options')})
+    return catalog
+
+
+def _price_inquiry(db, inquiry_id, job_id):
+    '''Apply deterministic catalog pricing to an existing email-created draft.'''
+    config = load_secrets(db)
+    api_key = config.get('api_key', '')
+    if not api_key:
+        return {'priced': False, 'reason': 'AI reviewer is not connected.'}
+    with transaction(db) as conn:
+        inquiry = conn.execute('SELECT * FROM email_inquiries WHERE id=?', (inquiry_id,)).fetchone()
+        job = conn.execute('SELECT * FROM jobs WHERE id=?', (job_id,)).fetchone()
+        if not inquiry or not job:
+            return {'priced': False, 'reason': 'Inquiry or job no longer exists.'}
+        details = json.loads(inquiry['details'] or '{}')
+        messages = [dict(row) for row in conn.execute(
+            'SELECT subject,body FROM email_messages WHERE inquiry_id=? ORDER BY id', (inquiry_id,))]
+        prompt_input = {'inquiry': {'title': inquiry['title'], 'summary': inquiry['summary'],
+                                    'details': details, 'messages': messages[-8:]},
+                        'catalog': _catalog_for_pricing(conn)}
+    response = httpx.post('https://api.openai.com/v1/responses',
+        headers={'Authorization': 'Bearer ' + api_key}, json={
+            'model': 'gpt-4.1-mini', 'store': False, 'instructions': PRICE_PROMPT,
+            'input': json.dumps(prompt_input, ensure_ascii=False), 'max_output_tokens': 2200,
+            'text': {'format': {'type': 'json_schema', 'name': 'email_pricing', 'strict': True,
+                                'schema': PriceDecision.model_json_schema()}}}, timeout=65)
+    response.raise_for_status()
+    result = response.json()
+    output = ''.join(p.get('text', '') for item in result.get('output', [])
+                     if item.get('type') == 'message' for p in item.get('content', [])
+                     if p.get('type') == 'output_text')
+    decision = PriceDecision.model_validate_json(output)
+    if not decision.lines or decision.confidence < .78:
+        return {'priced': False, 'reason': decision.reason or 'No high-confidence catalog match.', 'missing': decision.missing}
+    with transaction(db, True) as conn:
+        job = conn.execute('SELECT * FROM jobs WHERE id=?', (job_id,)).fetchone()
+        items = []
+        for line in decision.lines:
+            if line.width is None or line.height is None:
+                return {'priced': False, 'reason': decision.reason or 'Dimensions are required for this catalog item.', 'missing': decision.missing}
+            item = line.model_dump(exclude_none=True)
+            item['product_id'] = int(item['product_id'])
+            items.append(item)
+        try:
+            quote = calculate(conn, items, staff=True)
+        except HTTPException as exc:
+            return {'priced': False, 'reason': str(exc.detail)}
+        quote['review_required'] = True
+        quote['pricing_basis'] = 'Catalog-priced email draft. Server rates were applied; owner review is required before publishing.'
+        version = int(job['quote_version'] or 0) + 1
+        conn.execute('UPDATE jobs SET quote_snapshot=?,quote_version=?,accepted_version=NULL,accepted_at=NULL WHERE id=?',
+                     (json.dumps(quote), version, job_id))
+        audit(conn, job_id, 'email-intake', 'email.quote_priced',
+              {'inquiry_id': inquiry_id, 'line_count': len(quote['lines']), 'subtotal_cents': quote['subtotal_cents']})
+    return {'priced': True, 'job_id': job_id, 'subtotal_cents': quote['subtotal_cents'], 'line_count': len(quote['lines'])}
 
 
 def context_for(db, message):
@@ -513,6 +621,14 @@ def install(app, require_admin, background=False):
             conn.execute('UPDATE email_inquiries SET job_id=?,status=\'linked\',updated_at=? WHERE id=?', (jid, now(), inquiry_id))
             audit(conn, jid, user['email'], 'email.inquiry_converted', {'inquiry_id': inquiry_id})
         return {'job_id': jid}
+
+    @app.post(prefix + '/inquiries/{inquiry_id}/price')
+    def price(inquiry_id: int, user=Depends(require_admin)):
+        with transaction(db) as conn:
+            row = conn.execute('SELECT job_id FROM email_inquiries WHERE id=?', (inquiry_id,)).fetchone()
+        if not row or not row['job_id']:
+            raise HTTPException(422, 'Create or link a job for this inquiry first.')
+        return _price_inquiry(db, inquiry_id, row['job_id'])
 
     if background:
         previous_lifespan = app.router.lifespan_context
