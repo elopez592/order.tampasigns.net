@@ -213,9 +213,11 @@ The catalog is authoritative for product IDs and option IDs; never invent a prod
 material, finish, vehicle type or installation choice. Use null width/height when the customer did not
 provide dimensions. Put an item in review_items when it is recognizable but missing information prevents
 pricing. Always include requested_label, quantity and concrete missing details, plus a practical suggestion
-for the customer. Do not price custom work, wraps without a clearly supported vehicle/coverage choice,
-installation, artwork cleanup or anything requiring an owner quote. It is acceptable to return no priced lines,
-but do not omit recognizable requested products from review_items.
+for the customer. For die-cut stickers, finished width, finished height and quantity are sufficient to
+calculate the catalog price; missing logo/artwork, color or design files should remain an artwork/proof
+follow-up item and must not block the price. Do not price custom work, wraps without a clearly supported
+vehicle/coverage choice, installation, artwork cleanup or anything requiring an owner quote. It is acceptable
+to return no priced lines, but do not omit recognizable requested products from review_items.
 The result is a draft for an owner to review, never a customer-facing promise.'''
 
 
