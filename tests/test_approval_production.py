@@ -53,6 +53,40 @@ def test_old_proof_cannot_be_approved_and_new_proof_invalidates_gate(env):
     assert j['proofs'][1]['decisions'][0]['file_hash']==j['proofs'][1]['sha256']
 
 
+def test_owner_records_email_approval_for_current_proof_only(env):
+    app,admin,employee=env
+    jid=create_banner(admin);finalize(admin,jid)
+    client=portal(app,admin,jid);accept(client)
+    old=proof(admin,jid);pid=proof(admin,jid)
+    body={'name':'Client Name','approved_at':'2026-11-04T10:30',
+          'email_reference':'Subject: Approved artwork; from client@example.com', 'confirm':True}
+    url=lambda proof_id:f'/api/staff/jobs/{jid}/proofs/{proof_id}/email-approval'
+    assert employee.post(url(pid),json=body).status_code==403
+    assert admin.post(url(old),json=body).status_code==409
+    assert admin.post(url(pid),json={**body,'confirm':False}).status_code==422
+    result=admin.post(url(pid),json=body)
+    assert result.status_code==200,result.text
+    assert admin.post(url(pid),json=body).status_code==409
+    job=admin.get(f'/api/staff/jobs/{jid}').json()
+    decision=job['proofs'][0]['decisions'][0]
+    assert decision['method']=='owner_recorded_email'
+    assert decision['file_hash']==job['proofs'][0]['sha256']
+    assert job['proofs'][0]['terms_acceptance'] is None
+    assert job['proofs'][0]['status']=='approved'
+    assert job['totals']['deposit_remaining_cents']>0
+    tasks=job['tasks']
+    finish(employee,tasks[0]['id'])
+    finish(employee,tasks[2]['id'])
+    assert task_action(employee,tasks[1]['id'],'start').status_code==409
+    assert payment(admin,jid,job['totals']['deposit_cents']/100).status_code==200
+    finish(employee,tasks[1]['id'])
+    assert admin.get(f'/api/staff/jobs/{jid}').json()['stage']=='ready'
+    revised=proof(admin,jid)
+    assert task_action(employee,tasks[3]['id'],'start').status_code==409
+    assert admin.post(url(revised),json=body).status_code==200
+    assert task_action(employee,tasks[3]['id'],'start').status_code==200
+
+
 def test_revision_request_requires_new_proof(env):
     app,admin,employee=env
     jid=create_banner(admin);finalize(admin,jid)
