@@ -329,6 +329,14 @@ def _followup_draft(db, inquiry_id):
             body += ''.join(f"• {item}\n" for item in missing)
         else:
             body += "• Finished sizes and quantities for each item\n• Material, finish, and color preferences\n"
+        title_lower = inquiry['title'].lower()
+        recommendations = []
+        if any(term in title_lower for term in ('sign', 'banner', 'acm', 'coroplast', 'panel', 'storefront')):
+            recommendations.append("For rigid outdoor signs, 3 mm ACM is a common durable option; vinyl graphics are another option for smooth existing surfaces.")
+        if any(term in title_lower for term in ('sticker', 'label', 'decal')):
+            recommendations.append("For stickers or labels, please let us know the finished size, quantity, cut shape, and whether you prefer gloss or matte laminate.")
+        if recommendations:
+            body += "\n" + "\n".join(recommendations) + "\n"
         body += "\nOnce we have those details and any needed logo or artwork, we’ll send the quote with our normal turnaround time.\n\nThank you,\nTampa Signs and Stickers"
         stamp = now()
         conn.execute('''INSERT INTO email_drafts(inquiry_id,recipient,subject,body,status,created_at,updated_at)
