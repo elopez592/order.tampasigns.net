@@ -86,37 +86,37 @@ class Decision(BaseModel):
 class PriceLine(BaseModel):
     model_config = ConfigDict(extra='forbid')
     product_id: int
-    width: float | None = None
-    height: float | None = None
-    quantity: int = Field(default=1, ge=1, le=100000)
-    description: str = Field(default='', max_length=800)
-    installation_requested: bool = False
-    design_requested: bool = False
-    include_roof_wrap: bool = False
-    material: str = ''
-    lamination: str = ''
-    coverage_option: str = ''
-    vehicle_type: str = ''
+    width: float | None
+    height: float | None
+    quantity: int = Field(..., ge=1, le=100000)
+    description: str = Field(..., max_length=800)
+    installation_requested: bool
+    design_requested: bool
+    include_roof_wrap: bool
+    material: str
+    lamination: str
+    coverage_option: str
+    vehicle_type: str
 
 
 class ReviewItem(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    product_id: int | None = None
-    requested_label: str = Field(default='', max_length=240)
-    width: float | None = None
-    height: float | None = None
-    quantity: int = Field(default=1, ge=1, le=100000)
-    missing: list[str] = Field(default_factory=list, max_length=15)
-    suggestion: str = Field(default='', max_length=800)
+    product_id: int | None
+    requested_label: str = Field(..., max_length=240)
+    width: float | None
+    height: float | None
+    quantity: int = Field(..., ge=1, le=100000)
+    missing: list[str] = Field(..., max_length=15)
+    suggestion: str = Field(..., max_length=800)
 
 
 class PriceDecision(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    lines: list[PriceLine] = Field(default_factory=list, max_length=12)
-    confidence: float = Field(ge=0, le=1)
-    reason: str = Field(default='', max_length=800)
-    missing: list[str] = Field(default_factory=list, max_length=15)
-    review_items: list[ReviewItem] = Field(default_factory=list, max_length=12)
+    lines: list[PriceLine] = Field(..., max_length=12)
+    confidence: float = Field(..., ge=0, le=1)
+    reason: str = Field(..., max_length=800)
+    missing: list[str] = Field(..., max_length=15)
+    review_items: list[ReviewItem] = Field(..., max_length=12)
 
 
 PROMPT = '''You handle incoming email for a sign/print shop selling signs, stickers, wraps,
