@@ -228,7 +228,7 @@ def _document_html(snapshot, status, kind, reference, order_url=None):
     {f'<p><span>Adjustments / rewards</span><strong>{money(adjustment)}</strong></p>' if adjustment else ''}
     <p><span>Delivery</span><strong>{money(m['shipping_cents'])}</strong></p><p><span>Sales tax included below</span><strong>{money(m['tax_cents'])}</strong></p>
     <p class="total"><span>Total</span><strong>{money(m['total_cents'])}</strong></p><p><span>Paid when created</span><strong>{money(m['paid_cents'])}</strong></p>
-    <p><span>Balance when created</span><strong>{money(m['balance_cents'])}</strong></p><p><span>Required deposit</span><strong>{money(m['deposit_cents'])}</strong></p></div>
+    <p><span>Balance when created</span><strong>{money(m['balance_cents'])}</strong></p><p><span>{'Full payment required' if m.get('prepayment_required') else 'Required deposit'}</span><strong>{money(m['deposit_cents'])}</strong></p></div>
     <p class="muted">{esc(snapshot['terms_notice'])} <a href="/terms">Full project terms</a></p></body></html>'''
 
 
@@ -238,7 +238,7 @@ def _document_snapshot(conn, job):
     m = totals(conn, job)
     return {'title': job['title'], 'customer_name': job['customer_name'], 'customer_email': job['customer_email'],
             'phone': job['phone'], 'quote_version': job['quote_version'], 'lines': quote['lines'],
-            'totals': {k: m[k] for k in ('merchandise_cents','shipping_cents','tax_cents','total_cents','paid_cents','balance_cents','deposit_cents')},
+            'totals': {k: m[k] for k in ('merchandise_cents','shipping_cents','tax_cents','total_cents','paid_cents','balance_cents','deposit_cents','prepayment_required')},
             'shop': {'name': shop['shop_name'], 'email': shop['contact_email'], 'phone': shop['contact_phone']},
             'panel_photos': panel_photos(conn, job), 'created_at': now(), 'terms_notice': job_terms.PROOF_REVIEW_NOTICE}
 

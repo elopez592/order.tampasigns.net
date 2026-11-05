@@ -463,7 +463,9 @@ def _auto_candidates(conn, current: datetime | None = None) -> list[dict]:
                         "title": "Ready to keep your project moving?",
                         "message": (
                             f"Hi {first_name},\n\nYour quote and proof for “{job['title']}” are approved. "
-                            "The required deposit is still open, and completing it will let us move the project into production.\n\n"
+                            + ("Full payment is required for jobs under $1,000. Your remaining balance is still open.\n\n"
+                               if financials['prepayment_required'] else
+                               "The required deposit is still open, and completing it will let us move the project into production.\n\n") +
                             "You can continue from your private project page below."
                         ),
                         "action_label": "Continue my project",

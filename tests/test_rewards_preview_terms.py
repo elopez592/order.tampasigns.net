@@ -362,9 +362,9 @@ def test_changed_sizing_requires_new_proof_but_price_only_changes_do_not(env):
     buyer = portal(app, admin, jid)
     accept(buyer)
     approve(buyer, proof(admin, jid))
-    # A zero deposit isolates the artwork gate from payment prerequisites.
+    # A larger job with a zero deposit isolates artwork from payment prerequisites.
     with transaction(app.state.database, True) as conn:
-        conn.execute("UPDATE jobs SET deposit_percent='0' WHERE id=?", (jid,))
+        conn.execute("UPDATE jobs SET price_override_cents=120000,deposit_percent='0' WHERE id=?", (jid,))
         task = {'dependencies': '[]', 'gate': 'production'}
         assert not gate_reason(conn, get_job(conn, jid), task)
         conn.execute('UPDATE jobs SET extra_price_cents=1000,quote_version=quote_version+1,'

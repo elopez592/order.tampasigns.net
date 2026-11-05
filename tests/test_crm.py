@@ -217,7 +217,7 @@ def test_automatic_proof_reminder_after_three_days(env, monkeypatch):
     assert sent[0]['action_label'] == 'Review my proof'
 
 
-def test_automatic_deposit_reminder_after_seven_days(env, monkeypatch):
+def test_automatic_full_payment_reminder_after_seven_days(env, monkeypatch):
     app, admin, employee = env
     job_id = admin.post('/api/staff/jobs', json={
         'title': 'Automatic deposit follow-up',
@@ -242,7 +242,8 @@ def test_automatic_deposit_reminder_after_seven_days(env, monkeypatch):
     assert response.json()['sent'] == 1
     assert response.json()['items'][0]['kind'] == 'payment'
     assert sent[0]['title'] == 'Ready to keep your project moving?'
-    assert 'required deposit' in sent[0]['message'].lower()
+    assert 'full payment is required' in sent[0]['message'].lower()
+    assert 'required deposit' not in sent[0]['message'].lower()
 
 
 def test_automatic_reminders_can_be_paused_per_contact(env, monkeypatch):

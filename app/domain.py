@@ -28,12 +28,16 @@ def totals(conn, job) -> dict:
     paid = conn.execute('SELECT COALESCE(SUM(amount_cents),0) FROM payments WHERE job_id=? AND voided_at IS NULL', (job['id'],)).fetchone()[0]
     paid += conn.execute('SELECT COALESCE(SUM(CASE WHEN disputed=0 THEN amount_cents-refunded_cents ELSE 0 END),0) FROM online_payments WHERE job_id=?', (job['id'],)).fetchone()[0]
     cost = quote['cost_cents'] + job['extra_cost_cents']
-    deposit = cent_round(Decimal(total) * Decimal(job['deposit_percent']) / 100)
+    # Apply centrally so saved quotes, card checkout and production gates agree.
+    prepayment_required = total < 100_000
+    deposit_percent = Decimal('100') if prepayment_required else Decimal(job['deposit_percent'])
+    deposit = cent_round(Decimal(total) * deposit_percent / 100)
     return {'merchandise_cents': merchandise, 'rewards_discount_cents': rewards_discount,
             'shipping_cents': job['shipping_cents'],
             'tax_cents': job['tax_cents'], 'total_cents': total, 'paid_cents': paid,
             'balance_cents': max(total - paid, 0), 'credit_cents': max(paid - total, 0),
             'deposit_cents': deposit, 'deposit_remaining_cents': max(deposit - paid, 0),
+            'effective_deposit_percent': str(deposit_percent), 'prepayment_required': prepayment_required,
             'cost_cents': cost, 'profit_cents': pretax - cost,
             'margin_percent': float(Decimal(pretax - cost) / pretax * 100) if pretax else 0,
             'suggested_pretax_cents': cent_round(Decimal(cost) / (1 - Decimal(quote['settings_snapshot']['target_margin_percent']) / 100))}
@@ -61,7 +65,8 @@ def gate_reason(conn, job, task) -> str:
         return 'Customer must accept the current quote.'
     financials = totals(conn, job)
     if gate in ('deposit', 'production', 'delivery') and financials['deposit_remaining_cents'] > 0:
-        return 'Required deposit has not been verified.'
+        return ('Full payment is required for jobs under $1,000.' if financials['prepayment_required']
+                else 'Required deposit has not been verified.')
     if gate in ('production', 'delivery'):
         from .artwork_approval import survey_pending
         if survey_pending(conn, job['id']):
