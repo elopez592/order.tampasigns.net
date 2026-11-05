@@ -475,6 +475,8 @@ def test_custom_quote_unlocks_deposit_or_total_after_acceptance(live_setup):
     from .conftest import create_banner, finalize
     jid=create_banner(admin)
     finalize(admin,jid)
+    with transaction(app.state.database, True) as conn:
+        conn.execute('UPDATE jobs SET price_override_cents=120000 WHERE id=?', (jid,))
     c=portal(app,admin,jid)
     before=c.get('/api/portal/job').json()
     assert not before['custom_checkout']['available']
@@ -501,6 +503,8 @@ def test_custom_stripe_deposit_then_balance(live_setup):
     from .conftest import create_banner, finalize
     jid=create_banner(admin)
     finalize(admin,jid)
+    with transaction(app.state.database, True) as conn:
+        conn.execute('UPDATE jobs SET price_override_cents=120000 WHERE id=?', (jid,))
     c=portal(app,admin,jid)
     accept(c)
     initial=c.get('/api/portal/job').json()

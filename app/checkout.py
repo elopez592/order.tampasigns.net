@@ -294,7 +294,7 @@ def custom_checkout_summary(conn, job, gateway):
     return {
         'status': status if money['balance_cents'] > 0 else 'paid',
         'available': available,
-        'can_pay_deposit': bool(available and deposit_due > 0),
+        'can_pay_deposit': bool(available and 0 < deposit_due < money['balance_cents']),
         'can_pay_total': bool(available and money['balance_cents'] > 0),
         'deposit_cents': deposit_due,
         'balance_cents': money['balance_cents'],
@@ -319,6 +319,8 @@ def start_custom_checkout(database, job_id, payment_kind, gateway, public_url):
         if job['accepted_version'] != job['quote_version']:
             raise HTTPException(409, 'Approve the current quote before paying.')
         money = totals(conn, job)
+        if money['prepayment_required']:
+            payment_kind = 'total'
         amount = money['deposit_remaining_cents'] if payment_kind == 'deposit' else money['balance_cents']
         amount = min(amount, money['balance_cents'])
         if amount <= 0:

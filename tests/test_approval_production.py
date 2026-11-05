@@ -9,6 +9,8 @@ def test_end_to_end_approval_deposit_tasks_and_final_balance(env):
     app,admin,employee=env
     jid=create_banner(admin)
     job=finalize(admin,jid)
+    with transaction(app.state.database, True) as conn:
+        conn.execute('UPDATE jobs SET price_override_cents=120000 WHERE id=?', (jid,))
     customer=portal(app,admin,jid)
     accept(customer)
     pid=proof(employee,jid)
