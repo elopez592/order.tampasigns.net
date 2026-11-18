@@ -538,6 +538,17 @@ function currentItems(){
 async function recalculate(){
   if(!$('#calculator'))return;
   const sequence=++state.calcSequence || (state.calcSequence=1);
+  // Users often clear a dimension or quantity before typing a replacement.
+  // Do not submit an incomplete form to the pricing API or show a stale quote.
+  const form=$('#calculator');
+  const invalidNumber=[...form.querySelectorAll('input[type="number"]')].some(input=>!input.checkValidity());
+  if(invalidNumber){
+    state.quote=null;state.currentQuoteItems=[];state.canBuy=false;
+    if($('#calc-feedback'))$('#calc-feedback').textContent='Enter a valid size and quantity to update your price.';
+    if($('#estimate-total'))$('#estimate-total').textContent='--';
+    if($('#continue-btn'))$('#continue-btn').disabled=true;
+    return;
+  }
   const items=currentItems();
   try{
     const q=await api('/api/calculate','POST',{items,wholesale_token:state.wholesaleToken});
