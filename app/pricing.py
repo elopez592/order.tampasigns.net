@@ -34,6 +34,27 @@ ACRYLIC_PRICE_CURVE = [
     (D('8'), D('199')),
 ]
 
+# Standard print products use only the shop-wide cart minimum. They must not
+# silently impose a second product-line minimum on top of that checkout rule.
+# Specialty fabricated signs and fixed-price services keep their own pricing.
+CART_MINIMUM_ONLY_NAMES = frozenset({
+    'die-cut stickers', 'transfer stickers', 'decals', 'usdot decals',
+    'labels', 'magnets', 'banners', 'window graphics', 'yard signs',
+    'foam boards', 'roll-up banners', 'sticker packs',
+})
+
+
+def cart_minimum_only_product(name: str, category: str = '') -> bool:
+    product = str(name or '').strip().casefold()
+    group = str(category or '').strip().casefold()
+    return product in CART_MINIMUM_ONLY_NAMES or group in ('stickers', 'labels')
+
+
+def normalize_product_minimum(name: str, category: str, cfg: dict) -> dict:
+    if not cart_minimum_only_product(name, category):
+        return cfg
+    return {**cfg, 'minimum_price': '0'}
+
 
 def usdot_design(value) -> dict:
     if value in (None, ''):
@@ -127,7 +148,7 @@ def validate_config(cfg: dict) -> dict:
         ('pack_header_5_price', '2.00', '0', '10000'),
         ('pack_packaging_price', '1.00', '0', '10000'),
         ('pack_design_price', '25.00', '0', '10000'),
-        ('minimum_price', '25', '0', '100000'), ('waste_percent', '15', '0', '200'),
+        ('minimum_price', '0', '0', '100000'), ('waste_percent', '15', '0', '200'),
         ('labor_minutes_per_unit', '0', '0', '10000'),
         ('installation_minutes_per_sqft', '0', '0', '1000'),
         ('installation_setup_minutes', '0', '0', '10000'),
@@ -638,7 +659,8 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
 
         calculated += usdot_logo_fee
         floor = 0 if cfg.get('quantity_price_table') else int((D(cost) / (1 - margin)).quantize(D('1'), rounding=ROUND_CEILING))
-        sell = max(cent_round(calculated), cents(cfg['minimum_price']), floor)
+        line_minimum = 0 if cart_minimum_only_product(row['name'], row['category']) else cents(cfg['minimum_price'])
+        sell = max(cent_round(calculated), line_minimum, floor)
         if row['name'] == 'Acrylic Signs':
             unit_price = acrylic_base_price(width, height)
             if acrylic_thickness == 'quarter':
@@ -647,7 +669,7 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
                 unit_price *= D('1.15')
             if acrylic_mounting == 'standoffs':
                 unit_price += D('25')
-            sell = max(cent_round(unit_price * D(qty) * 100), cents(cfg['minimum_price']))
+            sell = max(cent_round(unit_price * D(qty) * 100), line_minimum)
             retail_sell = sell
         if include_roof_wrap:
             sell = cent_round(D(sell) * D('1.20'))
