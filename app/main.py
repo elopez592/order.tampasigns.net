@@ -26,7 +26,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .db import initialize, transaction, settings, audit, now
 from .security import digest, password_matches, password_hash, text, email, payment_url, rate_limit
-from .pricing import calculate, public_quote, validate_config, number, cents, cent_round
+from .pricing import calculate, public_quote, validate_config, number, cents, cent_round, normalize_product_minimum
 from .domain import (get_job, totals, latest_proof, production_started, gate_reason,
                      serialize_job, create_job, validate_steps, stage, APPROVAL_STATEMENT)
 from .seed import bootstrap
@@ -1905,6 +1905,7 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
         cfg = validate_config(payload.get('config', {}))
         name = text(payload.get('name', ''), 'Product name', 120, True)
         category = text(payload.get('category', ''), 'Category', 60, True)
+        cfg = normalize_product_minimum(name, category, cfg)
         with transaction(database, True) as conn:
             workflow_id = payload.get('workflow_id')
             if not conn.execute('SELECT id FROM workflows WHERE id=?', (workflow_id,)).fetchone():
@@ -1917,6 +1918,9 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
     @app.put('/api/admin/products/{product_id}')
     def save_product(product_id: int, request: Request, payload: dict = Body(...), user=Depends(require_admin)):
         cfg = validate_config(payload.get('config', {}))
+        name = text(payload.get('name', ''), 'Name', 120, True)
+        category = text(payload.get('category', ''), 'Category', 60, True)
+        cfg = normalize_product_minimum(name, category, cfg)
         with transaction(database, True) as conn:
             product = conn.execute('SELECT * FROM products WHERE id=?', (product_id,)).fetchone()
             if not product:
@@ -1927,7 +1931,7 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
                 raise HTTPException(422, 'Choose a workflow.')
             conn.execute('''UPDATE products SET name=?,category=?,active=?,public=?,workflow_id=?,config=?,
                             version=version+1,updated_at=? WHERE id=?''',
-                         (text(payload.get('name', ''), 'Name', 120, True), text(payload.get('category', ''), 'Category', 60, True),
+                         (name, category,
                           int(payload.get('active') is True), int(payload.get('public') is True), payload['workflow_id'], json.dumps(cfg), now(), product_id))
             audit(conn, None, actor(user), 'product.updated', {'product_id': product_id, 'version': product['version'] + 1, 'previous_config': json.loads(product['config']), 'new_config': cfg})
         return {'ok': True}
