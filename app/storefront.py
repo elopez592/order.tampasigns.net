@@ -45,7 +45,7 @@ ACRYLIC_MOUNTING_OPTIONS = [
 
 
 def upgrade_catalog(database):
-    from .pricing import validate_config
+    from .pricing import validate_config, cart_minimum_only_product, normalize_product_minimum
     with transaction(database, True) as conn:
         conn.execute("UPDATE products SET category='Construction & Site Signs' WHERE category='Construction signs'")
         signs_workflow = conn.execute("SELECT id FROM workflows WHERE name='Signs and storefronts' LIMIT 1").fetchone()
@@ -409,6 +409,19 @@ def upgrade_catalog(database):
             product_workflow = signs_workflow['id'] if product_name == 'Acrylic Signs' and signs_workflow else workflow
             conn.execute('INSERT INTO products(name,category,active,public,workflow_id,config,updated_at) VALUES(?,?,1,1,?,?,?)',
                          (product_name, category, product_workflow, json.dumps(cfg), now()))
+
+
+        # Apply the shop-wide $35 cart minimum to standard print products,
+        # including saved products from earlier versions. Existing fabricated
+        # signage and fixed-price service minimums remain unchanged.
+        for row in conn.execute('SELECT id,name,category,config FROM products').fetchall():
+            if not cart_minimum_only_product(row['name'], row['category']):
+                continue
+            cfg = json.loads(row['config'])
+            updated = normalize_product_minimum(row['name'], row['category'], cfg)
+            if updated != cfg:
+                conn.execute('UPDATE products SET config=?,version=version+1,updated_at=? WHERE id=?',
+                             (json.dumps(updated), now(), row['id']))
 
 
 def garment_selection(item, qty, cfg, product_name):
