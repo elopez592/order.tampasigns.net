@@ -84,7 +84,7 @@ def steps_for(production):
     return validate_steps(base)
 
 
-def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
+def bootstrap(db_path, demo=False, admin_email=None, admin_password=None, *, primary_storefront=False):
     credentials = []
     with transaction(db_path, True) as conn:
         conn.execute('INSERT OR IGNORE INTO settings VALUES(1,?)', (json.dumps(DEFAULT_SETTINGS),))
@@ -761,6 +761,12 @@ def bootstrap(db_path, demo=False, admin_email=None, admin_password=None):
             conn.execute('INSERT INTO users(name,email,password_hash,role,created_at) VALUES(?,?,?,?,?)',
                          ('Alex - Production', 'employee@example.test', password_hash(password), 'employee', now()))
             credentials.append(('Employee', 'employee@example.test', password))
+        if primary_storefront and not merged.get('die_cut_benchmark_product_id'):
+            sticker = conn.execute("SELECT id FROM products WHERE name='Die-cut stickers' ORDER BY id LIMIT 1").fetchone()
+            if sticker:
+                conn.execute("UPDATE settings SET data=json_set(data,'$.die_cut_benchmark_product_id',?) WHERE id=1",
+                             (sticker['id'],))
+
         if demo and not conn.execute('SELECT id FROM jobs LIMIT 1').fetchone():
             job_id = create_job(conn, {'title': 'Storefront perf + acrylic face',
                 'customer_name': 'Storefront customer (sample)', 'customer_email': 'storefront@example.test',

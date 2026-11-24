@@ -5,6 +5,9 @@ order totals falling when the quantity crosses a discount threshold.
 Waste increases estimated material cost, not the customer's net square feet.
 """
 from __future__ import annotations
+from bisect import bisect_left
+from functools import lru_cache
+from pathlib import Path
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP, ROUND_CEILING
 import json
 import re
@@ -462,6 +465,26 @@ def acrylic_base_price(width: Decimal, height: Decimal) -> Decimal:
     return last_price + (area - last_area) * D('20')
 
 
+@lru_cache(maxsize=1)
+def _die_cut_benchmark():
+    table = json.loads(Path(__file__).with_name('die_cut_benchmark.json').read_text(), parse_float=D)
+    return table['areas_sq_in'], table['quantities'], table['totals_usd']
+
+
+def die_cut_benchmark_cents(width, height, quantity):
+    areas, quantities, totals = _die_cut_benchmark()
+    if quantity < quantities[0]:
+        return 0  # The comparator does not sell this quantity.
+    # Equal printed areas have equal regular USD prices in the source calculator.
+    # Round custom orders up to the next verified area and run size. Above the
+    # comparator's limits keep its largest comparable floor and our normal rate.
+    area_index = min(bisect_left(areas, width * height), len(areas) - 1)
+    qty_index = min(bisect_left(quantities, quantity), len(quantities) - 1)
+    benchmark_dollars = D(totals[area_index][qty_index])
+    floor_dollars = (benchmark_dollars * D('1.05')).to_integral_value(rounding=ROUND_CEILING)
+    return int(floor_dollars) * 100
+
+
 def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
     if not isinstance(items, list) or not 1 <= len(items) <= 30:
         raise HTTPException(422, 'A quote needs 1 to 30 product lines.')
@@ -692,6 +715,10 @@ def calculate(conn, items: list, staff=False, wholesale_client_id=None) -> dict:
                 protected_fee = sell
             discounted = protected_fee + cent_round(D(sell - protected_fee) * (D(1) - wholesale_discount / 100))
             sell = max(discounted, cost)
+        if row['id'] == shop.get('die_cut_benchmark_product_id'):
+            benchmark = die_cut_benchmark_cents(width, height, qty)
+            retail_sell = max(retail_sell, benchmark)
+            sell = max(sell, benchmark)
         if sell > 1_000_000_000:
             raise HTTPException(422, 'This project exceeds the automatic estimating limit. Split the job or request a manual quote.')
         review = (not cfg['instant'] or cfg.get('requires_installation', False) or installation_requested or (design_requested and not pack)

@@ -197,7 +197,8 @@ def create_app(data_dir=None, demo=None, platform=True) -> FastAPI:
         database.chmod(0o600)
     except OSError:
         pass
-    credentials = [] if existing_company else bootstrap(database, demo=demo if demo is not None else getenv('DEMO_SEED', '0') == '1')
+    credentials = [] if existing_company else bootstrap(
+        database, demo=demo if demo is not None else getenv('DEMO_SEED', '0') == '1', primary_storefront=platform)
     from .storefront import upgrade_catalog
     if not existing_company:
         upgrade_catalog(database)
