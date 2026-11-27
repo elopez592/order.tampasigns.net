@@ -1160,12 +1160,20 @@ document.addEventListener('pointercancel',finishUsdotTransform);
 window.addEventListener('hashchange',()=>route().catch(e=>toast(e.message,true)));
 window.addEventListener('popstate',()=>route().catch(e=>toast(e.message,true)));
 async function boot(){
+  const publicFallback=app.querySelector('main.seo-home, main.seo-catalog, main.seo-product');
   try{let s=await api('/api/session');state.csrf=s.csrf;
    if(location.pathname==='/staff'&&location.hash.startsWith('#support=')){
     const token=new URLSearchParams(location.hash.slice(1)).get('support');history.replaceState(null,'','/staff');
     const result=await api('/api/auth/platform-support','POST',{token});state.csrf=result.csrf;s=await api('/api/session');
    }
    state.user=s.user;if(s.user)window.TampaAnalytics?.excludeStaff();state.catalog=await api('/api/catalog');const customer=await api('/api/customer');state.customer=customer.customer;await route();}
-  catch(error){app.innerHTML=`<div class="initial-loading"><h1>Unable to open the workspace</h1><p class="muted">${esc(error.message)}</p><a class="btn primary" href="/">Try again</a></div>`;}
+  catch(error){
+    if(publicFallback){
+      // Keep the server-rendered storefront available when startup requests fail.
+      app.replaceChildren(publicFallback);
+      return;
+    }
+    app.innerHTML=`<div class="initial-loading"><h1>Unable to open the workspace</h1><p class="muted">${esc(error.message)}</p><a class="btn primary" href="/">Try again</a></div>`;
+  }
 }
 boot();
